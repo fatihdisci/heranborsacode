@@ -128,7 +128,7 @@ function render(item) {
 
   const isBreaker = item.type === "kap" && /devre kesici/i.test(item.title) && item.body;
   if (isBreaker) {
-    const text = `${symbols.map(symbol => `#${symbol}`).join(" ")}\n\n${item.body}\n\n🔗 KAP:\n${item.url}`;
+    const text = `${symbols.map(symbol => `#${symbol}`).join(" ")}\n\nDevre kesici uygulandı. Sürekli işleme ara verildi.`;
     tweet.innerHTML = "<span>✓</span> Tweeti kopyala";
     tweet.onclick = () => copy(text);
   } else {

@@ -35,7 +35,9 @@ export function extractReadableContent(html: string): string {
     .replace(/<noscript\b[^>]*>[\s\S]*?<\/noscript>/gi, " ")
     .replace(/<svg\b[^>]*>[\s\S]*?<\/svg>/gi, " ");
   parts.push(stripHtml(withoutNoise));
-  return [...new Set(parts.map(part => decodeEntities(part).replace(/\s+/g, " ").trim()).filter(Boolean))].join("\n\n").slice(0, 100_000);
+  const text = [...new Set(parts.map(part => decodeEntities(part).replace(/\s+/g, " ").trim()).filter(Boolean))].join("\n\n");
+  if (text.length>100_000) throw new Error('Kaynak güvenli içerik boyutunu aşıyor; sessizce kesilmedi');
+  return text;
 }
 
 export function extractAttachments(html: string, baseUrl: string): SourceAttachment[] {

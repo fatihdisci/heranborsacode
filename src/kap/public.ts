@@ -1,6 +1,6 @@
 import type { Env } from "../types";
-import { insertFeed } from "../db/feed";
-import { sendMessage } from "../telegram/client";
+import { feedStatement } from "../db/feed";
+import { enqueueStatement } from "../telegram/outbox";
 import { fetchWithTimeout } from "../utils/http";
 import { escapeTelegramHtml, sha256 } from "../utils/text";
 import { BIST50 } from "./bist50";
@@ -97,13 +97,13 @@ function isCircuitBreaker(item: PublicDisclosure): boolean {
 
 export function circuitBreakerBody(item: PublicDisclosure): string | null {
   if (!isCircuitBreaker(item)) return null;
-  return "Hissede devre kesici uygulandı. Sürekli işleme ara verildi.";
+  return "Devre kesici uygulandı. Sürekli işleme ara verildi.";
 }
 
 export function circuitBreakerMessage(items: PublicDisclosure[]): string | null {
   const codes = [...new Set(items.filter(isCircuitBreaker).flatMap(item => item.codes))];
   if (!codes.length) return null;
-  return `${codes.map(code => `#${code}`).join(" ")}\n\nHissede devre kesici uygulandı. Sürekli işleme ara verildi.`;
+  return `${codes.map(code => `#${code}`).join(" ")}\n\nDevre kesici uygulandı. Sürekli işleme ara verildi.`;
 }
 
 export function isImportantPublicDisclosure(item: PublicDisclosure): boolean {
@@ -131,48 +131,22 @@ async function getDisclosure(id: number): Promise<PublicDisclosure | null> {
 
 async function store(env: Env, item: PublicDisclosure, silent: boolean): Promise<void> {
   if (!isImportantPublicDisclosure(item)) return;
-  const write = await env.DB.prepare("INSERT OR IGNORE INTO kap_disclosures(disclosure_id,company,ticker,title,disclosure_type,published_at,url,metadata_json,content_hash,telegram_status) VALUES (?,?,?,?,?,?,?,?,?,?)")
-    .bind(String(item.id), item.company, item.codes[0] ?? null, item.title, item.disclosureType || item.disclosureClass, item.publishedAt, item.url, JSON.stringify(item), await sha256(`kap:${item.id}`), silent ? "baseline" : "pending").run();
-  if (!write.meta.changes) return;
+  const known = await env.DB.prepare("SELECT disclosure_id FROM kap_disclosures WHERE disclosure_id=?").bind(String(item.id)).first();
+  if (known) return;
   const breakerBody = circuitBreakerBody(item);
-  await insertFeed(env, { type: "kap", source: "KAP", source_ref: `kap:${item.id}`, title: item.title, body: breakerBody ?? item.company, url: item.url, tickers_json: JSON.stringify(item.codes), published_at: item.publishedAt });
-  // Circuit breakers are delivered together after this scan catches the live
-  // edge. Their deterministic copy-ready text never calls the AI endpoint.
-  if (silent || breakerBody) return;
-  try {
-    const heading = item.codes[0] ? `#${escapeTelegramHtml(item.codes[0])}` : "🏦 <b>KAP · Fon/Portföy</b>";
-    const message = `${heading}\nKAP bildirimi\n\n${escapeTelegramHtml(item.title)}${item.company ? `\n${escapeTelegramHtml(item.company)}` : ""}`;
-    await sendMessage(env, message, { text: "🔗 KAP'ta Aç", url: item.url });
-    await env.DB.prepare("UPDATE kap_disclosures SET telegram_status='sent',telegram_sent_at=CURRENT_TIMESTAMP WHERE disclosure_id=?").bind(String(item.id)).run();
-  } catch (error) {
-    console.warn("public KAP telegram delivery failed", { id: item.id, error: error instanceof Error ? error.message : String(error) });
-  }
-}
-
-async function deliverPendingCircuitBreakers(env: Env): Promise<void> {
-  const pending = await env.DB.prepare(`SELECT metadata_json
-    FROM kap_disclosures
-    WHERE telegram_status='pending'
-      AND title LIKE '%Devre Kesici%'
-      AND datetime(published_at) >= datetime('now', '-1 day')
-    ORDER BY CAST(disclosure_id AS INTEGER) ASC`).all<{ metadata_json: string | null }>();
-  const items = (pending.results ?? []).flatMap(row => {
-    if (!row.metadata_json) return [];
-    try { return [JSON.parse(row.metadata_json) as PublicDisclosure]; }
-    catch { return []; }
-  });
-  const message = circuitBreakerMessage(items);
-  if (!message) return;
-  try {
-    await sendMessage(env, escapeTelegramHtml(message));
-    await env.DB.prepare(`UPDATE kap_disclosures
-      SET telegram_status='sent', telegram_sent_at=CURRENT_TIMESTAMP
-      WHERE telegram_status='pending'
-        AND title LIKE '%Devre Kesici%'
-        AND datetime(published_at) >= datetime('now', '-1 day')`).run();
-  } catch (error) {
-    console.warn("public KAP circuit-breaker delivery failed", { count: items.length, error: error instanceof Error ? error.message : String(error) });
-  }
+  const firstSeen = new Date().toISOString();
+  const ref = `kap:${item.id}`;
+  const heading = item.codes[0] ? `#${escapeTelegramHtml(item.codes[0])}` : "🏦 <b>KAP · Fon/Portföy</b>";
+  const message = `${heading}\nKAP bildirimi\n\n${escapeTelegramHtml(item.title)}${item.company ? `\n${escapeTelegramHtml(item.company)}` : ""}`;
+  const statements = [
+    env.DB.prepare("INSERT OR IGNORE INTO kap_disclosures(disclosure_id,company,ticker,title,disclosure_type,published_at,url,metadata_json,content_hash,telegram_status,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)")
+      .bind(String(item.id), item.company, item.codes[0] ?? null, item.title, item.disclosureType || item.disclosureClass, item.publishedAt, item.url, JSON.stringify(item), await sha256(ref), silent ? "baseline" : "pending", firstSeen),
+    feedStatement(env, { type: "kap", source: "KAP", source_ref: ref, title: item.title, body: breakerBody ?? item.company, url: item.url, tickers_json: JSON.stringify(item.codes), published_at: item.publishedAt }),
+  ];
+  if (!silent) statements.push(enqueueStatement(env, ref, breakerBody && item.codes.length ? 'dkb' : 'message',
+    breakerBody && item.codes.length ? { codes: item.codes } : { text: message, button: { text: "🔗 KAP'ta Aç", url: item.url } }, item.publishedAt, firstSeen));
+  // Atomically persist source, feed and delivery before advancing the cursor.
+  await env.DB.batch(statements);
 }
 
 async function getState(env: Env, key: string): Promise<number | null> {
@@ -201,9 +175,7 @@ async function scan(env: Env, key: string, start: number, ceiling: number | null
 }
 
 export async function pollPublicKAPLive(env: Env): Promise<PublicKapScanResult> {
-  const result = await scan(env, LIVE_CURSOR_KEY, LATEST_KNOWN_ID, null, false, LIVE_BATCH_SIZE);
-  if (result.reachedEdge) await deliverPendingCircuitBreakers(env);
-  return result;
+  return scan(env, LIVE_CURSOR_KEY, LATEST_KNOWN_ID, null, false, LIVE_BATCH_SIZE);
 }
 
 export async function pollPublicKAPBackfill(env: Env): Promise<void> {

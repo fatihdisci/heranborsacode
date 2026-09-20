@@ -37,13 +37,21 @@ wrangler secret put MKK_API_SECRET
 
 RSS kaynak listesi `src/rss/sources.ts` içindedir; erişilebilirliği doğrulanmadan yeni feed eklemeyin. Akış filtresi ve ticker sözlüğü deterministiktir; AI yalnız kullanıcı tweet taslağı istediğinde devreye girer.
 
-KAP akışı şirket, fon/portföy yönetimi ve piyasa açısından anlamlı bildirimleri kapsar. Pay alım/satım bildirimleri `src/kap/bist50.ts` içindeki güncellenebilir BIST 50 setiyle sınırlandırılır. Aynı yakalama döngüsünde biriken devre kesiciler tek mesajda `#KOD #KOD2` biçiminde gruplanır; sabit, doğrudan kopyalanabilir metin kullanılır ve AI çağrısı yapılmaz.
+KAP akışı şirket, fon/portföy yönetimi ve piyasa açısından anlamlı bildirimleri kapsar. Pay alım/satım bildirimleri `src/kap/bist50.ts` içindeki güncellenebilir BIST 50 setiyle sınırlandırılır. DKB grubu ilk kaydın görülmesinden 12 saniye sonra kapanır; taramanın güncel sınıra ulaşmasını beklemez. Gruplar Telegram boyut sınırı için en fazla 100 kayıt içerir. Metin `#KOD #KOD2` ardından `Devre kesici uygulandı. Sürekli işleme ara verildi.` biçimindedir; AI kullanılmaz. Haberlerde başlık benzerliği tek başına eleme nedeni değildir; aynı başlık ve özet tekilleştirilirken yeni sayı/karar/özet veya aynı URL'deki revizyon ayrı kayıt olarak korunur.
 
 ## Telegram ve Mini App
 
 BotFather'da **Menu Button / Web App URL** olarak deploy sonrası Worker URL'sini girin (ör. `https://heranborsa.<subdomain>.workers.dev`). Uygulamanın salt-okunur akışı normal tarayıcıda da çalışır. AI tweet endpoint'i yalnız Telegram Mini App'in imzalı `initData` verisi doğrulandıktan ve kullanıcı adı allowlist'i eşleştikten sonra çağrılabilir.
 
-Telegram gönderimleri merkezî `src/telegram/client.ts` modülündedir; HTML escape, retry/backoff ve hata izolasyonu içerir. Bir üçüncü taraf Telegram çağrısında gerçek anlamda atomik/exactly-once teslimat mümkün olmadığından, D1 benzersiz kimlikleri tekrar üretimi engeller; belirsiz teslimat senaryoları operasyonel olarak incelenmelidir.
+Kaynak, akış ve `telegram_outbox` aynı D1 transaction'ında kaydedilir. Bağımsız `telegram` alarmı boşken 3 saniyede bir kontrol eder; doluyken özel sohbete en az 1,1 saniye arayla tek mesaj yollar (gruplarda 3,1 saniye). SPK PDF'si açıklamasıyla tek gönderidir. Telegram 429 yanıtındaki `retry_after` tüm kuyruğa uygulanır; ağ/5xx hatalarında 5 saniyeden 5 dakikaya kadar artan bekleme vardır. Kalıcı 400/401/403/404 hataları `blocked` olarak görünür, diğer mesajları durdurmaz. Alarm çakışmaları için 90 saniyelik kalıcı sahiplenme kullanılır.
+
+DKB grubunun üyeleri gönderimden önce sabitlenir; sonraki kayıtlar yanlışlıkla gönderildi sayılmaz. Bir üçüncü taraf Telegram çağrısında gerçek anlamda atomik/exactly-once teslimat mümkün değildir: Telegram kabulünden hemen sonra bağlantı ya da D1 yazımı koparsa tekrar denemede mükerrer mesaj olabilir. `message_id`, deneme sayısı ve hata kaydı bunu incelemeyi sağlar.
+
+`monitor` dakikada bir denetler: üç ardışık kaynak hatası, zamanlanmış çalışmadan üç dakika sapma, 100'den fazla bekleyen mesaj, üç dakikadan uzun bekleme veya kalıcı gönderim hatası bir uyarı üretir. Sorun devam ederken sessiz kalır; düzelince tek iyileşme mesajı yollar. Haber çıkmaması hata değildir. Telegram veya tüm Cloudflare hizmeti kesilirse aynı kanaldan anlık uyarı garanti edilemez; durum `/health` üzerinden de görülebilir.
+
+`/health.operations` son kuyruk durumunu ve son 500 teslimatın gecikmesini verir. İmzalı Mini App oturumuyla `/api/delivery?sourceRef=kap:...` kayıt bazında `published_at`, `first_seen_at`, `sent_at` ve Telegram mesaj kimliğini döndürür. İlk görülme RSS'e gerçek eklenme zamanı değildir; gönderim zamanı Telegram API kabulüdür, cihazda okunma zamanı değildir. SPK yayın tarihleri saat içermediği için yayın-ilk görülme farkı yaklaşık kabul edilmelidir.
+
+AI promptu `src/ai/prompt.ts` içinde sürümlenir. GPT-5.6 Luna yalnız kullanıcı butona bastığında çalışır; aynı kaydın doğrulanmış taslağı önbellekten sunulur. Model gövdeyi yazar; doğrulanmış hashtagler ve kaynak URL uygulama tarafından eklenir. Tamamlanmamış model cevabı veya boyut sınırını aşan kaynak sessizce kesilerek kullanılmaz. Yeni sürüm ilk taslak isteğinde eski prompt önbelleğini yeniler.
 
 ## Kontrol
 

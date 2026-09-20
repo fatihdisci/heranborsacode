@@ -1,9 +1,13 @@
 import type { Env, FeedItem, FeedType } from "../types";
 
 export async function insertFeed(env: Env, item: Omit<FeedItem, "id" | "created_at">): Promise<void> {
-  await env.DB.prepare(`INSERT OR IGNORE INTO feed_items(type, source, source_ref, title, body, url, tickers_json, published_at)
+  await feedStatement(env, item).run();
+}
+
+export function feedStatement(env: Env, item: Omit<FeedItem, "id" | "created_at">): D1PreparedStatement {
+  return env.DB.prepare(`INSERT OR IGNORE INTO feed_items(type, source, source_ref, title, body, url, tickers_json, published_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
-    .bind(item.type, item.source, item.source_ref, item.title, item.body, item.url, item.tickers_json, item.published_at).run();
+    .bind(item.type, item.source, item.source_ref, item.title, item.body, item.url, item.tickers_json, item.published_at);
 }
 
 export interface FeedCursor { time: string; id: number; }

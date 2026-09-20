@@ -17,7 +17,7 @@ describe("parsePublicKapPage", () => {
     const html = String.raw`<script>"disclosureBasic":{\"title\":\"Pay Bazında Devre Kesici Bildirimi\",\"companyTitle\":\"BORSA İSTANBUL BISTECH DEVRE KESİCİ UYGULAMASI\",\"stockCode\":null,\"relatedStocks\":\"EKIM\",\"disclosureClass\":\"DUY\",\"disclosureType\":\"DUY\",\"publishDate\":\"2026.09.18 12:33:00\",\"disclosureIndex\":1665207,\"summary\":\"EKIM.E işlem sırasında Pay Bazında Devre Kesici Uygulaması devreye girmiştir\"},"disclosureDetail"</script><p>Emir toplama bölümünü takiben yapılacak eşleştirme sonrasında işlemlere 12:44:59 itibarıyla devam edilecektir.</p>`;
     const item = parsePublicKapPage(html, 1665207);
     expect(item).toMatchObject({ codes: ["EKIM"], resumeAt: "12:44:59" });
-    expect(item && circuitBreakerBody(item)).toBe("Hissede devre kesici uygulandı. Sürekli işleme ara verildi.");
+    expect(item && circuitBreakerBody(item)).toBe("Devre kesici uygulandı. Sürekli işleme ara verildi.");
   });
 
   it("combines every DKB symbol from the same catch-up cycle", () => {
@@ -29,7 +29,7 @@ describe("parsePublicKapPage", () => {
     expect(circuitBreakerMessage([
       { ...base, codes: ["THYAO"] },
       { ...base, id: 2, codes: ["ASELS", "THYAO"] },
-    ])).toBe("#THYAO #ASELS\n\nHissede devre kesici uygulandı. Sürekli işleme ara verildi.");
+    ])).toBe("#THYAO #ASELS\n\nDevre kesici uygulandı. Sürekli işleme ara verildi.");
   });
 
   it("keeps fund and portfolio disclosures even without an equity ticker", () => {

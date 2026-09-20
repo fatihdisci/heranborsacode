@@ -1,6 +1,6 @@
 import type { Env } from "../types";
-import { insertFeed } from "../db/feed";
-import { sendDocument, sendMessage } from "../telegram/client";
+import { feedStatement, insertFeed } from "../db/feed";
+import { enqueueStatement } from "../telegram/outbox";
 import { fetchWithTimeout } from "../utils/http";
 import { decodeEntities, escapeTelegramHtml } from "../utils/text";
 import { getState, setState } from "../db/state";
@@ -78,14 +78,13 @@ export async function pollSPK(env: Env): Promise<void> {
   for (const bulletin of bulletins) {
     const known = await env.DB.prepare("SELECT bulletin_number FROM spk_bulletins WHERE bulletin_number = ?").bind(bulletin.number).first();
     if (known) continue;
-    await env.DB.prepare("INSERT INTO spk_bulletins(bulletin_number, bulletin_date, pdf_url, telegram_status) VALUES (?, ?, ?, 'pending')").bind(bulletin.number, bulletin.date, bulletin.pdfUrl).run();
-    await insertFeed(env, { type: "spk", source: "SPK", source_ref: `spk:${bulletin.number}`, title: `SPK Bülteni: ${bulletin.number}`, body: bulletin.date ? `Tarih: ${bulletin.date}` : null, url: bulletin.pdfUrl, tickers_json: "[]", published_at: bulletinPublishedAt(bulletin.date) });
-    try {
-      await sendMessage(env, `📄 <b>Yeni SPK Bülteni yayımlandı</b>\n\nSPK Bülteni: <b>${escapeTelegramHtml(bulletin.number)}</b>${bulletin.date ? `\nTarih: ${escapeTelegramHtml(bulletin.date)}` : ""}`);
-      await sendDocument(env, bulletin.pdfUrl, `SPK-Bulteni-${bulletin.number.replace("/", "-")}.pdf`);
-      await env.DB.prepare("UPDATE spk_bulletins SET telegram_status = 'sent', telegram_sent_at = CURRENT_TIMESTAMP WHERE bulletin_number = ?").bind(bulletin.number).run();
-    } catch (error) {
-      console.warn("SPK telegram delivery failed", { bulletin: bulletin.number, error: error instanceof Error ? error.message : String(error) });
-    }
+    const ref = `spk:${bulletin.number}`;
+    const publishedAt = bulletinPublishedAt(bulletin.date);
+    const seen = new Date().toISOString();
+    await env.DB.batch([
+      env.DB.prepare("INSERT OR IGNORE INTO spk_bulletins(bulletin_number,bulletin_date,pdf_url,telegram_status,first_seen_at) VALUES (?,?,?,'pending',?)").bind(bulletin.number,bulletin.date,bulletin.pdfUrl,seen),
+      feedStatement(env,{type:"spk",source:"SPK",source_ref:ref,title:`SPK Bülteni: ${bulletin.number}`,body:bulletin.date ? `Tarih: ${bulletin.date}` : null,url:bulletin.pdfUrl,tickers_json:"[]",published_at:publishedAt}),
+      enqueueStatement(env,ref,"document",{document:{url:bulletin.pdfUrl,filename:`Yeni SPK Bülteni: ${bulletin.number}${bulletin.date ? " · "+bulletin.date : ""}`}},publishedAt,seen),
+    ]);
   }
 }
