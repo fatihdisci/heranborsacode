@@ -7,7 +7,8 @@ import type { Env } from "./types";
 async function runScheduled(env: Env): Promise<void> {
   const jobs: Array<Promise<unknown>> = [pollPublicKAP(env), pollRSS(env)];
   const spkHistory = await env.DB.prepare("SELECT value FROM system_state WHERE key='spk_history_initialized'").first();
-  if (new Date().getUTCMinutes() === 0 || !spkHistory) jobs.push(pollSPK(env));
+  const spkDates = await env.DB.prepare("SELECT value FROM system_state WHERE key='spk_history_dates_v2'").first();
+  if (new Date().getUTCMinutes() === 0 || !spkHistory || !spkDates) jobs.push(pollSPK(env));
   const outcomes = await Promise.allSettled(jobs);
   for (const outcome of outcomes) if (outcome.status === "rejected") console.error("scheduled job failed", outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason));
 }
