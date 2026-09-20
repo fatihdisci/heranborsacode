@@ -8,7 +8,7 @@ describe("source parsers", () => {
     expect(parseRss("<rss><channel><item><title><![CDATA[Test &amp; Başlık]]></title><description>Özet metni</description><link>https://example.com/a?utm_source=x</link><pubDate>Tue, 01 Sep 2026 10:00:00 GMT</pubDate></item></channel></rss>")).toEqual([{ title: "Test & Başlık", description: "Özet metni", url: "https://example.com/a?utm_source=x", publishedAt: "2026-09-01T10:00:00.000Z" }]);
   });
   it("recognizes SPK bulletin PDF links", () => {
-    const parsed = parseBulletins('<p>SPK Bülteni 2026/62 - 18.09.2026 <a href="/files/62.pdf">PDF</a></p>', "https://spk.gov.tr/list");
+    const parsed = parseBulletins('<a href="/files/62.pdf"><div>Bülten No : 2026/62</div><div>Yayımlanma : 18 Eylül 2026 Cuma</div></a>', "https://spk.gov.tr/list");
     expect(parsed).toEqual([{ number: "2026/62", date: "18.09.2026", pdfUrl: "https://spk.gov.tr/files/62.pdf" }]);
   });
   it("normalizes KAP Data Dissemination list responses", () => {
