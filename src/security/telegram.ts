@@ -28,7 +28,6 @@ export async function authorizeTelegramRequest(request: Request, env: Env): Prom
   const authDate = Number(params.get("auth_date"));
   if (!receivedHash || !Number.isFinite(authDate) || Math.abs(Date.now() / 1000 - authDate) > 24 * 60 * 60) return false;
   params.delete("hash");
-  params.delete("signature");
   const checkString = [...params.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([key, value]) => `${key}=${value}`).join("\n");
   const secret = await hmac("WebAppData", env.TELEGRAM_BOT_TOKEN);
   const expectedHash = hex(await hmac(secret, checkString));
