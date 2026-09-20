@@ -22,6 +22,24 @@ function publishedWithin24Hours(value: string | null): boolean {
   return Number.isNaN(time) || time >= Date.now() - 24 * 60 * 60 * 1000;
 }
 
+async function deliverPending(env: Env): Promise<void> {
+  const pending = await env.DB.prepare(`SELECT r.content_hash, r.source, r.title, r.url, r.tickers_json, f.body
+    FROM rss_items r JOIN feed_items f ON f.source_ref = 'rss:' || r.content_hash
+    WHERE r.telegram_status = 'pending' AND datetime(r.published_at) >= datetime('now', '-1 day')
+    ORDER BY r.published_at ASC LIMIT 20`).all<{ content_hash: string; source: string; title: string; url: string; tickers_json: string | null; body: string | null }>();
+  for (const item of pending.results ?? []) {
+    const tickers = JSON.parse(item.tickers_json ?? "[]") as string[];
+    const hashtagLine = tickers.length ? `${tickers.map(ticker => `#${ticker}`).join(" ")}\n` : "";
+    const summary = item.body?.replace(/\s+/g, " ").trim().slice(0, 700);
+    try {
+      await sendMessage(env, `${hashtagLine}📰 <b>${escapeTelegramHtml(item.source)}</b>\n\n<b>${escapeTelegramHtml(item.title)}</b>${summary ? `\n\n${escapeTelegramHtml(summary)}` : ""}`, { text: "🔗 Haberi Aç", url: item.url });
+      await env.DB.prepare("UPDATE rss_items SET telegram_status='sent',telegram_sent_at=CURRENT_TIMESTAMP WHERE content_hash=?").bind(item.content_hash).run();
+    } catch (error) {
+      console.warn("rss pending Telegram delivery failed", { source: item.source, error: error instanceof Error ? error.message : String(error) });
+    }
+  }
+}
+
 async function pollSource(env: Env, source: { name: string; url: string }, silentBootstrap: boolean): Promise<number> {
   const state = await env.DB.prepare("SELECT etag, last_modified FROM feed_sources WHERE url = ?").bind(source.url).first<{ etag: string | null; last_modified: string | null }>();
   const headers = new Headers({ "user-agent": "HeranBorsa/0.1 (+Cloudflare Worker)", accept: "application/rss+xml, application/xml, text/xml" });
@@ -79,4 +97,5 @@ export async function pollRSS(env: Env): Promise<void> {
     }
   }));
   if (silentBootstrap) await env.DB.prepare("INSERT OR IGNORE INTO system_state(key, value) VALUES ('rss_wide_baseline_initialized', '1')").run();
+  else await deliverPending(env);
 }
