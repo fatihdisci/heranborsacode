@@ -7,9 +7,11 @@ import { findTickers, isRelevantNews, isTurkishNews } from "./filter";
 import { parseRss } from "./parser";
 import { RSS_SOURCES } from "./sources";
 
-function similarTitle(a: string, b: string): boolean {
-  const words = (value: string) => new Set(normalizeTitle(value).split(/[^\p{L}\p{N}]+/u).filter(word => word.length > 2));
-  const left = words(a), right = words(b);
+function titleWords(value: string): Set<string> {
+  return new Set(normalizeTitle(value).split(/[^\p{L}\p{N}]+/u).filter(word => word.length > 2));
+}
+
+function similarTitleWords(left: Set<string>, right: Set<string>): boolean {
   if (left.size < 4 || right.size < 4) return false;
   let shared = 0;
   for (const word of left) if (right.has(word)) shared++;
@@ -22,13 +24,14 @@ function publishedWithin24Hours(value: string | null): boolean {
   return Number.isNaN(time) || time >= Date.now() - 24 * 60 * 60 * 1000;
 }
 
-async function deliverPending(env: Env, hash: string | null = null): Promise<void> {
+async function deliverPending(env: Env, hash: string | null = null, source: string | null = null): Promise<void> {
   const pending = await env.DB.prepare(`SELECT r.content_hash, r.source, r.title, r.url, r.tickers_json, f.body
     FROM rss_items r JOIN feed_items f ON f.source_ref = 'rss:' || r.content_hash
     WHERE r.telegram_status = 'pending'
       AND datetime(COALESCE(r.published_at,r.fetched_at)) >= datetime('now', '-1 day')
       AND (? IS NULL OR r.content_hash = ?)
-    ORDER BY datetime(r.published_at) DESC, r.id DESC`).bind(hash, hash).all<{ content_hash: string; source: string; title: string; url: string; tickers_json: string | null; body: string | null }>();
+      AND (? IS NULL OR r.source = ?)
+    ORDER BY datetime(r.published_at) DESC, r.id DESC`).bind(hash, hash, source, source).all<{ content_hash: string; source: string; title: string; url: string; tickers_json: string | null; body: string | null }>();
   for (const item of pending.results ?? []) {
     const tickers = JSON.parse(item.tickers_json ?? "[]") as string[];
     const hashtagLine = tickers.length ? `${tickers.map(ticker => `#${ticker}`).join(" ")}\n` : "";
@@ -42,9 +45,9 @@ async function deliverPending(env: Env, hash: string | null = null): Promise<voi
   }
 }
 
-async function pollSource(env: Env, source: { name: string; url: string }, silentBootstrap: boolean): Promise<number> {
+async function pollSource(env: Env, source: { name: string; url: string }): Promise<number> {
   const sourceInitialized = await env.DB.prepare("SELECT value FROM system_state WHERE key = ?").bind(`rss_baseline:${source.url}`).first();
-  const initialSeed = !sourceInitialized || silentBootstrap;
+  const initialSeed = !sourceInitialized;
   const headers = new Headers({ "user-agent": "HeranBorsa/0.1 (+Cloudflare Worker)", accept: "application/rss+xml, application/xml, text/xml", "cache-control": "no-cache", pragma: "no-cache" });
   // Read the full feed every minute, bypassing Worker cache and potentially
   // stale publisher validators. Item IDs provide our deduplication.
@@ -63,18 +66,23 @@ async function pollSource(env: Env, source: { name: string; url: string }, silen
     isRelevantNews(item.title, item.description ?? "")
   );
   let inserted = 0;
+  // Read the comparison window once per source. Previously this query ran for
+  // every item in every feed and was the largest avoidable part of cron CPU.
+  const recent = await env.DB.prepare("SELECT title FROM rss_items WHERE published_at >= datetime('now', '-1 day') LIMIT 250").all<{ title: string }>();
+  const recentWordSets = (recent.results ?? []).map(row => titleWords(row.title));
   for (const item of items) {
     const normalizedUrl = normalizeUrl(item.url);
     // URL is the first dedupe key (unique normalized_url); the title hash is
     // deliberately independent of publisher URL to collapse syndicated copies.
     const hash = await sha256(normalizeTitle(item.title));
     const tickers = findTickers(item.title, item.description ?? "");
-    const recent = await env.DB.prepare("SELECT title FROM rss_items WHERE published_at >= datetime('now', '-1 day') LIMIT 250").all<{ title: string }>();
-    if ((recent.results ?? []).some(row => similarTitle(item.title, row.title))) continue;
+    const itemWordSet = titleWords(item.title);
+    if (recentWordSets.some(words => similarTitleWords(itemWordSet, words))) continue;
     const write = await env.DB.prepare(`INSERT OR IGNORE INTO rss_items(source, title, url, normalized_url, published_at, fetched_at, content_hash, tickers_json, telegram_status)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(source.name, item.title, item.url, normalizedUrl, item.publishedAt, nowIso(), hash, JSON.stringify(tickers), initialSeed ? "baseline" : "pending").run();
     if (!write.meta.changes) continue;
     inserted++;
+    recentWordSets.push(itemWordSet);
     const summary = item.description?.replace(/\s+/g, " ").trim().slice(0, 700) || null;
     await insertFeed(env, { type: "news", source: source.name, source_ref: `rss:${hash}`, title: item.title, body: summary, url: item.url, tickers_json: JSON.stringify(tickers), published_at: item.publishedAt });
     if (!initialSeed) await deliverPending(env, hash);
@@ -86,15 +94,18 @@ async function pollSource(env: Env, source: { name: string; url: string }, silen
   return inserted;
 }
 
+export async function pollRSSSource(env: Env, source: { name: string; url: string }): Promise<void> {
+  try {
+    await pollSource(env, source);
+    await deliverPending(env, null, source.name);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn("rss source failed", { source: source.name, error: message });
+    await env.DB.prepare(`INSERT INTO feed_sources(url, name, last_error) VALUES (?, ?, ?) ON CONFLICT(url) DO UPDATE SET last_error = excluded.last_error`).bind(source.url, source.name, message.slice(0, 400)).run();
+    throw error;
+  }
+}
+
 export async function pollRSS(env: Env): Promise<void> {
-  const silentBootstrap = !await env.DB.prepare("SELECT value FROM system_state WHERE key='rss_wide_baseline_initialized'").first();
-  await Promise.allSettled(RSS_SOURCES.map(async source => {
-    try { await pollSource(env, source, silentBootstrap); }
-    catch (error) {
-      console.warn("rss source failed", { source: source.name, error: error instanceof Error ? error.message : String(error) });
-      await env.DB.prepare(`INSERT INTO feed_sources(url, name, last_error) VALUES (?, ?, ?) ON CONFLICT(url) DO UPDATE SET last_error = excluded.last_error`).bind(source.url, source.name, error instanceof Error ? error.message.slice(0, 400) : "unknown error").run();
-    }
-  }));
-  if (silentBootstrap) await env.DB.prepare("INSERT OR IGNORE INTO system_state(key, value) VALUES ('rss_wide_baseline_initialized', '1')").run();
-  else await deliverPending(env);
+  await Promise.allSettled(RSS_SOURCES.map(source => pollRSSSource(env, source)));
 }

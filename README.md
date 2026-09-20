@@ -4,9 +4,9 @@ Cloudflare Workers + D1 üzerinde çalışan finans akışı: MKK/KAP bildirimle
 
 ## Mimari
 
-`cron (1 dk) → KAP / RSS / (planlı SPK taraması) → D1 kaynak tabloları + ortak feed_items → Telegram / REST / Mini App → isteğe bağlı AI tweet taslağı`
+`cron gözetmeni → bağımsız Durable Object alarmları (RSS kaynakları / KAP / SPK) → D1 kaynak tabloları + ortak feed_items → Telegram / REST / Mini App → isteğe bağlı AI tweet taslağı`
 
-Tek cron tetikleyicisi KAP ve RSS'i her dakika çalıştırır; SPK kontrolü İstanbul saatine göre planlı aralıklarda yapılır. İlk kurulumdaki geçmiş kayıtlar Mini App için sessizce doldurulur, Telegram'a eski bildirim olarak yeniden gönderilmez. Sonraki yeni kayıtlar benzersiz kaynak kimlikleriyle tekilleştirilerek iletilir.
+Dakikalık cron yalnız görev parçalarının alarmını denetler. Her RSS kaynağı kendi CPU bütçesiyle dakikada bir, canlı KAP taraması 30 saniyede bir, geçmiş KAP doldurma işi 10 dakikada bir; SPK ise İstanbul saatine göre planlı aralıklarda çalışır. Böylece yavaş veya hatalı bir kaynak diğer akışları geciktirmez. İlk kurulumdaki geçmiş kayıtlar Mini App için sessizce doldurulur, Telegram'a eski bildirim olarak yeniden gönderilmez. Sonraki yeni kayıtlar benzersiz kaynak kimlikleriyle tekilleştirilerek iletilir.
 
 ## Kurulum
 
@@ -16,7 +16,7 @@ Tek cron tetikleyicisi KAP ve RSS'i her dakika çalıştırır; SPK kontrolü İ
 4. `npm run db:migrate:remote`
 5. `npm run deploy`
 
-Local geliştirme için `npm run db:migrate:local` ardından `npm run dev` kullanın. `/health` D1 bağlantısını, `/api/feed?type=kap|spk|news&ticker=THYAO&q=...&cursor=...` zaman çizelgesini döndürür.
+Local geliştirme için `npm run db:migrate:local` ardından `npm run dev` kullanın. `/health` D1 bağlantısını, cron zamanlarını ve her bağımsız tarama parçasının son başlangıç/bitiş/hata durumunu; `/api/feed?type=kap|spk|news&ticker=THYAO&q=...&cursor=...` zaman çizelgesini döndürür. Workers Logs açıktır; çalıştırma sonucu ve CPU süresi Cloudflare gözlemlenebilirlik ekranından izlenebilir.
 
 ## Secret kurulumu
 

@@ -13,7 +13,12 @@ export async function api(request: Request, env: Env): Promise<Response | null> 
       await env.DB.prepare("SELECT 1 AS ok").first();
       const cron = await env.DB.prepare("SELECT key,value FROM system_state WHERE key IN ('cron_last_started_at','cron_last_finished_at')").all<{ key: string; value: string }>();
       const cronState = Object.fromEntries((cron.results ?? []).map(row => [row.key, row.value]));
-      return json({ ok: true, service: "heranborsa", database: "connected", cron: { lastStartedAt: cronState.cron_last_started_at ?? null, lastFinishedAt: cronState.cron_last_finished_at ?? null }, timestamp: new Date().toISOString() });
+      const shards = await env.DB.prepare("SELECT key,value FROM system_state WHERE key LIKE 'poll_shard:%' ORDER BY key").all<{ key: string; value: string }>();
+      const shardState = Object.fromEntries((shards.results ?? []).map(row => {
+        try { return [row.key.slice("poll_shard:".length), JSON.parse(row.value)]; }
+        catch { return [row.key.slice("poll_shard:".length), { error: "invalid_state" }]; }
+      }));
+      return json({ ok: true, service: "heranborsa", database: "connected", cron: { lastStartedAt: cronState.cron_last_started_at ?? null, lastFinishedAt: cronState.cron_last_finished_at ?? null }, shards: shardState, timestamp: new Date().toISOString() });
     } catch {
       return json({ ok: false, service: "heranborsa", database: "unavailable" }, 503);
     }

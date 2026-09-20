@@ -10,9 +10,12 @@ const LIVE_CURSOR_KEY = "public_kap_cursor";
 const BACKFILL_CURSOR_KEY = "public_kap_backfill_cursor";
 const LATEST_KNOWN_ID = 1665624;
 // The verified public cursor was 1665624. Starting shortly before it brings
-// the last-24-hour Mini App history in within two scheduled batches.
+// the last-24-hour Mini App history in through a silent low-CPU shard.
 const BACKFILL_START_ID = 1665600;
-const BATCH_SIZE = 20;
+// Keep each alarm comfortably below the free-plan CPU ceiling. The live alarm
+// runs every 30 seconds, so this still drains up to six disclosures per minute.
+const LIVE_BATCH_SIZE = 3;
+const BACKFILL_BATCH_SIZE = 3;
 
 interface BasicDisclosure {
   title?: string;
@@ -147,9 +150,9 @@ async function setState(env: Env, key: string, value: number): Promise<void> {
   await env.DB.prepare("INSERT INTO system_state(key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=CURRENT_TIMESTAMP").bind(key, String(value)).run();
 }
 
-async function scan(env: Env, key: string, start: number, ceiling: number | null, silent: boolean): Promise<void> {
+async function scan(env: Env, key: string, start: number, ceiling: number | null, silent: boolean, batchSize: number): Promise<void> {
   let cursor = (await getState(env, key)) ?? start;
-  for (let step = 0; step < BATCH_SIZE; step++) {
+  for (let step = 0; step < batchSize; step++) {
     const id = cursor + 1;
     if (ceiling !== null && id > ceiling) return;
     const item = await getDisclosure(id);
@@ -160,9 +163,17 @@ async function scan(env: Env, key: string, start: number, ceiling: number | null
   }
 }
 
+export async function pollPublicKAPLive(env: Env): Promise<void> {
+  await scan(env, LIVE_CURSOR_KEY, LATEST_KNOWN_ID, null, false, LIVE_BATCH_SIZE);
+}
+
+export async function pollPublicKAPBackfill(env: Env): Promise<void> {
+  await scan(env, BACKFILL_CURSOR_KEY, BACKFILL_START_ID, LATEST_KNOWN_ID, true, BACKFILL_BATCH_SIZE);
+}
+
 export async function pollPublicKAP(env: Env): Promise<void> {
   // Backfill is deliberately silent: it populates the Mini App, never replays
   // historical Telegram messages. The live cursor continues independently.
-  await scan(env, BACKFILL_CURSOR_KEY, BACKFILL_START_ID, LATEST_KNOWN_ID, true);
-  await scan(env, LIVE_CURSOR_KEY, LATEST_KNOWN_ID, null, false);
+  await pollPublicKAPBackfill(env);
+  await pollPublicKAPLive(env);
 }
