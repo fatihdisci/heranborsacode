@@ -9,7 +9,17 @@ const COMPANIES: Record<string, string> = {
 
 export function isRelevantNews(title: string): boolean {
   const normalized = title.toLocaleLowerCase("tr-TR");
-  return KEYWORDS.some(keyword => normalized.includes(keyword));
+  return KEYWORDS.some(keyword => normalized.includes(keyword)) || Object.keys(COMPANIES).some(company => normalized.includes(company.toLocaleLowerCase("tr-TR")));
+}
+
+// RSS providers occasionally put an international/English stream behind a
+// Turkish label. We keep Turkish finance coverage, not untranslated wire copy.
+export function isTurkishNews(title: string): boolean {
+  const normalized = title.toLocaleLowerCase("tr-TR");
+  if (/[çğıöşü]/.test(normalized)) return true;
+  const turkishWords = /\b(ve|ile|için|bir|bu|dolar|lira|piyasa|borsa|faiz|enflasyon|şirket|hisse|fon|türkiye|türk)\b/;
+  const englishWords = /\b(the|and|of|in|to|as|is|for|with|from|between|live|major|trapped|breakout)\b/;
+  return turkishWords.test(normalized) && !englishWords.test(normalized);
 }
 
 export function findTickers(title: string): string[] {
@@ -19,4 +29,3 @@ export function findTickers(title: string): string[] {
   for (const ticker of Object.values(COMPANIES)) if (new RegExp(`(^|[^A-Z])${ticker}([^A-Z]|$)`).test(upper)) found.add(ticker);
   return [...found];
 }
-

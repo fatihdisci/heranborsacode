@@ -3,7 +3,7 @@ import { insertFeed } from "../db/feed";
 import { sendMessage } from "../telegram/client";
 import { fetchWithTimeout } from "../utils/http";
 import { escapeTelegramHtml, normalizeTitle, normalizeUrl, nowIso, sha256 } from "../utils/text";
-import { findTickers, isRelevantNews } from "./filter";
+import { findTickers, isRelevantNews, isTurkishNews } from "./filter";
 import { parseRss } from "./parser";
 import { RSS_SOURCES } from "./sources";
 
@@ -30,10 +30,11 @@ async function pollSource(env: Env, source: { name: string; url: string }, silen
   const response = await fetchWithTimeout(source.url, { headers });
   if (response.status === 304) return 0;
   if (!response.ok) throw new Error(`${source.name} RSS HTTP ${response.status}`);
-  // These are dedicated finance/economy feeds.  Keep their complete last-24h
-  // coverage; the generic Bloomberg feed remains keyword-filtered.
+  // Every provider must pass the same Turkish finance/BIST filter. This keeps
+  // lifestyle/general-news items and English wire copy out of both the Mini
+  // App and Telegram notifications.
   const items = parseRss(await response.text()).filter(item =>
-    publishedWithin24Hours(item.publishedAt) && (source.name !== "Bloomberg HT" || isRelevantNews(item.title))
+    publishedWithin24Hours(item.publishedAt) && isTurkishNews(item.title) && isRelevantNews(item.title)
   );
   let inserted = 0;
   for (const item of items) {
