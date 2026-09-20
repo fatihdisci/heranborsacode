@@ -26,7 +26,7 @@ async function deliverPending(env: Env): Promise<void> {
   const pending = await env.DB.prepare(`SELECT r.content_hash, r.source, r.title, r.url, r.tickers_json, f.body
     FROM rss_items r JOIN feed_items f ON f.source_ref = 'rss:' || r.content_hash
     WHERE r.telegram_status = 'pending' AND datetime(r.published_at) >= datetime('now', '-1 day')
-    ORDER BY r.published_at ASC LIMIT 20`).all<{ content_hash: string; source: string; title: string; url: string; tickers_json: string | null; body: string | null }>();
+    ORDER BY datetime(r.published_at) DESC, r.id DESC LIMIT 1`).all<{ content_hash: string; source: string; title: string; url: string; tickers_json: string | null; body: string | null }>();
   for (const item of pending.results ?? []) {
     const tickers = JSON.parse(item.tickers_json ?? "[]") as string[];
     const hashtagLine = tickers.length ? `${tickers.map(ticker => `#${ticker}`).join(" ")}\n` : "";
@@ -48,7 +48,10 @@ async function pollSource(env: Env, source: { name: string; url: string }, silen
   if (state?.etag) headers.set("if-none-match", state.etag);
   if (state?.last_modified) headers.set("if-modified-since", state.last_modified);
   const response = await fetchWithTimeout(source.url, { headers });
-  if (response.status === 304) return 0;
+  if (response.status === 304) {
+    await env.DB.prepare("UPDATE feed_sources SET last_success_at=CURRENT_TIMESTAMP,last_error=NULL WHERE url=?").bind(source.url).run();
+    return 0;
+  }
   if (!response.ok) throw new Error(`${source.name} RSS HTTP ${response.status}`);
   // Every provider must pass the same Turkish finance/BIST filter. This keeps
   // lifestyle/general-news items and English wire copy out of both the Mini
@@ -73,15 +76,6 @@ async function pollSource(env: Env, source: { name: string; url: string }, silen
     inserted++;
     const summary = item.description?.replace(/\s+/g, " ").trim().slice(0, 700) || null;
     await insertFeed(env, { type: "news", source: source.name, source_ref: `rss:${hash}`, title: item.title, body: summary, url: item.url, tickers_json: JSON.stringify(tickers), published_at: item.publishedAt });
-    if (initialSeed) continue;
-    try {
-      const hashtagLine = tickers.length ? `${tickers.map(ticker => `#${ticker}`).join(" ")}\n` : "";
-      const summaryLine = summary ? `\n\n${escapeTelegramHtml(summary)}` : "";
-      await sendMessage(env, `${hashtagLine}📰 <b>${escapeTelegramHtml(source.name)}</b>\n\n<b>${escapeTelegramHtml(item.title)}</b>${summaryLine}`, { text: "🔗 Haberi Aç", url: item.url });
-      await env.DB.prepare("UPDATE rss_items SET telegram_status = 'sent', telegram_sent_at = CURRENT_TIMESTAMP WHERE content_hash = ?").bind(hash).run();
-    } catch (error) {
-      console.warn("rss telegram delivery failed", { source: source.name, hash, error: error instanceof Error ? error.message : String(error) });
-    }
   }
   await env.DB.prepare(`INSERT INTO feed_sources(url, name, etag, last_modified, last_success_at, last_error) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, NULL)
     ON CONFLICT(url) DO UPDATE SET name = excluded.name, etag = excluded.etag, last_modified = excluded.last_modified, last_success_at = CURRENT_TIMESTAMP, last_error = NULL`)

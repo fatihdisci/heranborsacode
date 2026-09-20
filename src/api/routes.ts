@@ -11,7 +11,9 @@ export async function api(request: Request, env: Env): Promise<Response | null> 
   if (url.pathname === "/health") {
     try {
       await env.DB.prepare("SELECT 1 AS ok").first();
-      return json({ ok: true, service: "heranborsa", database: "connected", timestamp: new Date().toISOString() });
+      const cron = await env.DB.prepare("SELECT key,value FROM system_state WHERE key IN ('cron_last_started_at','cron_last_finished_at')").all<{ key: string; value: string }>();
+      const cronState = Object.fromEntries((cron.results ?? []).map(row => [row.key, row.value]));
+      return json({ ok: true, service: "heranborsa", database: "connected", cron: { lastStartedAt: cronState.cron_last_started_at ?? null, lastFinishedAt: cronState.cron_last_finished_at ?? null }, timestamp: new Date().toISOString() });
     } catch {
       return json({ ok: false, service: "heranborsa", database: "unavailable" }, 503);
     }
