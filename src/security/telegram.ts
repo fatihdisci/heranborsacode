@@ -34,7 +34,9 @@ export async function authorizeTelegramRequest(request: Request, env: Env): Prom
   const expectedHash = hex(await hmac(secret, checkString));
   if (!constantTimeEqual(expectedHash, receivedHash.toLowerCase())) return false;
   try {
-    const user = JSON.parse(params.get("user") ?? "{}") as { id?: number };
+    const user = JSON.parse(params.get("user") ?? "{}") as { id?: number; username?: string };
+    const allowedUsername = env.TELEGRAM_ALLOWED_USERNAME?.trim().replace(/^@/, "").toLowerCase();
+    if (allowedUsername) return user.username?.toLowerCase() === allowedUsername;
     return String(user.id ?? "") === env.TELEGRAM_CHAT_ID;
   } catch {
     return false;
