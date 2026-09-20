@@ -24,6 +24,14 @@ describe("RSS news filters", () => {
     expect(isRelevantNews("Fon soruşturmasında MASAK'a yeni inceleme talebi")).toBe(true);
   });
 
+  it("keeps portfolio-management and watched institution news", () => {
+    expect(isRelevantNews("Tera Portföy yeni serbest fonunu duyurdu")).toBe(true);
+    expect(isRelevantNews("Pusula Finans için yeni inceleme talebi")).toBe(true);
+    expect(isRelevantNews("Bulls Portföy'den fon portföylerine ilişkin açıklama")).toBe(true);
+    expect(findTickers("Tera Yatırım'dan açıklama")).toContain("TERA");
+    expect(findTickers("Tera Portföy yeni fonunu duyurdu")).not.toContain("TERA");
+  });
+
   it("does not match short finance terms inside unrelated words", () => {
     expect(isRelevantNews("Silivri'de 13 gün yerde yattım tahtakurusu yedi")).toBe(false);
     expect(isRelevantNews("Yapay zeka dünyanın sonunu mu getirecek?")).toBe(false);

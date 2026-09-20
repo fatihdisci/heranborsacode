@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parsePublicKapPage } from "../src/kap/public";
+import { isImportantPublicDisclosure, parsePublicKapPage } from "../src/kap/public";
 
 describe("parsePublicKapPage", () => {
   it("extracts the public KAP metadata and normalizes Istanbul time", () => {
@@ -9,5 +9,18 @@ describe("parsePublicKapPage", () => {
       codes: ["TST2", "TEST"],
       publishedAt: "2026-09-20T07:00:00.000Z",
     });
+  });
+
+  it("keeps fund and portfolio disclosures even without an equity ticker", () => {
+    expect(isImportantPublicDisclosure({
+      id: 1,
+      title: "Yatırım Fonu Sürekli Bilgilendirme Formu",
+      company: "Örnek Portföy Yönetimi A.Ş.",
+      codes: [],
+      disclosureClass: "FON",
+      disclosureType: "",
+      publishedAt: "2026-09-20T10:00:00.000Z",
+      url: "https://www.kap.org.tr/tr/Bildirim/1",
+    })).toBe(true);
   });
 });

@@ -76,9 +76,9 @@ export function parsePublicKapPage(html: string, requestedId: number): PublicDis
   };
 }
 
-function important(item: PublicDisclosure): boolean {
-  if (!item.codes.length) return false;
-  const title = item.title.toLocaleUpperCase("tr-TR");
+export function isImportantPublicDisclosure(item: PublicDisclosure): boolean {
+  const title = `${item.title} ${item.company ?? ""}`.toLocaleUpperCase("tr-TR");
+  if (!item.codes.length) return /FON|PORTFÖY|VARLIK YÖNETİM/.test(title);
   if (/ŞİRKET GENEL BİLGİ FORMU|HAK KULLANIM SÜREÇ DURUMU/.test(title)) return false;
   // The Mac mini flow applies the BIST 50 restriction to the specific pay
   // buy/sell notification class, not to normal share-repurchase disclosures.
@@ -100,14 +100,15 @@ async function getDisclosure(id: number): Promise<PublicDisclosure | null> {
 }
 
 async function store(env: Env, item: PublicDisclosure, silent: boolean): Promise<void> {
-  if (!important(item)) return;
+  if (!isImportantPublicDisclosure(item)) return;
   const write = await env.DB.prepare("INSERT OR IGNORE INTO kap_disclosures(disclosure_id,company,ticker,title,disclosure_type,published_at,url,metadata_json,content_hash,telegram_status) VALUES (?,?,?,?,?,?,?,?,?,?)")
     .bind(String(item.id), item.company, item.codes[0] ?? null, item.title, item.disclosureType || item.disclosureClass, item.publishedAt, item.url, JSON.stringify(item), await sha256(`kap:${item.id}`), silent ? "baseline" : "pending").run();
   if (!write.meta.changes) return;
   await insertFeed(env, { type: "kap", source: "KAP", source_ref: `kap:${item.id}`, title: item.title, body: item.company, url: item.url, tickers_json: JSON.stringify(item.codes), published_at: item.publishedAt });
   if (silent) return;
   try {
-    await sendMessage(env, `🏢 <b>#${escapeTelegramHtml(item.codes[0])}</b>\nKAP bildirimi\n\n${escapeTelegramHtml(item.title)}`, { text: "🔗 KAP'ta Aç", url: item.url });
+    const heading = item.codes[0] ? `🏢 <b>#${escapeTelegramHtml(item.codes[0])}</b>` : "🏦 <b>KAP · Fon/Portföy</b>";
+    await sendMessage(env, `${heading}\nKAP bildirimi\n\n${escapeTelegramHtml(item.title)}${item.company ? `\n${escapeTelegramHtml(item.company)}` : ""}`, { text: "🔗 KAP'ta Aç", url: item.url });
     await env.DB.prepare("UPDATE kap_disclosures SET telegram_status='sent',telegram_sent_at=CURRENT_TIMESTAMP WHERE disclosure_id=?").bind(String(item.id)).run();
   } catch (error) {
     console.warn("public KAP telegram delivery failed", { id: item.id, error: error instanceof Error ? error.message : String(error) });
