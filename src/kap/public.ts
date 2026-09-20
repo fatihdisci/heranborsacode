@@ -80,7 +80,9 @@ function important(item: PublicDisclosure): boolean {
   if (!item.codes.length) return false;
   const title = item.title.toLocaleUpperCase("tr-TR");
   if (/ŞİRKET GENEL BİLGİ FORMU|HAK KULLANIM SÜREÇ DURUMU/.test(title)) return false;
-  if (/PAYLARIN GERİ ALINMASINA|PAY ALIM|PAY SATIM/.test(title)) return item.codes.some(code => BIST50.has(code));
+  // The Mac mini flow applies the BIST 50 restriction to the specific pay
+  // buy/sell notification class, not to normal share-repurchase disclosures.
+  if (/PAY ALIM BİLDİRİMİ|PAY SATIM BİLDİRİMİ/.test(title)) return item.codes.some(code => BIST50.has(code));
   return true;
 }
 
