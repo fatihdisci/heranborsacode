@@ -17,6 +17,11 @@ const BACKFILL_START_ID = 1665600;
 const LIVE_BATCH_SIZE = 3;
 const BACKFILL_BATCH_SIZE = 3;
 
+export interface PublicKapScanResult {
+  scanned: number;
+  reachedEdge: boolean;
+}
+
 interface BasicDisclosure {
   title?: string;
   companyTitle?: string;
@@ -92,10 +97,13 @@ function isCircuitBreaker(item: PublicDisclosure): boolean {
 
 export function circuitBreakerBody(item: PublicDisclosure): string | null {
   if (!isCircuitBreaker(item)) return null;
-  const continuation = item.resumeAt
-    ? `İşlemler emir toplama aşamasının ardından saat ${item.resumeAt} itibarıyla devam edecek.`
-    : "İşlemlerin devam saati için KAP bildirimini açın.";
-  return `Hissede devre kesici uygulandı.\n${continuation}`;
+  return "Hissede devre kesici uygulandı. Sürekli işleme ara verildi.";
+}
+
+export function circuitBreakerMessage(items: PublicDisclosure[]): string | null {
+  const codes = [...new Set(items.filter(isCircuitBreaker).flatMap(item => item.codes))];
+  if (!codes.length) return null;
+  return `${codes.map(code => `#${code}`).join(" ")}\n\nHissede devre kesici uygulandı. Sürekli işleme ara verildi.`;
 }
 
 export function isImportantPublicDisclosure(item: PublicDisclosure): boolean {
@@ -128,16 +136,42 @@ async function store(env: Env, item: PublicDisclosure, silent: boolean): Promise
   if (!write.meta.changes) return;
   const breakerBody = circuitBreakerBody(item);
   await insertFeed(env, { type: "kap", source: "KAP", source_ref: `kap:${item.id}`, title: item.title, body: breakerBody ?? item.company, url: item.url, tickers_json: JSON.stringify(item.codes), published_at: item.publishedAt });
-  if (silent) return;
+  // Circuit breakers are delivered together after this scan catches the live
+  // edge. Their deterministic copy-ready text never calls the AI endpoint.
+  if (silent || breakerBody) return;
   try {
     const heading = item.codes[0] ? `#${escapeTelegramHtml(item.codes[0])}` : "🏦 <b>KAP · Fon/Portföy</b>";
-    const message = breakerBody
-      ? `${heading}\n\n${escapeTelegramHtml(breakerBody)}\n\n🔗 KAP:\n${escapeTelegramHtml(item.url)}`
-      : `${heading}\nKAP bildirimi\n\n${escapeTelegramHtml(item.title)}${item.company ? `\n${escapeTelegramHtml(item.company)}` : ""}`;
+    const message = `${heading}\nKAP bildirimi\n\n${escapeTelegramHtml(item.title)}${item.company ? `\n${escapeTelegramHtml(item.company)}` : ""}`;
     await sendMessage(env, message, { text: "🔗 KAP'ta Aç", url: item.url });
     await env.DB.prepare("UPDATE kap_disclosures SET telegram_status='sent',telegram_sent_at=CURRENT_TIMESTAMP WHERE disclosure_id=?").bind(String(item.id)).run();
   } catch (error) {
     console.warn("public KAP telegram delivery failed", { id: item.id, error: error instanceof Error ? error.message : String(error) });
+  }
+}
+
+async function deliverPendingCircuitBreakers(env: Env): Promise<void> {
+  const pending = await env.DB.prepare(`SELECT metadata_json
+    FROM kap_disclosures
+    WHERE telegram_status='pending'
+      AND title LIKE '%Devre Kesici%'
+      AND datetime(published_at) >= datetime('now', '-1 day')
+    ORDER BY CAST(disclosure_id AS INTEGER) ASC`).all<{ metadata_json: string | null }>();
+  const items = (pending.results ?? []).flatMap(row => {
+    if (!row.metadata_json) return [];
+    try { return [JSON.parse(row.metadata_json) as PublicDisclosure]; }
+    catch { return []; }
+  });
+  const message = circuitBreakerMessage(items);
+  if (!message) return;
+  try {
+    await sendMessage(env, escapeTelegramHtml(message));
+    await env.DB.prepare(`UPDATE kap_disclosures
+      SET telegram_status='sent', telegram_sent_at=CURRENT_TIMESTAMP
+      WHERE telegram_status='pending'
+        AND title LIKE '%Devre Kesici%'
+        AND datetime(published_at) >= datetime('now', '-1 day')`).run();
+  } catch (error) {
+    console.warn("public KAP circuit-breaker delivery failed", { count: items.length, error: error instanceof Error ? error.message : String(error) });
   }
 }
 
@@ -150,21 +184,26 @@ async function setState(env: Env, key: string, value: number): Promise<void> {
   await env.DB.prepare("INSERT INTO system_state(key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=CURRENT_TIMESTAMP").bind(key, String(value)).run();
 }
 
-async function scan(env: Env, key: string, start: number, ceiling: number | null, silent: boolean, batchSize: number): Promise<void> {
+async function scan(env: Env, key: string, start: number, ceiling: number | null, silent: boolean, batchSize: number): Promise<PublicKapScanResult> {
   let cursor = (await getState(env, key)) ?? start;
+  let scanned = 0;
   for (let step = 0; step < batchSize; step++) {
     const id = cursor + 1;
-    if (ceiling !== null && id > ceiling) return;
+    if (ceiling !== null && id > ceiling) return { scanned, reachedEdge: true };
     const item = await getDisclosure(id);
-    if (!item) return; // Public KAP uses the first missing numeric ID as the live edge.
+    if (!item) return { scanned, reachedEdge: true }; // Public KAP uses the first missing numeric ID as the live edge.
     if (!silent || within24Hours(item.publishedAt)) await store(env, item, silent);
     cursor = id;
+    scanned++;
     await setState(env, key, cursor);
   }
+  return { scanned, reachedEdge: false };
 }
 
-export async function pollPublicKAPLive(env: Env): Promise<void> {
-  await scan(env, LIVE_CURSOR_KEY, LATEST_KNOWN_ID, null, false, LIVE_BATCH_SIZE);
+export async function pollPublicKAPLive(env: Env): Promise<PublicKapScanResult> {
+  const result = await scan(env, LIVE_CURSOR_KEY, LATEST_KNOWN_ID, null, false, LIVE_BATCH_SIZE);
+  if (result.reachedEdge) await deliverPendingCircuitBreakers(env);
+  return result;
 }
 
 export async function pollPublicKAPBackfill(env: Env): Promise<void> {

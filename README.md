@@ -6,7 +6,7 @@ Cloudflare Workers + D1 üzerinde çalışan finans akışı: MKK/KAP bildirimle
 
 `cron gözetmeni → bağımsız Durable Object alarmları (RSS kaynakları / KAP / SPK) → D1 kaynak tabloları + ortak feed_items → Telegram / REST / Mini App → isteğe bağlı AI tweet taslağı`
 
-Dakikalık cron yalnız görev parçalarının alarmını denetler. Her RSS kaynağı kendi CPU bütçesiyle dakikada bir, canlı KAP taraması 30 saniyede bir, geçmiş KAP doldurma işi 10 dakikada bir; SPK ise İstanbul saatine göre planlı aralıklarda çalışır. Böylece yavaş veya hatalı bir kaynak diğer akışları geciktirmez. İlk kurulumdaki geçmiş kayıtlar Mini App için sessizce doldurulur, Telegram'a eski bildirim olarak yeniden gönderilmez. Sonraki yeni kayıtlar benzersiz kaynak kimlikleriyle tekilleştirilerek iletilir.
+Dakikalık cron yalnız görev parçalarının alarmını denetler. Her RSS kaynağı kendi CPU bütçesiyle dakikada bir, canlı KAP taraması normalde 30 saniyede bir, geçmiş KAP doldurma işi 10 dakikada bir; SPK ise İstanbul saatine göre planlı aralıklarda çalışır. Canlı KAP taraması art arda geçerli bildirimler bulduğunda, alarm başına sabit küçük iş yükünü koruyarak geçici olarak 5 saniyelik yakalama moduna geçer ve güncel sınıra ulaştığında yeniden 30 saniyeye döner. Böylece yavaş veya hatalı bir kaynak diğer akışları geciktirmez. İlk kurulumdaki geçmiş kayıtlar Mini App için sessizce doldurulur, Telegram'a eski bildirim olarak yeniden gönderilmez. Sonraki yeni kayıtlar benzersiz kaynak kimlikleriyle tekilleştirilerek iletilir.
 
 ## Kurulum
 
@@ -37,7 +37,7 @@ wrangler secret put MKK_API_SECRET
 
 RSS kaynak listesi `src/rss/sources.ts` içindedir; erişilebilirliği doğrulanmadan yeni feed eklemeyin. Akış filtresi ve ticker sözlüğü deterministiktir; AI yalnız kullanıcı tweet taslağı istediğinde devreye girer.
 
-KAP akışı şirket, fon/portföy yönetimi ve piyasa açısından anlamlı bildirimleri kapsar. Pay alım/satım bildirimleri `src/kap/bist50.ts` içindeki güncellenebilir BIST 50 setiyle sınırlandırılır; devre kesici bildirimleri sabit ve hatasız tweet biçimiyle işlenir.
+KAP akışı şirket, fon/portföy yönetimi ve piyasa açısından anlamlı bildirimleri kapsar. Pay alım/satım bildirimleri `src/kap/bist50.ts` içindeki güncellenebilir BIST 50 setiyle sınırlandırılır. Aynı yakalama döngüsünde biriken devre kesiciler tek mesajda `#KOD #KOD2` biçiminde gruplanır; sabit, doğrudan kopyalanabilir metin kullanılır ve AI çağrısı yapılmaz.
 
 ## Telegram ve Mini App
 

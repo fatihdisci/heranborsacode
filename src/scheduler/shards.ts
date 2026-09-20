@@ -13,6 +13,7 @@ export const POLL_TASKS = [
 ] as const;
 
 type PollTask = (typeof POLL_TASKS)[number];
+const KAP_CATCH_UP_DELAY_MS = 5_000;
 
 function isPollTask(value: string | null | undefined): value is PollTask {
   return typeof value === "string" && (POLL_TASKS as readonly string[]).includes(value);
@@ -41,16 +42,25 @@ export function nextAlarmAt(task: PollTask, now = Date.now()): number {
   return nextMinuteBoundary(now);
 }
 
-async function runTask(env: Env, task: PollTask): Promise<void> {
+async function runTask(env: Env, task: PollTask): Promise<number | null> {
   if (task.startsWith("rss:")) {
     const source = RSS_SOURCES[Number(task.slice(4))];
     if (!source) throw new Error(`Unknown RSS shard ${task}`);
     await pollRSSSource(env, source);
-    return;
+    return null;
   }
-  if (task === "kap:live") return pollPublicKAPLive(env);
-  if (task === "kap:backfill") return pollPublicKAPBackfill(env);
+  if (task === "kap:live") {
+    const result = await pollPublicKAPLive(env);
+    // Three consecutive valid IDs mean there may be a queue. Keep the CPU
+    // budget fixed per alarm, but temporarily accelerate until the live edge.
+    return result.reachedEdge ? null : KAP_CATCH_UP_DELAY_MS;
+  }
+  if (task === "kap:backfill") {
+    await pollPublicKAPBackfill(env);
+    return null;
+  }
   await pollSPK(env);
+  return null;
 }
 
 async function recordResult(env: Env, task: PollTask, startedAt: string, error: string | null): Promise<void> {
@@ -74,13 +84,14 @@ export class PollShard extends DurableObject<Env> {
     if (!isPollTask(task)) return;
     const startedAt = new Date().toISOString();
     let error: string | null = null;
+    let nextDelayMs: number | null = null;
     try {
-      await runTask(this.env, task);
+      nextDelayMs = await runTask(this.env, task);
     } catch (cause) {
       error = cause instanceof Error ? cause.message : String(cause);
       console.error("poll shard failed", { task, error });
     } finally {
-      await this.ctx.storage.setAlarm(nextAlarmAt(task));
+      await this.ctx.storage.setAlarm(nextDelayMs === null ? nextAlarmAt(task) : Date.now() + nextDelayMs);
       await recordResult(this.env, task, startedAt, error);
     }
   }
