@@ -22,11 +22,13 @@ function publishedWithin24Hours(value: string | null): boolean {
   return Number.isNaN(time) || time >= Date.now() - 24 * 60 * 60 * 1000;
 }
 
-async function deliverPending(env: Env): Promise<void> {
+async function deliverPending(env: Env, hash: string | null = null): Promise<void> {
   const pending = await env.DB.prepare(`SELECT r.content_hash, r.source, r.title, r.url, r.tickers_json, f.body
     FROM rss_items r JOIN feed_items f ON f.source_ref = 'rss:' || r.content_hash
-    WHERE r.telegram_status = 'pending' AND datetime(r.published_at) >= datetime('now', '-1 day')
-    ORDER BY datetime(r.published_at) DESC, r.id DESC LIMIT 1`).all<{ content_hash: string; source: string; title: string; url: string; tickers_json: string | null; body: string | null }>();
+    WHERE r.telegram_status = 'pending'
+      AND datetime(COALESCE(r.published_at,r.fetched_at)) >= datetime('now', '-1 day')
+      AND (? IS NULL OR r.content_hash = ?)
+    ORDER BY datetime(r.published_at) DESC, r.id DESC`).bind(hash, hash).all<{ content_hash: string; source: string; title: string; url: string; tickers_json: string | null; body: string | null }>();
   for (const item of pending.results ?? []) {
     const tickers = JSON.parse(item.tickers_json ?? "[]") as string[];
     const hashtagLine = tickers.length ? `${tickers.map(ticker => `#${ticker}`).join(" ")}\n` : "";
@@ -41,13 +43,12 @@ async function deliverPending(env: Env): Promise<void> {
 }
 
 async function pollSource(env: Env, source: { name: string; url: string }, silentBootstrap: boolean): Promise<number> {
-  const state = await env.DB.prepare("SELECT etag, last_modified FROM feed_sources WHERE url = ?").bind(source.url).first<{ etag: string | null; last_modified: string | null }>();
   const sourceInitialized = await env.DB.prepare("SELECT value FROM system_state WHERE key = ?").bind(`rss_baseline:${source.url}`).first();
   const initialSeed = !sourceInitialized || silentBootstrap;
-  const headers = new Headers({ "user-agent": "HeranBorsa/0.1 (+Cloudflare Worker)", accept: "application/rss+xml, application/xml, text/xml" });
-  if (state?.etag) headers.set("if-none-match", state.etag);
-  if (state?.last_modified) headers.set("if-modified-since", state.last_modified);
-  const response = await fetchWithTimeout(source.url, { headers });
+  const headers = new Headers({ "user-agent": "HeranBorsa/0.1 (+Cloudflare Worker)", accept: "application/rss+xml, application/xml, text/xml", "cache-control": "no-cache", pragma: "no-cache" });
+  // Read the full feed every minute, bypassing Worker cache and potentially
+  // stale publisher validators. Item IDs provide our deduplication.
+  const response = await fetchWithTimeout(source.url, { headers, cache: "no-store" });
   if (response.status === 304) {
     await env.DB.prepare("UPDATE feed_sources SET last_success_at=CURRENT_TIMESTAMP,last_error=NULL WHERE url=?").bind(source.url).run();
     return 0;
@@ -76,6 +77,7 @@ async function pollSource(env: Env, source: { name: string; url: string }, silen
     inserted++;
     const summary = item.description?.replace(/\s+/g, " ").trim().slice(0, 700) || null;
     await insertFeed(env, { type: "news", source: source.name, source_ref: `rss:${hash}`, title: item.title, body: summary, url: item.url, tickers_json: JSON.stringify(tickers), published_at: item.publishedAt });
+    if (!initialSeed) await deliverPending(env, hash);
   }
   await env.DB.prepare(`INSERT INTO feed_sources(url, name, etag, last_modified, last_success_at, last_error) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, NULL)
     ON CONFLICT(url) DO UPDATE SET name = excluded.name, etag = excluded.etag, last_modified = excluded.last_modified, last_success_at = CURRENT_TIMESTAMP, last_error = NULL`)
