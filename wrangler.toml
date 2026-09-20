@@ -1,0 +1,24 @@
+name = "heranborsa"
+main = "src/index.ts"
+compatibility_date = "2026-09-20"
+workers_dev = true
+
+[assets]
+directory = "public"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "heranborsa-db"
+database_id = "2127440b-97f6-4d54-b9b8-2bc0a461130a"
+migrations_dir = "migrations"
+
+[vars]
+# This is not a secret. Set it only after confirming the MKK endpoint contract.
+MKK_API_BASE_URL = "https://apigwdev.mkk.com.tr/api/vyk"
+
+# One Worker cron keeps free-plan scheduling compact. KAP/RSS runs every 15 min;
+# SPK is gated in code to once per UTC hour.
+[triggers]
+crons = ["*/15 * * * *"]
