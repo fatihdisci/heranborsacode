@@ -14,6 +14,91 @@ const tweetDraft = $("#tweet-draft");
 const tweetProgress = $("#tweet-progress");
 const tweetMessage = $("#tweet-message");
 const copyTweetButton = $("#copy-tweet");
+const readerDialog = $('#reader-dialog');
+let readerAbort;
+let readerItem;
+let readerScrollY = 0;
+
+function showReaderBlocks(blocks) {
+  const body = $('#reader-body'); body.replaceChildren();
+  for (const block of blocks) {
+    if (block.type === 'table') {
+      const wrapper = document.createElement('div'); wrapper.className = 'reader-table';
+      wrapper.tabIndex = 0; wrapper.setAttribute('role', 'region'); wrapper.setAttribute('aria-label', 'Bildirim tablosu; yatay kaydırılabilir');
+      const table = document.createElement('table');
+      for (const row of block.rows) {
+        const tr = document.createElement('tr');
+        for (const data of row) {
+          const cell = document.createElement(data.header ? 'th' : 'td'); cell.textContent = data.text;
+          cell.rowSpan = data.rowSpan; cell.colSpan = data.colSpan; tr.append(cell);
+        }
+        table.append(tr);
+      }
+      wrapper.append(table); body.append(wrapper);
+    } else {
+      const p = document.createElement(block.type === 'heading' ? 'h3' : 'p'); p.textContent = block.text; body.append(p);
+    }
+  }
+}
+
+async function loadReader(item) {
+  readerAbort?.abort(); const controller = new AbortController(); readerAbort = controller;
+  const notice = $('#reader-notice'), progress = $('#reader-status'), retry = $('#reader-retry');
+  progress.hidden = false; progress.textContent = 'Kaynak metni yükleniyor…';
+  notice.hidden = retry.hidden = true; $('#reader-attachments').hidden = true;
+  showReaderBlocks(item.body ? [{type:'paragraph', text:item.body}] : []);
+  try {
+    let data;
+    for (let attempt = 0; attempt < 16; attempt++) {
+      const response = await fetch(`/api/content?id=${item.id}`, {signal:controller.signal});
+      if (response.status === 202) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        if (controller.signal.aborted) return;
+        continue;
+      }
+      if (!response.ok) throw new Error('unavailable');
+      data = await response.json(); break;
+    }
+    if (!data) throw new Error('timeout');
+    if (controller.signal.aborted) return;
+    showReaderBlocks(data.blocks);
+    progress.textContent = data.status === 'summary' ? 'Yalnızca özet' : 'Kaynak metni';
+    notice.textContent = data.notice || ''; notice.hidden = !data.notice;
+    const files = $('#reader-files'); files.replaceChildren();
+    for (const file of data.attachments || []) {
+      const link = document.createElement('a'); link.textContent = `${file.filename} ↗`; link.href = file.url;
+      link.target = '_blank'; link.rel = 'noopener noreferrer'; files.append(link);
+    }
+    $('#reader-attachments').hidden = !files.childElementCount;
+  } catch {
+    if (controller.signal.aborted) return;
+    progress.textContent = 'İçerik yüklenemedi';
+    notice.textContent = 'Varsa kayıtlı özet gösteriliyor. Yeniden deneyebilir veya kaynağı açabilirsin.';
+    notice.hidden = retry.hidden = false;
+  }
+}
+
+function openReader(item) {
+  readerItem = item;
+  $('#reader-title').textContent = item.title;
+  $('#reader-kind').textContent = item.type === 'kap' ? 'KAP bildirimi' : 'Haber';
+  $('#reader-meta').textContent = `${item.source} · ${formatTime(item.published_at || item.created_at)}`;
+  $('#reader-symbols').textContent = JSON.parse(item.tickers_json || '[]').map(s => `#${s}`).join(' ');
+  $('#reader-source').href = item.url;
+  readerScrollY = window.scrollY;
+  document.body.style.top = `-${readerScrollY}px`;
+  document.body.classList.add('reading');
+  readerDialog.showModal();
+  $('.reader-scroll').scrollTop = 0;
+  loadReader(item);
+}
+$('#reader-close').onclick = () => readerDialog.close();
+$('#reader-retry').onclick = () => readerItem && loadReader(readerItem);
+readerDialog.addEventListener('close', () => {
+  readerAbort?.abort(); readerItem = null;
+  document.body.classList.remove('reading'); document.body.style.top = '';
+  window.scrollTo(0, readerScrollY);
+});
 
 const labels = { "": "Tüm gelişmeler", kap: "KAP bildirimleri", spk: "SPK bültenleri", news: "Piyasa haberleri" };
 const badges = { kap: "KAP", spk: "SPK", news: "Haber" };
@@ -127,6 +212,14 @@ function render(item) {
   tickers.textContent = symbols.map(symbol => `#${symbol}`).join("  ");
 
   const isBreaker = item.type === "kap" && /devre kesici/i.test(item.title) && item.body;
+  if (item.type === 'news' || (item.type === 'kap' && !isBreaker)) {
+    open.removeAttribute('target');
+    open.setAttribute('aria-haspopup', 'dialog');
+    open.onclick = event => {
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+      event.preventDefault(); openReader(item);
+    };
+  }
   if (isBreaker) {
     const text = `${symbols.map(symbol => `#${symbol}`).join(" ")}\n\nDevre kesici uygulandı. Sürekli işleme ara verildi.`;
     tweet.innerHTML = "<span>✓</span> Tweeti kopyala";
@@ -234,4 +327,4 @@ updateClock();
 setInterval(updateClock, 1000);
 loadSources();
 load();
-setInterval(() => { if (!state.loading && window.scrollY < 240) load(); }, 60_000);
+setInterval(() => { if (!state.loading && !readerDialog.open && !tweetDialog.open && window.scrollY < 240) load(); }, 60_000);

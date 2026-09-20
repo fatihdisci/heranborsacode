@@ -62,6 +62,22 @@
       </article>
     </template>
 
+    <dialog id="reader-dialog" aria-labelledby="reader-title">
+      <header class="reader-toolbar"><button id="reader-close" type="button" aria-label="Akışa dön">‹ <span>Geri</span></button><span id="reader-kind">Haber</span><a id="reader-source" target="_blank" rel="noopener noreferrer">Kaynağa git ↗</a></header>
+      <div class="reader-scroll" tabindex="0">
+        <article class="reader-article">
+          <p id="reader-meta" class="reader-meta"></p>
+          <h2 id="reader-title"></h2>
+          <p id="reader-symbols" class="tickers"></p>
+          <p id="reader-status" role="status" aria-live="polite">İçerik yükleniyor…</p>
+          <div id="reader-body" class="reader-body"></div>
+          <section id="reader-attachments" hidden><h3>Ek dosyalar</h3><p>Ekler kaynak üzerinden açılır.</p><div id="reader-files"></div></section>
+          <p id="reader-notice" class="reader-notice" hidden></p>
+          <button id="reader-retry" type="button" hidden>Tekrar dene</button>
+        </article>
+      </div>
+    </dialog>
+
     <dialog id="tweet-dialog">
       <form method="dialog" class="tweet-sheet">
         <div class="sheet-handle" aria-hidden="true"></div>

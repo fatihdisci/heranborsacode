@@ -3,11 +3,24 @@ import { listFeed } from "../db/feed";
 import { json } from "../utils/http";
 import { generateTweetDraft } from "../ai/tweet";
 import { authorizeTelegramRequest } from "../security/telegram";
+import { readerContent } from '../reader/content';
 
 const TYPES = new Set<FeedType>(["kap", "spk", "news"]);
 
 export async function api(request: Request, env: Env): Promise<Response | null> {
   const url = new URL(request.url);
+  if (url.pathname === '/api/content') {
+    if (request.method !== 'GET') return json({error:'method_not_allowed'},405,{allow:'GET'});
+    const id = Number(url.searchParams.get('id'));
+    if (!Number.isSafeInteger(id) || id < 1) return json({error:'invalid_feed_item'},400);
+    const item = await env.DB.prepare('SELECT * FROM feed_items WHERE id=?').bind(id).first<import('../types').FeedItem>();
+    if (!item) return json({error:'not_found'},404);
+    if (item.type === 'spk' || (item.type === 'kap' && /devre kesici/i.test(item.title))) return json({error:'source_only'},422);
+    try {
+      const content = await readerContent(env,item);
+      return content ? json(content) : json({status:'loading'},202,{'retry-after':'2'});
+    } catch { return json({error:'content_unavailable'},503); }
+  }
   if (url.pathname === "/health") {
     try {
       await env.DB.prepare("SELECT 1 AS ok").first();
