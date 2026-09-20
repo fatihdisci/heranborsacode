@@ -2,6 +2,8 @@ export interface Env {
   DB: D1Database;
   ASSETS: Fetcher;
   POLL_SHARDS: DurableObjectNamespace;
+  TELEGRAM_ACTIONS: DurableObjectNamespace;
+  TELEGRAM_WEBHOOK_SECRET?: string;
   TELEGRAM_BOT_TOKEN?: string;
   TELEGRAM_CHAT_ID?: string;
   TELEGRAM_ALLOWED_USERNAME?: string;

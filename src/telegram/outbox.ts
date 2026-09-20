@@ -1,6 +1,9 @@
 import type { Env } from "../types";
 import { escapeTelegramHtml, sha256 } from "../utils/text";
 import { sendDocument, sendMessage, TelegramError } from "./client";
+import type { InlineButton } from './client';
+import type { FeedItem } from '../types';
+import { feedKeyboard } from './buttons';
 
 export const DKB_WINDOW_MS = 12_000;
 export interface DeliveryPayload {
@@ -9,8 +12,10 @@ export interface DeliveryPayload {
   button?: { text: string; url: string };
   document?: { url: string; filename: string };
   codes?: string[];
+  keyboard?: InlineButton[][];
+  replyTo?: number;
 }
-interface Job { id: string; kind: string; payload: string; attempts: number; first_seen_at: string; }
+interface Job { id: string; source_ref: string | null; kind: string; payload: string; attempts: number; first_seen_at: string; }
 function utcTime(value: string): number { return Date.parse(value.includes('T') ? value : value.replace(' ', 'T') + 'Z'); }
 
 export function enqueueStatement(env: Env, id: string, kind: string, payload: DeliveryPayload, publishedAt: string | null, firstSeen = new Date().toISOString(), sourceRef: string | null = id): D1PreparedStatement {
@@ -46,7 +51,7 @@ export async function deliverOne(env: Env): Promise<number> {
   if (Number(cooldown?.value ?? 0) > now) return Math.min(60_000, Number(cooldown!.value) - now);
   const job = await env.DB.prepare(`UPDATE telegram_outbox SET status='sending',lease_until=?,attempts=attempts+1
     WHERE id=(SELECT id FROM telegram_outbox WHERE (status='pending' AND available_at<=?) OR (status='sending' AND lease_until<=?)
-      ORDER BY CASE WHEN kind='dkb_group' THEN 0 ELSE 1 END,first_seen_at,id LIMIT 1) RETURNING *`).bind(now + 90_000, now, now).first<Job>();
+      ORDER BY CASE WHEN kind='dkb_group' THEN 0 WHEN kind='action_reply' THEN 1 ELSE 2 END,first_seen_at,id LIMIT 1) RETURNING *`).bind(now + 90_000, now, now).first<Job>();
   if (!job) return 3_000;
   // During a rolling deployment the old worker may have completed an imported
   // pending record. Respect that receipt rather than replaying the message.
@@ -62,9 +67,13 @@ export async function deliverOne(env: Env): Promise<number> {
   const payload = JSON.parse(job.payload) as DeliveryPayload;
   let messageId: number;
   try {
+    if (env.TELEGRAM_WEBHOOK_SECRET && job.kind === 'message' && job.source_ref) {
+      const item = await env.DB.prepare('SELECT * FROM feed_items WHERE source_ref=?').bind(job.source_ref).first<FeedItem>();
+      if (item) payload.keyboard = feedKeyboard(item,payload.button);
+    }
     messageId = payload.document
       ? await sendDocument(env, payload.document.url, payload.document.filename)
-      : await sendMessage(env, payload.plain ? escapeTelegramHtml(payload.text ?? '') : payload.text ?? '', payload.button);
+      : await sendMessage(env, payload.plain ? escapeTelegramHtml(payload.text ?? '') : payload.text ?? '', payload.button, {keyboard:payload.keyboard,replyTo:payload.replyTo});
   } catch (cause) {
     const error = cause instanceof TelegramError ? cause : null;
     const delay = retryDelay(job.attempts, error?.retryAfter);

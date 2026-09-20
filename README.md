@@ -55,6 +55,12 @@ AI promptu `src/ai/prompt.ts` içinde sürümlenir. GPT-5.6 Luna yalnız kullan�
 
 ## Kontrol
 
+Telegram haber ve DKB dışındaki KAP mesajlarında kaynak bağlantısının yanında **Oku** ve **Tweet oluştur** bulunur. Yanıt aynı özel sohbette ilgili mesaja cevap olarak gönderilir. Uzun metinler tek seferde sohbeti doldurmaz; **Devamını oku** kayıtlı metnin sonraki bölümünü getirir. Okuma, kaynak sayfanın erişilebilir metnini/tablosunu sunar; ek dosyalar bağlantı olarak belirtilir, eksik erişimde yalnız özet olduğu açıkça yazılır. Tweet, Mini App ile aynı model/prompt/önbelleği kullanır ve X'e yayınlanmaz.
+
+Bu butonlar için `TELEGRAM_WEBHOOK_SECRET` rastgele, yüksek entropili bir Worker secret olarak kaydedilir. `/api/telegram/setup` GET/POST ve `/api/telegram/webhook` POST, `X-Telegram-Bot-Api-Secret-Token` başlığıyla doğrulanır. Setup POST webhook'u kaydeder ve son 10 uygun mesajın butonlarını günceller; farklı webhook varsa değiştirmez. GET yalnız yapılandırma/bekleyen güncelleme durumunu döndürür. Anahtarları komut satırına veya loglara yazmayın. İşlemler sadece `TELEGRAM_CHAT_ID` ile eşleşen özel sohbetin sahibi tarafından kullanılabilir.
+
+`TelegramActions` Durable Object okuma ve AI için bağımsız iki işleyici kullanır; boşken alarm çalıştırmaz. Kalıcı `telegram_actions` kuyruğu tekrar gelen callback'leri ve hızlı çift tıklamaları tekilleştirir (dakikada en fazla 6 istek, toplam en fazla 8 bekleyen iş). Yanıtlar mevcut Telegram teslimat kuyruğuna girer. Kesilmiş AI işlemi otomatik tekrar ücretlendirilmez; hata mesajıyla kullanıcıdan tekrar denemesi istenir. Cron yalnız bekleyen işlerin alarmını denetler; kaynak tarama ritmi değişmez. OpenAI isteği 100 saniyeyle sınırlandırılır.
+
 ```sh
 npm run check
 npm test

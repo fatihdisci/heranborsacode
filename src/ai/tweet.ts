@@ -33,6 +33,7 @@ export async function generateTweetDraft(env: Env, item: FeedItem): Promise<{ tw
   }
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
+    signal: AbortSignal.timeout(100_000),
     headers: { authorization: `Bearer ${env.OPENAI_API_KEY}`, "content-type": "application/json" },
     body: JSON.stringify({ model: MODEL, instructions: SYSTEM_PROMPT, input: [{ role: "user", content }], reasoning: { effort: "low" }, text: { verbosity: "low" }, max_output_tokens: 900, store: false }),
   });

@@ -22,6 +22,14 @@ class_name = "PollShard"
 tag = "poll-shards-v1"
 new_sqlite_classes = [ "PollShard" ]
 
+[[durable_objects.bindings]]
+name = "TELEGRAM_ACTIONS"
+class_name = "TelegramActions"
+
+[[migrations]]
+tag = "telegram-actions-v1"
+new_sqlite_classes = [ "TelegramActions" ]
+
 [observability]
 enabled = true
 head_sampling_rate = 1
