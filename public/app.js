@@ -1,3 +1,4 @@
+import { connectTelegramBack, restoreFeedPosition } from './navigation.js';
 const telegram = window.Telegram?.WebApp;
 const state = { type: "", ticker: "", q: "", source: "", cursor: null, loading: false, seen: new Set(), searchOpen: false };
 
@@ -15,6 +16,7 @@ const tweetProgress = $("#tweet-progress");
 const tweetMessage = $("#tweet-message");
 const copyTweetButton = $("#copy-tweet");
 const readerDialog = $('#reader-dialog');
+const navigation = connectTelegramBack(telegram, [readerDialog, tweetDialog]);
 let readerAbort;
 let readerItem;
 let readerScrollY = 0;
@@ -89,6 +91,7 @@ function openReader(item) {
   document.body.style.top = `-${readerScrollY}px`;
   document.body.classList.add('reading');
   readerDialog.showModal();
+  navigation.sync();
   $('.reader-scroll').scrollTop = 0;
   loadReader(item);
 }
@@ -96,8 +99,7 @@ $('#reader-close').onclick = () => readerDialog.close();
 $('#reader-retry').onclick = () => readerItem && loadReader(readerItem);
 readerDialog.addEventListener('close', () => {
   readerAbort?.abort(); readerItem = null;
-  document.body.classList.remove('reading'); document.body.style.top = '';
-  window.scrollTo(0, readerScrollY);
+  restoreFeedPosition(window, document, readerScrollY);
 });
 
 const labels = { "": "Tüm gelişmeler", kap: "KAP bildirimleri", spk: "SPK bültenleri", news: "Piyasa haberleri" };
@@ -140,6 +142,7 @@ function openTweetDialog() {
   copyTweetButton.disabled = true;
   if (typeof tweetDialog.showModal === "function" && !tweetDialog.open) tweetDialog.showModal();
   else tweetDialog.setAttribute("open", "");
+  navigation.sync();
 }
 
 function showTweetError(message) {

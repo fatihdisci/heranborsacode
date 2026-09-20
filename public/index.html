@@ -63,7 +63,11 @@
     </template>
 
     <dialog id="reader-dialog" aria-labelledby="reader-title">
-      <header class="reader-toolbar"><button id="reader-close" type="button" aria-label="Akışa dön">‹ <span>Geri</span></button><span id="reader-kind">Haber</span><a id="reader-source" target="_blank" rel="noopener noreferrer">Kaynağa git ↗</a></header>
+      <header class="reader-toolbar">
+        <button id="reader-close" type="button" aria-label="Akışa dön"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg><span>Geri</span></button>
+        <span id="reader-kind">Haber</span>
+        <a id="reader-source" target="_blank" rel="noopener noreferrer"><span>Kaynağa git</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M7 7h10v10"/></svg></a>
+      </header>
       <div class="reader-scroll" tabindex="0">
         <article class="reader-article">
           <p id="reader-meta" class="reader-meta"></p>
