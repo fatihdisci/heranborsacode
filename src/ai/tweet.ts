@@ -42,7 +42,9 @@ export async function generateTweetDraft(env: Env, item: FeedItem): Promise<{ tw
   const symbols = JSON.parse(item.tickers_json ?? "[]") as string[];
   const content: Array<Record<string, unknown>> = [{ type: "input_text", text: `${source.text}\n\nDoğrulanmış hisse kodları: ${symbols.join(", ") || "Yok"}\nBu kaynaktan yayıma hazır tweet taslağını oluştur.` }];
   for (const attachment of source.attachments) {
-    content.push({ type: "input_file", file_url: attachment.url, filename: attachment.filename, ...(attachment.isPdf ? { detail: "high" } : {}) });
+    // External file inputs accept the URL (and optional PDF detail); the local
+    // filename is retained only for discovery/debugging and is not sent.
+    content.push({ type: "input_file", file_url: attachment.url, ...(attachment.isPdf ? { detail: "high" } : {}) });
   }
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",

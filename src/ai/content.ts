@@ -43,12 +43,12 @@ export function extractAttachments(html: string, baseUrl: string): SourceAttachm
   for (const match of html.matchAll(/<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi)) {
     const url = absoluteUrl(match[1], baseUrl);
     const label = stripHtml(match[2]);
-    if (!url || (!FILE_NAME.test(url) && !FILE_NAME.test(label) && !url.includes("/api/file/download/"))) continue;
+    if (!url || (!FILE_NAME.test(url) && !FILE_NAME.test(label) && !url.includes("/api/file/download/") && !url.includes("/api/BildirimPdf"))) continue;
     const fallback = new URL(url).pathname.split("/").pop() || "ek-dosya";
     const filename = (label.match(/[^/\\]+\.(?:pdf|docx?|xlsx?|csv|txt|xml)/i)?.[0] ?? fallback).slice(0, 180);
     found.set(url, { url, filename, isPdf: /\.pdf$/i.test(filename) });
   }
-  return [...found.values()].slice(0, 12);
+  return [...found.values()];
 }
 
 export async function fetchSourceBundle(item: FeedItem): Promise<SourceBundle> {
