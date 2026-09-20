@@ -20,6 +20,13 @@ function recentBulletinDate(value: string | null): boolean {
   return date.getTime() >= start;
 }
 
+function bulletinPublishedAt(value: string | null): string | null {
+  const match = value?.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
+  if (!match) return null;
+  // SPK bulletins are date-only; place them at midnight in Istanbul.
+  return new Date(Date.UTC(Number(match[3]), Number(match[2]) - 1, Number(match[1]) - 1, 21)).toISOString();
+}
+
 export function parseBulletins(html: string, baseUrl = SPK_URL): Bulletin[] {
   const links = [...html.matchAll(/<a\b[^>]*href=["']([^"']+\.pdf(?:\?[^"']*)?)["'][^>]*>([\s\S]*?)<\/a>/gi)];
   const unique = new Map<string, Bulletin>();
@@ -39,12 +46,20 @@ export async function pollSPK(env: Env): Promise<void> {
   if (!response.ok) throw new Error(`SPK HTTP ${response.status}`);
   const bulletins = parseBulletins(await response.text());
   if (!bulletins.length) throw new Error("SPK page had no parseable PDF bulletins");
+  const historyInitialized = await getState(env, "spk_history_initialized");
+  if (!historyInitialized) {
+    for (const bulletin of bulletins) {
+      await env.DB.prepare("INSERT OR IGNORE INTO spk_bulletins(bulletin_number, bulletin_date, pdf_url, telegram_status) VALUES (?, ?, ?, 'baseline')").bind(bulletin.number, bulletin.date, bulletin.pdfUrl).run();
+      await insertFeed(env, { type: "spk", source: "SPK", source_ref: `spk:${bulletin.number}`, title: `SPK Bülteni: ${bulletin.number}`, body: bulletin.date ? `Tarih: ${bulletin.date}` : null, url: bulletin.pdfUrl, tickers_json: "[]", published_at: bulletinPublishedAt(bulletin.date) });
+    }
+    await setState(env, "spk_history_initialized", "1");
+  }
   const initialized = await getState(env, "spk_baseline_initialized");
   if (!initialized) {
     const initial = bulletins.filter(bulletin => recentBulletinDate(bulletin.date));
     for (const bulletin of initial) {
       await env.DB.prepare("INSERT OR IGNORE INTO spk_bulletins(bulletin_number, bulletin_date, pdf_url, telegram_status) VALUES (?, ?, ?, 'baseline')").bind(bulletin.number, bulletin.date, bulletin.pdfUrl).run();
-      await insertFeed(env, { type: "spk", source: "SPK", source_ref: `spk:${bulletin.number}`, title: `SPK Bülteni: ${bulletin.number}`, body: bulletin.date ? `Tarih: ${bulletin.date}` : null, url: bulletin.pdfUrl, tickers_json: "[]", published_at: bulletin.date });
+      await insertFeed(env, { type: "spk", source: "SPK", source_ref: `spk:${bulletin.number}`, title: `SPK Bülteni: ${bulletin.number}`, body: bulletin.date ? `Tarih: ${bulletin.date}` : null, url: bulletin.pdfUrl, tickers_json: "[]", published_at: bulletinPublishedAt(bulletin.date) });
     }
     await setState(env, "spk_baseline_initialized", "1");
     console.info("SPK baseline initialized", { bulletins: initial.length });
@@ -54,7 +69,7 @@ export async function pollSPK(env: Env): Promise<void> {
     const known = await env.DB.prepare("SELECT bulletin_number FROM spk_bulletins WHERE bulletin_number = ?").bind(bulletin.number).first();
     if (known) continue;
     await env.DB.prepare("INSERT INTO spk_bulletins(bulletin_number, bulletin_date, pdf_url, telegram_status) VALUES (?, ?, ?, 'pending')").bind(bulletin.number, bulletin.date, bulletin.pdfUrl).run();
-    await insertFeed(env, { type: "spk", source: "SPK", source_ref: `spk:${bulletin.number}`, title: `SPK Bülteni: ${bulletin.number}`, body: bulletin.date ? `Tarih: ${bulletin.date}` : null, url: bulletin.pdfUrl, tickers_json: "[]", published_at: bulletin.date });
+    await insertFeed(env, { type: "spk", source: "SPK", source_ref: `spk:${bulletin.number}`, title: `SPK Bülteni: ${bulletin.number}`, body: bulletin.date ? `Tarih: ${bulletin.date}` : null, url: bulletin.pdfUrl, tickers_json: "[]", published_at: bulletinPublishedAt(bulletin.date) });
     try {
       await sendMessage(env, `📄 <b>Yeni SPK Bülteni yayımlandı</b>\n\nSPK Bülteni: <b>${escapeTelegramHtml(bulletin.number)}</b>${bulletin.date ? `\nTarih: ${escapeTelegramHtml(bulletin.date)}` : ""}`);
       await sendDocument(env, bulletin.pdfUrl, `SPK-Bulteni-${bulletin.number.replace("/", "-")}.pdf`);

@@ -5,7 +5,7 @@ import { normalizeKapList } from "../src/kap/poll";
 
 describe("source parsers", () => {
   it("parses RSS and Atom item links", () => {
-    expect(parseRss("<rss><channel><item><title><![CDATA[Test &amp; Başlık]]></title><link>https://example.com/a?utm_source=x</link><pubDate>Tue, 01 Sep 2026 10:00:00 GMT</pubDate></item></channel></rss>")).toEqual([{ title: "Test & Başlık", url: "https://example.com/a?utm_source=x", publishedAt: "2026-09-01T10:00:00.000Z" }]);
+    expect(parseRss("<rss><channel><item><title><![CDATA[Test &amp; Başlık]]></title><description>Özet metni</description><link>https://example.com/a?utm_source=x</link><pubDate>Tue, 01 Sep 2026 10:00:00 GMT</pubDate></item></channel></rss>")).toEqual([{ title: "Test & Başlık", description: "Özet metni", url: "https://example.com/a?utm_source=x", publishedAt: "2026-09-01T10:00:00.000Z" }]);
   });
   it("recognizes SPK bulletin PDF links", () => {
     const parsed = parseBulletins('<p>SPK Bülteni 2026/62 - 18.09.2026 <a href="/files/62.pdf">PDF</a></p>', "https://spk.gov.tr/list");

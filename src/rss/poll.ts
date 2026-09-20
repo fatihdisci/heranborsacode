@@ -49,12 +49,14 @@ async function pollSource(env: Env, source: { name: string; url: string }, silen
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).bind(source.name, item.title, item.url, normalizedUrl, item.publishedAt, nowIso(), hash, JSON.stringify(tickers)).run();
     if (!write.meta.changes) continue;
     inserted++;
-    await insertFeed(env, { type: "news", source: source.name, source_ref: `rss:${hash}`, title: item.title, body: null, url: item.url, tickers_json: JSON.stringify(tickers), published_at: item.publishedAt });
+    const summary = item.description?.replace(/\s+/g, " ").trim().slice(0, 700) || null;
+    await insertFeed(env, { type: "news", source: source.name, source_ref: `rss:${hash}`, title: item.title, body: summary, url: item.url, tickers_json: JSON.stringify(tickers), published_at: item.publishedAt });
     const sourceInitialized = await env.DB.prepare("SELECT value FROM system_state WHERE key = ?").bind(`rss_baseline:${source.url}`).first();
     if (!sourceInitialized || silentBootstrap) continue;
     try {
-      const hashtagLine = tickers.length ? `\n\n${tickers.map(ticker => `#${ticker}`).join(" ")}` : "";
-      await sendMessage(env, `📰 <b>${escapeTelegramHtml(source.name)}</b>\n\n${escapeTelegramHtml(item.title)}${hashtagLine}`, { text: "🔗 Haberi Aç", url: item.url });
+      const hashtagLine = tickers.length ? `${tickers.map(ticker => `#${ticker}`).join(" ")}\n` : "";
+      const summaryLine = summary ? `\n\n${escapeTelegramHtml(summary)}` : "";
+      await sendMessage(env, `${hashtagLine}📰 <b>${escapeTelegramHtml(source.name)}</b>\n\n<b>${escapeTelegramHtml(item.title)}</b>${summaryLine}`, { text: "🔗 Haberi Aç", url: item.url });
       await env.DB.prepare("UPDATE rss_items SET telegram_status = 'sent', telegram_sent_at = CURRENT_TIMESTAMP WHERE content_hash = ?").bind(hash).run();
     } catch (error) {
       console.warn("rss telegram delivery failed", { source: source.name, hash, error: error instanceof Error ? error.message : String(error) });
