@@ -3,18 +3,22 @@ import { fetchSourceBundle } from "./content";
 import { sha256 } from "../utils/text";
 
 const MODEL = "gpt-5.6-luna";
+const PROMPT_VERSION = "natural-v2";
 
-const SYSTEM_PROMPT = `Sen Heran Borsa için Türkçe finans haberleri ve resmî bildirimlerden yayıma hazır X gönderileri hazırlayan dikkatli bir editörsün.
+const SYSTEM_PROMPT = `Sen Heran Borsa için Türkçe finans haberleri ve resmî bildirimlerden yayıma hazır X gönderileri hazırlayan deneyimli bir finans editörüsün.
 
 Yalnızca kullanıcı mesajında ve ek dosyalarda verilen bilgilere dayan. Bilgi uydurma, tahminde bulunma, yatırım tavsiyesi verme ve kaynakta olmayan neden-sonuç ilişkisi kurma. Resmî bildirim ile haber arasında çelişki varsa resmî bildirimi esas al. İsimleri, şirketleri, hisse kodlarını, tarihleri, para birimlerini, oranları ve işlem yönlerini eksiksiz ve hatasız koru.
 
 Çıktı kuralları:
 - Yalnızca doğrudan kopyalanıp yayımlanabilecek tweet metnini döndür; açıklama, başlık etiketi, markdown veya kod bloğu ekleme.
-- Doğal, akıcı ve anlaşılır Türkçe kullan. Haber dili robotik olmasın.
-- En fazla 5 kısa cümle yaz. İlk cümlede en önemli gelişmeyi söyle; kritik sayı ve ayrıntıları sonraki cümlelerde ver.
+- Bir insan editörün yazdığı gibi doğal, akıcı ve anlaşılır Türkçe kullan. Kurumsal bülten dili, yapay geçişler, tekrarlar ve robotik kalıplar kullanma.
+- En fazla 5 kısa cümle yaz. İlk cümlede en önemli gelişmeyi doğrudan söyle; kritik sayı ve ayrıntıları sonraki cümlelerde ver.
+- Birbirinden farklı iki düşünce varsa araya boş satır koyarak 2 kısa paragraf oluştur. Tek bir düşünce varsa sırf biçim olsun diye paragraf bölme.
+- Cümleleri kaynaktaki sırayla mekanik biçimde özetleme; haber değerine göre yeniden düzenle. Gereksiz sıfatları ve herkesçe bilinen arka planı çıkar.
+- KAP ve SPK metinlerinde resmî anlamı korurken sade konuş; haberlerde daha canlı ama ölçülü bir ton kullan.
 - İlgi çekici ol ama sansasyon, abartı, clickbait ve kesin olmayan ifade kullanma.
-- Yalnız kaynakta açıkça geçen hisse kodlarını en başta hashtag olarak yaz; en fazla 3 hashtag kullan.
-- Kaynak bağlantısını son satırda “🔗 ” ile aynen ver.
+- Yalnız kaynakta açıkça geçen hisse kodlarını en başta hashtag olarak yaz; en fazla 3 hashtag kullan. Hashtag varsa sonrasında bir boş satır bırak.
+- Kaynak bağlantısını ayrı bir son paragrafta “🔗 ” ile aynen ver.
 - Ekler varsa tamamını ana kaynakla birlikte değerlendir; tweet için maddi önemi olan ayrıntıları seç.
 - Yetersiz veya çelişkili veri varsa bunu gizleme; doğrulanamayan ayrıntıyı metne alma.`;
 
@@ -36,7 +40,8 @@ function cleanDraft(value: string): string {
 
 export async function generateTweetDraft(env: Env, item: FeedItem): Promise<{ tweet: string; cached: boolean }> {
   if (!env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY yapılandırılmamış");
-  const cached = await env.DB.prepare("SELECT tweet_text FROM ai_tweet_drafts WHERE feed_item_id=?").bind(item.id).first<{ tweet_text: string }>();
+  const cacheModel = `${MODEL}:${PROMPT_VERSION}`;
+  const cached = await env.DB.prepare("SELECT tweet_text FROM ai_tweet_drafts WHERE feed_item_id=? AND model=?").bind(item.id, cacheModel).first<{ tweet_text: string }>();
   if (cached?.tweet_text) return { tweet: cached.tweet_text, cached: true };
   const source = await fetchSourceBundle(item);
   const symbols = JSON.parse(item.tickers_json ?? "[]") as string[];
@@ -56,6 +61,6 @@ export async function generateTweetDraft(env: Env, item: FeedItem): Promise<{ tw
   const tweet = cleanDraft(responseText(result));
   if (!tweet) throw new Error("OpenAI boş tweet döndürdü");
   const digest = await sha256(`${item.source_ref}\n${source.text}\n${source.attachments.map(file => file.url).join("\n")}`);
-  await env.DB.prepare("INSERT OR REPLACE INTO ai_tweet_drafts(feed_item_id,tweet_text,model,source_digest,created_at) VALUES (?,?,?,?,CURRENT_TIMESTAMP)").bind(item.id, tweet, MODEL, digest).run();
+  await env.DB.prepare("INSERT OR REPLACE INTO ai_tweet_drafts(feed_item_id,tweet_text,model,source_digest,created_at) VALUES (?,?,?,?,CURRENT_TIMESTAMP)").bind(item.id, tweet, cacheModel, digest).run();
   return { tweet, cached: false };
 }

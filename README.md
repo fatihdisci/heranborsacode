@@ -1,12 +1,12 @@
 # Heran Borsa
 
-Cloudflare Workers + D1 üzerinde çalışan, AI kullanmayan finans akışı: MKK/KAP bildirimleri, SPK bültenleri ve doğrulanmış RSS kaynaklarını normalize eder, tekilleştirir, Telegram'a iletir ve Telegram Mini App'te sunar.
+Cloudflare Workers + D1 üzerinde çalışan finans akışı: MKK/KAP bildirimleri, SPK bültenleri ve doğrulanmış RSS kaynaklarını normalize eder, tekilleştirir, Telegram'a iletir ve akıcı bir Telegram Mini App'te sunar. Kullanıcı istediğinde, kaynak metni ve ek dosyalar OpenAI Responses API ile okunarak yayıma hazır tweet taslağı oluşturulur.
 
 ## Mimari
 
-`cron (15 dk) → KAP / RSS / (saat başında SPK) → D1 kaynak tabloları + ortak feed_items → Telegram / REST / Mini App`
+`cron (1 dk) → KAP / RSS / (planlı SPK taraması) → D1 kaynak tabloları + ortak feed_items → Telegram / REST / Mini App → isteğe bağlı AI tweet taslağı`
 
-Tek cron tetikleyicisi KAP ve RSS'i her 15 dakikada bir çalıştırır; SPK kontrolü sadece UTC saat başında yapılır. İlk başarılı SPK ve RSS çalışması geçmiş veriyi **baseline** olarak kaydeder, Telegram'a göndermez. Sonraki yeni kayıtlar gönderilir. KAP'ın ilk çalışması için sağlayıcının yeni bildirim endpoint'i kullanılması gerekir.
+Tek cron tetikleyicisi KAP ve RSS'i her dakika çalıştırır; SPK kontrolü İstanbul saatine göre planlı aralıklarda yapılır. İlk kurulumdaki geçmiş kayıtlar Mini App için sessizce doldurulur, Telegram'a eski bildirim olarak yeniden gönderilmez. Sonraki yeni kayıtlar benzersiz kaynak kimlikleriyle tekilleştirilerek iletilir.
 
 ## Kurulum
 
@@ -25,6 +25,8 @@ Gerçek değerleri kaynak koda, `wrangler.toml`'a veya git'e koymayın. Her biri
 ```sh
 wrangler secret put TELEGRAM_BOT_TOKEN
 wrangler secret put TELEGRAM_CHAT_ID
+wrangler secret put TELEGRAM_ALLOWED_USERNAME
+wrangler secret put OPENAI_API_KEY
 wrangler secret put MKK_API_KEY
 wrangler secret put MKK_API_SECRET
 ```
@@ -33,13 +35,13 @@ wrangler secret put MKK_API_SECRET
 
 ## RSS ve KAP kapsamı
 
-Başlangıç RSS listesi, yayıncının resmi RSS dizininde belirtilen `Habertürk Ekonomi` feed'idir. Kaynak listesi `src/rss/sources.ts` içindedir; erişilebilirliği doğrulanmadan yeni feed eklemeyin. Filtre ve ticker sözlüğü deterministiktir; AI ile özet veya ticker tahmini yoktur.
+RSS kaynak listesi `src/rss/sources.ts` içindedir; erişilebilirliği doğrulanmadan yeni feed eklemeyin. Akış filtresi ve ticker sözlüğü deterministiktir; AI yalnız kullanıcı tweet taslağı istediğinde devreye girer.
 
-KAP yalnızca ODA, CA, FR ve piyasa/şirket açısından anlamlı DG bildirimlerini kabul eder; FON bildirimlerini hariç tutar. Pay alım/satım bildirimleri `src/kap/bist50.ts` içindeki güncellenebilir BIST 50 setiyle sınırlandırılır.
+KAP akışı şirket, fon/portföy yönetimi ve piyasa açısından anlamlı bildirimleri kapsar. Pay alım/satım bildirimleri `src/kap/bist50.ts` içindeki güncellenebilir BIST 50 setiyle sınırlandırılır; devre kesici bildirimleri sabit ve hatasız tweet biçimiyle işlenir.
 
 ## Telegram ve Mini App
 
-BotFather'da **Menu Button / Web App URL** olarak deploy sonrası Worker URL'sini girin (ör. `https://heranborsa.<subdomain>.workers.dev`). Uygulama normal tarayıcıda da çalışır. Feed herkese açık salt-okunur olduğu için Telegram `initData` doğrulamasına ihtiyaç duymaz; ileride kullanıcıya özel veya yazma yapan endpoint eklenirse initData backend'de HMAC doğrulanmadan güvenilmemelidir.
+BotFather'da **Menu Button / Web App URL** olarak deploy sonrası Worker URL'sini girin (ör. `https://heranborsa.<subdomain>.workers.dev`). Uygulamanın salt-okunur akışı normal tarayıcıda da çalışır. AI tweet endpoint'i yalnız Telegram Mini App'in imzalı `initData` verisi doğrulandıktan ve kullanıcı adı allowlist'i eşleştikten sonra çağrılabilir.
 
 Telegram gönderimleri merkezî `src/telegram/client.ts` modülündedir; HTML escape, retry/backoff ve hata izolasyonu içerir. Bir üçüncü taraf Telegram çağrısında gerçek anlamda atomik/exactly-once teslimat mümkün olmadığından, D1 benzersiz kimlikleri tekrar üretimi engeller; belirsiz teslimat senaryoları operasyonel olarak incelenmelidir.
 
