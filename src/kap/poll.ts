@@ -34,16 +34,20 @@ async function queue(env: Env, from: string): Promise<void> {
   for (const item of list) { const isFund=Boolean(item.fundId || item.fundCode); highest = Math.max(highest, Number(item.disclosureIndex)); if (relevant(item.disclosureType, item.disclosureClass, item.title, isFund)) await env.DB.prepare("INSERT OR IGNORE INTO kap_pending(disclosure_index,disclosure_type,disclosure_class,title,is_fund) VALUES (?,?,?,?,?)").bind(item.disclosureIndex,item.disclosureType,item.disclosureClass,item.title,isFund ? 1 : 0).run(); }
   if (highest >= Number(from)) await env.DB.prepare("INSERT INTO system_state(key,value) VALUES ('kap_next_index',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=CURRENT_TIMESTAMP").bind(String(highest + 1)).run();
 }
-async function process(env: Env): Promise<void> {
+async function process(env: Env, silent = false): Promise<void> {
   const rows = await env.DB.prepare("SELECT * FROM kap_pending ORDER BY CAST(disclosure_index AS INTEGER) LIMIT 5").all<Pending>();
   for (const row of rows.results ?? []) {
-    const response = await kap(env, `/disclosureDetail/${encodeURIComponent(row.disclosure_index)}`); if (!response.ok) throw new Error(`KAP disclosureDetail HTTP ${response.status}`);
+    const response = await kap(env, `/disclosureDetail/${encodeURIComponent(row.disclosure_index)}?fileType=html`); if (!response.ok) throw new Error(`KAP disclosureDetail HTTP ${response.status}`);
     const d = await response.json<Detail>(), codes = [...new Set([...symbols(d.senderExchCodes),...symbols(d.relatedStocks)])], title = d.subject?.tr || d.summary?.tr || row.title || "KAP bildirimi", type = d.disclosureType || row.disclosure_type || "", klass = d.disclosureClass || row.disclosure_class || "";
     await env.DB.prepare("DELETE FROM kap_pending WHERE disclosure_index=?").bind(row.disclosure_index).run();
     if (!relevant(type,klass,title,Boolean(row.is_fund)) || (!row.is_fund && /PAY ALIM|PAY SATIM/i.test(title) && !codes.some(x => BIST50.has(x)))) continue;
     const url=d.link || `https://www.kap.org.tr/tr/Bildirim/${row.disclosure_index}`, write=await env.DB.prepare("INSERT OR IGNORE INTO kap_disclosures(disclosure_id,company,ticker,title,disclosure_type,published_at,url,metadata_json,content_hash) VALUES (?,?,?,?,?,?,?,?,?)").bind(row.disclosure_index,d.senderTitle??null,codes[0]??null,title,type||klass,d.time??null,url,JSON.stringify(d),await sha256(`${row.disclosure_index}|${title}|${url}`)).run();
     if (!write.meta.changes) continue;
     await insertFeed(env,{type:"kap",source:"KAP",source_ref:`kap:${row.disclosure_index}`,title,body:d.senderTitle??null,url,tickers_json:JSON.stringify(codes),published_at:d.time??null});
+    if (silent) {
+      await env.DB.prepare("UPDATE kap_disclosures SET telegram_status='baseline' WHERE disclosure_id=?").bind(row.disclosure_index).run();
+      continue;
+    }
     try { await sendMessage(env,`${codes[0]?`🏢 <b>#${escapeTelegramHtml(codes[0])}</b>`:"🏢 <b>KAP</b>"}\nKAP bildirimi\n\n${escapeTelegramHtml(title)}${d.time?`\n${escapeTelegramHtml(d.time)}`:""}`,{text:"🔗 KAP'ta Aç",url}); await env.DB.prepare("UPDATE kap_disclosures SET telegram_status='sent',telegram_sent_at=CURRENT_TIMESTAMP WHERE disclosure_id=?").bind(row.disclosure_index).run(); } catch (e) { console.warn("KAP telegram delivery failed",{id:row.disclosure_index,error:e instanceof Error?e.message:String(e)}); }
   }
 }

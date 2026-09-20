@@ -16,7 +16,13 @@ function similarTitle(a: string, b: string): boolean {
   return shared / Math.max(left.size, right.size) >= 0.82;
 }
 
-async function pollSource(env: Env, source: { name: string; url: string }): Promise<number> {
+function publishedWithin24Hours(value: string | null): boolean {
+  if (!value) return true;
+  const time = Date.parse(value);
+  return Number.isNaN(time) || time >= Date.now() - 24 * 60 * 60 * 1000;
+}
+
+async function pollSource(env: Env, source: { name: string; url: string }, silentBootstrap: boolean): Promise<number> {
   const state = await env.DB.prepare("SELECT etag, last_modified FROM feed_sources WHERE url = ?").bind(source.url).first<{ etag: string | null; last_modified: string | null }>();
   const headers = new Headers({ "user-agent": "HeranBorsa/0.1 (+Cloudflare Worker)", accept: "application/rss+xml, application/xml, text/xml" });
   if (state?.etag) headers.set("if-none-match", state.etag);
@@ -24,7 +30,11 @@ async function pollSource(env: Env, source: { name: string; url: string }): Prom
   const response = await fetchWithTimeout(source.url, { headers });
   if (response.status === 304) return 0;
   if (!response.ok) throw new Error(`${source.name} RSS HTTP ${response.status}`);
-  const items = parseRss(await response.text()).filter(item => isRelevantNews(item.title));
+  // These are dedicated finance/economy feeds.  Keep their complete last-24h
+  // coverage; the generic Bloomberg feed remains keyword-filtered.
+  const items = parseRss(await response.text()).filter(item =>
+    publishedWithin24Hours(item.publishedAt) && (source.name !== "Bloomberg HT" || isRelevantNews(item.title))
+  );
   let inserted = 0;
   for (const item of items) {
     const normalizedUrl = normalizeUrl(item.url);
@@ -40,7 +50,7 @@ async function pollSource(env: Env, source: { name: string; url: string }): Prom
     inserted++;
     await insertFeed(env, { type: "news", source: source.name, source_ref: `rss:${hash}`, title: item.title, body: null, url: item.url, tickers_json: JSON.stringify(tickers), published_at: item.publishedAt });
     const sourceInitialized = await env.DB.prepare("SELECT value FROM system_state WHERE key = ?").bind(`rss_baseline:${source.url}`).first();
-    if (!sourceInitialized) continue;
+    if (!sourceInitialized || silentBootstrap) continue;
     try {
       const hashtagLine = tickers.length ? `\n\n${tickers.map(ticker => `#${ticker}`).join(" ")}` : "";
       await sendMessage(env, `📰 <b>${escapeTelegramHtml(source.name)}</b>\n\n${escapeTelegramHtml(item.title)}${hashtagLine}`, { text: "🔗 Haberi Aç", url: item.url });
@@ -57,11 +67,13 @@ async function pollSource(env: Env, source: { name: string; url: string }): Prom
 }
 
 export async function pollRSS(env: Env): Promise<void> {
+  const silentBootstrap = !await env.DB.prepare("SELECT value FROM system_state WHERE key='rss_wide_baseline_initialized'").first();
   await Promise.allSettled(RSS_SOURCES.map(async source => {
-    try { await pollSource(env, source); }
+    try { await pollSource(env, source, silentBootstrap); }
     catch (error) {
       console.warn("rss source failed", { source: source.name, error: error instanceof Error ? error.message : String(error) });
       await env.DB.prepare(`INSERT INTO feed_sources(url, name, last_error) VALUES (?, ?, ?) ON CONFLICT(url) DO UPDATE SET last_error = excluded.last_error`).bind(source.url, source.name, error instanceof Error ? error.message.slice(0, 400) : "unknown error").run();
     }
   }));
+  if (silentBootstrap) await env.DB.prepare("INSERT OR IGNORE INTO system_state(key, value) VALUES ('rss_wide_baseline_initialized', '1')").run();
 }

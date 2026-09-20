@@ -10,6 +10,16 @@ interface Bulletin { number: string; date: string | null; pdfUrl: string; }
 
 function clean(value: string): string { return value.replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim(); }
 
+function recentBulletinDate(value: string | null): boolean {
+  if (!value) return false;
+  const match = value.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})$/);
+  if (!match) return false;
+  const date = new Date(Date.UTC(Number(match[3]), Number(match[2]) - 1, Number(match[1])));
+  const today = new Date();
+  const start = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate() - 1);
+  return date.getTime() >= start;
+}
+
 export function parseBulletins(html: string, baseUrl = SPK_URL): Bulletin[] {
   const links = [...html.matchAll(/<a\b[^>]*href=["']([^"']+\.pdf(?:\?[^"']*)?)["'][^>]*>([\s\S]*?)<\/a>/gi)];
   const unique = new Map<string, Bulletin>();
@@ -31,11 +41,13 @@ export async function pollSPK(env: Env): Promise<void> {
   if (!bulletins.length) throw new Error("SPK page had no parseable PDF bulletins");
   const initialized = await getState(env, "spk_baseline_initialized");
   if (!initialized) {
-    const latest = bulletins.at(-1)!;
-    await env.DB.prepare("INSERT OR IGNORE INTO spk_bulletins(bulletin_number, bulletin_date, pdf_url, telegram_status) VALUES (?, ?, ?, 'baseline')").bind(latest.number, latest.date, latest.pdfUrl).run();
-    await insertFeed(env, { type: "spk", source: "SPK", source_ref: `spk:${latest.number}`, title: `SPK Bülteni: ${latest.number}`, body: latest.date ? `Tarih: ${latest.date}` : null, url: latest.pdfUrl, tickers_json: "[]", published_at: latest.date });
+    const initial = bulletins.filter(bulletin => recentBulletinDate(bulletin.date));
+    for (const bulletin of initial) {
+      await env.DB.prepare("INSERT OR IGNORE INTO spk_bulletins(bulletin_number, bulletin_date, pdf_url, telegram_status) VALUES (?, ?, ?, 'baseline')").bind(bulletin.number, bulletin.date, bulletin.pdfUrl).run();
+      await insertFeed(env, { type: "spk", source: "SPK", source_ref: `spk:${bulletin.number}`, title: `SPK Bülteni: ${bulletin.number}`, body: bulletin.date ? `Tarih: ${bulletin.date}` : null, url: bulletin.pdfUrl, tickers_json: "[]", published_at: bulletin.date });
+    }
     await setState(env, "spk_baseline_initialized", "1");
-    console.info("SPK baseline initialized", { bulletin: latest.number });
+    console.info("SPK baseline initialized", { bulletins: initial.length });
     return;
   }
   for (const bulletin of bulletins) {
@@ -52,4 +64,3 @@ export async function pollSPK(env: Env): Promise<void> {
     }
   }
 }
-
