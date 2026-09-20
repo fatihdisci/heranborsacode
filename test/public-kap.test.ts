@@ -34,4 +34,9 @@ describe("parsePublicKapPage", () => {
       url: "https://www.kap.org.tr/tr/Bildirim/1",
     })).toBe(true);
   });
+
+  it("does not turn a portfolio manager institution code into a stock hashtag", () => {
+    const html = String.raw`<script>"disclosureBasic":{"title":"Genel Açıklama","companyTitle":"TERA PORTFÖY YÖNETİMİ A.Ş.","stockCode":"SKP","relatedStocks":null,"disclosureClass":"DG","disclosureType":"DG","publishDate":"2026.09.20 18:06:04","disclosureIndex":1665627,"summary":"Katılma Payı İşlemleri"},"disclosureDetail"</script>`;
+    expect(parsePublicKapPage(html, 1665627)).toMatchObject({ codes: [] });
+  });
 });

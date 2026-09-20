@@ -47,14 +47,17 @@ function parseDate(value: string | undefined): string | null {
   return new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), Number(hour) - 3, Number(minute), Number(second))).toISOString();
 }
 
-function codes(value: unknown, stockCode: string | null | undefined): string[] {
+function codes(value: unknown, stockCode: string | null | undefined, companyTitle: string | undefined): string[] {
   const listed = typeof value === "string" ? value.split(/[,;\s]+/) : Array.isArray(value) ? value.flatMap(item => {
     if (typeof item === "string") return [item];
     if (item && typeof item === "object" && typeof (item as { code?: unknown }).code === "string") return [(item as { code: string }).code];
     return [];
   }) : [];
-  if (stockCode) listed.push(stockCode);
-  return [...new Set(listed.map(code => code.trim().toUpperCase()).filter(code => /^[A-Z][A-Z0-9]{1,5}$/.test(code)))];
+  // KAP also exposes short institution/fund codes in stockCode (for example
+  // SKP for a portfolio manager). They are not BIST equity tickers and must
+  // not be rendered as hashtags. relatedStocks remains authoritative.
+  if (stockCode && !/PORTFÖY YÖNETİMİ|EMEKLİLİK VE HAYAT/i.test(companyTitle ?? "")) listed.push(stockCode);
+  return [...new Set(listed.map(code => code.trim().toUpperCase()).filter(code => /^[A-Z][A-Z0-9]{3,4}$/.test(code)))];
 }
 
 export function parsePublicKapPage(html: string, requestedId: number): PublicDisclosure | null {
@@ -70,7 +73,7 @@ export function parsePublicKapPage(html: string, requestedId: number): PublicDis
     id: requestedId,
     title: basic.title,
     company: basic.companyTitle ?? null,
-    codes: codes(basic.relatedStocks, basic.stockCode),
+    codes: codes(basic.relatedStocks, basic.stockCode, basic.companyTitle),
     disclosureClass: basic.disclosureClass ?? "",
     disclosureType: basic.disclosureType ?? "",
     summary: basic.summary ?? null,
