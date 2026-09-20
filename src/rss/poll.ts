@@ -42,6 +42,8 @@ async function deliverPending(env: Env): Promise<void> {
 
 async function pollSource(env: Env, source: { name: string; url: string }, silentBootstrap: boolean): Promise<number> {
   const state = await env.DB.prepare("SELECT etag, last_modified FROM feed_sources WHERE url = ?").bind(source.url).first<{ etag: string | null; last_modified: string | null }>();
+  const sourceInitialized = await env.DB.prepare("SELECT value FROM system_state WHERE key = ?").bind(`rss_baseline:${source.url}`).first();
+  const initialSeed = !sourceInitialized || silentBootstrap;
   const headers = new Headers({ "user-agent": "HeranBorsa/0.1 (+Cloudflare Worker)", accept: "application/rss+xml, application/xml, text/xml" });
   if (state?.etag) headers.set("if-none-match", state.etag);
   if (state?.last_modified) headers.set("if-modified-since", state.last_modified);
@@ -52,7 +54,9 @@ async function pollSource(env: Env, source: { name: string; url: string }, silen
   // lifestyle/general-news items and English wire copy out of both the Mini
   // App and Telegram notifications.
   const items = parseRss(await response.text()).filter(item =>
-    publishedWithin24Hours(item.publishedAt) && isTurkishNews(item.title) && isRelevantNews(item.title)
+    publishedWithin24Hours(item.publishedAt) &&
+    isTurkishNews(item.title, item.description ?? "") &&
+    isRelevantNews(item.title, item.description ?? "")
   );
   let inserted = 0;
   for (const item of items) {
@@ -60,17 +64,16 @@ async function pollSource(env: Env, source: { name: string; url: string }, silen
     // URL is the first dedupe key (unique normalized_url); the title hash is
     // deliberately independent of publisher URL to collapse syndicated copies.
     const hash = await sha256(normalizeTitle(item.title));
-    const tickers = findTickers(item.title);
+    const tickers = findTickers(item.title, item.description ?? "");
     const recent = await env.DB.prepare("SELECT title FROM rss_items WHERE published_at >= datetime('now', '-1 day') LIMIT 250").all<{ title: string }>();
     if ((recent.results ?? []).some(row => similarTitle(item.title, row.title))) continue;
-    const write = await env.DB.prepare(`INSERT OR IGNORE INTO rss_items(source, title, url, normalized_url, published_at, fetched_at, content_hash, tickers_json)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).bind(source.name, item.title, item.url, normalizedUrl, item.publishedAt, nowIso(), hash, JSON.stringify(tickers)).run();
+    const write = await env.DB.prepare(`INSERT OR IGNORE INTO rss_items(source, title, url, normalized_url, published_at, fetched_at, content_hash, tickers_json, telegram_status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).bind(source.name, item.title, item.url, normalizedUrl, item.publishedAt, nowIso(), hash, JSON.stringify(tickers), initialSeed ? "baseline" : "pending").run();
     if (!write.meta.changes) continue;
     inserted++;
     const summary = item.description?.replace(/\s+/g, " ").trim().slice(0, 700) || null;
     await insertFeed(env, { type: "news", source: source.name, source_ref: `rss:${hash}`, title: item.title, body: summary, url: item.url, tickers_json: JSON.stringify(tickers), published_at: item.publishedAt });
-    const sourceInitialized = await env.DB.prepare("SELECT value FROM system_state WHERE key = ?").bind(`rss_baseline:${source.url}`).first();
-    if (!sourceInitialized || silentBootstrap) continue;
+    if (initialSeed) continue;
     try {
       const hashtagLine = tickers.length ? `${tickers.map(ticker => `#${ticker}`).join(" ")}\n` : "";
       const summaryLine = summary ? `\n\n${escapeTelegramHtml(summary)}` : "";

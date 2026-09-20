@@ -23,7 +23,9 @@ export function normalizeTitle(value: string): string {
 export function decodeEntities(value: string): string {
   return value.replace(/<!\[CDATA\[([\s\S]*?)]]>/g, "$1")
     .replace(/&amp;/g, "&").replace(/&quot;/g, "\"").replace(/&#39;|&apos;/g, "'")
-    .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)));
+    .replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+    .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCodePoint(Number.parseInt(code, 16)))
+    .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)));
 }
 
 export function stripHtml(value: string): string {
@@ -33,4 +35,3 @@ export function stripHtml(value: string): string {
 export function escapeTelegramHtml(value: string): string {
   return value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
-

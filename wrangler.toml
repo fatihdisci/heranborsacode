@@ -18,7 +18,7 @@ migrations_dir = "migrations"
 # This is not a secret. Set it only after confirming the MKK endpoint contract.
 MKK_API_BASE_URL = "https://apigwdev.mkk.com.tr/api/vyk"
 
-# One Worker cron keeps free-plan scheduling compact. KAP/RSS runs every 15 min;
-# SPK is gated in code to once per UTC hour.
+# Cloudflare cron's minimum interval is one minute. KAP/RSS runs every minute;
+# SPK is gated in code to the previous bot's Istanbul schedule.
 [triggers]
-crons = ["*/15 * * * *"]
+crons = ["* * * * *"]
