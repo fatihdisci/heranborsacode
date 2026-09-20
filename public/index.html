@@ -19,6 +19,7 @@
     </main>
     <nav class="bottom-nav" aria-label="Hızlı filtreler"><button class="nav-active" data-type="">⌂<small>Akış</small></button><button data-type="kap">▣<small>KAP</small></button><button data-type="spk">▤<small>SPK</small></button><button data-type="news">◉<small>Haber</small></button><button id="search-button">⌕<small>Ara</small></button></nav>
     <template id="item-template"><article class="item"><a class="item-open" target="_blank" rel="noopener noreferrer"><span class="source-icon"></span><div class="item-copy"><div class="meta"><span class="badge"></span><time></time></div><h2></h2><p class="tickers"></p></div><span class="chevron">›</span></a><div class="item-actions"><button class="copy">Kopyala</button><button class="tweet">Tweeti Kopyala</button></div></article></template>
+    <dialog id="tweet-dialog"><form method="dialog" class="tweet-sheet"><div class="tweet-sheet-head"><strong>AI tweet taslağı</strong><button aria-label="Kapat">×</button></div><textarea id="tweet-draft" readonly></textarea><div class="tweet-sheet-actions"><button id="copy-tweet" type="button">Taslağı Kopyala</button><button value="close">Kapat</button></div><small>Kaynağı kontrol etmeden yayımlama.</small></form></dialog>
     <script type="module" src="/app.js"></script>
   </body>
 </html>
