@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isImportantPublicDisclosure, parsePublicKapPage } from "../src/kap/public";
+import { circuitBreakerBody, isImportantPublicDisclosure, parsePublicKapPage } from "../src/kap/public";
 
 describe("parsePublicKapPage", () => {
   it("extracts the public KAP metadata and normalizes Istanbul time", () => {
@@ -7,8 +7,17 @@ describe("parsePublicKapPage", () => {
     expect(parsePublicKapPage(html, 1665625)).toMatchObject({
       id: 1665625,
       codes: ["TST2", "TEST"],
+      summary: null,
+      resumeAt: null,
       publishedAt: "2026-09-20T07:00:00.000Z",
     });
+  });
+
+  it("parses DKB string symbols and formats the circuit-breaker continuation time", () => {
+    const html = String.raw`<script>"disclosureBasic":{\"title\":\"Pay Bazında Devre Kesici Bildirimi\",\"companyTitle\":\"BORSA İSTANBUL BISTECH DEVRE KESİCİ UYGULAMASI\",\"stockCode\":null,\"relatedStocks\":\"EKIM\",\"disclosureClass\":\"DUY\",\"disclosureType\":\"DUY\",\"publishDate\":\"2026.09.18 12:33:00\",\"disclosureIndex\":1665207,\"summary\":\"EKIM.E işlem sırasında Pay Bazında Devre Kesici Uygulaması devreye girmiştir\"},"disclosureDetail"</script><p>Emir toplama bölümünü takiben yapılacak eşleştirme sonrasında işlemlere 12:44:59 itibarıyla devam edilecektir.</p>`;
+    const item = parsePublicKapPage(html, 1665207);
+    expect(item).toMatchObject({ codes: ["EKIM"], resumeAt: "12:44:59" });
+    expect(item && circuitBreakerBody(item)).toBe("Hissede devre kesici uygulandı.\nİşlemler emir toplama aşamasının ardından saat 12:44:59 itibarıyla devam edecek.");
   });
 
   it("keeps fund and portfolio disclosures even without an equity ticker", () => {
@@ -19,6 +28,8 @@ describe("parsePublicKapPage", () => {
       codes: [],
       disclosureClass: "FON",
       disclosureType: "",
+      summary: null,
+      resumeAt: null,
       publishedAt: "2026-09-20T10:00:00.000Z",
       url: "https://www.kap.org.tr/tr/Bildirim/1",
     })).toBe(true);

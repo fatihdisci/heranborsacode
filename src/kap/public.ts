@@ -33,6 +33,8 @@ export interface PublicDisclosure {
   codes: string[];
   disclosureClass: string;
   disclosureType: string;
+  summary: string | null;
+  resumeAt: string | null;
   publishedAt: string | null;
   url: string;
 }
@@ -46,7 +48,7 @@ function parseDate(value: string | undefined): string | null {
 }
 
 function codes(value: unknown, stockCode: string | null | undefined): string[] {
-  const listed = Array.isArray(value) ? value.flatMap(item => {
+  const listed = typeof value === "string" ? value.split(/[,;\s]+/) : Array.isArray(value) ? value.flatMap(item => {
     if (typeof item === "string") return [item];
     if (item && typeof item === "object" && typeof (item as { code?: unknown }).code === "string") return [(item as { code: string }).code];
     return [];
@@ -71,9 +73,23 @@ export function parsePublicKapPage(html: string, requestedId: number): PublicDis
     codes: codes(basic.relatedStocks, basic.stockCode),
     disclosureClass: basic.disclosureClass ?? "",
     disclosureType: basic.disclosureType ?? "",
+    summary: basic.summary ?? null,
+    resumeAt: html.match(/işlemlere\s+(\d{2}:\d{2}:\d{2})\s+itibarıyla devam edilecektir/i)?.[1] ?? null,
     publishedAt: parseDate(basic.publishDate),
     url: `${PUBLIC_KAP_URL}/${requestedId}`,
   };
+}
+
+function isCircuitBreaker(item: PublicDisclosure): boolean {
+  return /DEVRE KESİCİ/.test(`${item.title} ${item.summary ?? ""}`.toLocaleUpperCase("tr-TR"));
+}
+
+export function circuitBreakerBody(item: PublicDisclosure): string | null {
+  if (!isCircuitBreaker(item)) return null;
+  const continuation = item.resumeAt
+    ? `İşlemler emir toplama aşamasının ardından saat ${item.resumeAt} itibarıyla devam edecek.`
+    : "İşlemlerin devam saati için KAP bildirimini açın.";
+  return `Hissede devre kesici uygulandı.\n${continuation}`;
 }
 
 export function isImportantPublicDisclosure(item: PublicDisclosure): boolean {
@@ -104,11 +120,15 @@ async function store(env: Env, item: PublicDisclosure, silent: boolean): Promise
   const write = await env.DB.prepare("INSERT OR IGNORE INTO kap_disclosures(disclosure_id,company,ticker,title,disclosure_type,published_at,url,metadata_json,content_hash,telegram_status) VALUES (?,?,?,?,?,?,?,?,?,?)")
     .bind(String(item.id), item.company, item.codes[0] ?? null, item.title, item.disclosureType || item.disclosureClass, item.publishedAt, item.url, JSON.stringify(item), await sha256(`kap:${item.id}`), silent ? "baseline" : "pending").run();
   if (!write.meta.changes) return;
-  await insertFeed(env, { type: "kap", source: "KAP", source_ref: `kap:${item.id}`, title: item.title, body: item.company, url: item.url, tickers_json: JSON.stringify(item.codes), published_at: item.publishedAt });
+  const breakerBody = circuitBreakerBody(item);
+  await insertFeed(env, { type: "kap", source: "KAP", source_ref: `kap:${item.id}`, title: item.title, body: breakerBody ?? item.company, url: item.url, tickers_json: JSON.stringify(item.codes), published_at: item.publishedAt });
   if (silent) return;
   try {
-    const heading = item.codes[0] ? `🏢 <b>#${escapeTelegramHtml(item.codes[0])}</b>` : "🏦 <b>KAP · Fon/Portföy</b>";
-    await sendMessage(env, `${heading}\nKAP bildirimi\n\n${escapeTelegramHtml(item.title)}${item.company ? `\n${escapeTelegramHtml(item.company)}` : ""}`, { text: "🔗 KAP'ta Aç", url: item.url });
+    const heading = item.codes[0] ? `#${escapeTelegramHtml(item.codes[0])}` : "🏦 <b>KAP · Fon/Portföy</b>";
+    const message = breakerBody
+      ? `${heading}\n\n${escapeTelegramHtml(breakerBody)}\n\n🔗 KAP:\n${escapeTelegramHtml(item.url)}`
+      : `${heading}\nKAP bildirimi\n\n${escapeTelegramHtml(item.title)}${item.company ? `\n${escapeTelegramHtml(item.company)}` : ""}`;
+    await sendMessage(env, message, { text: "🔗 KAP'ta Aç", url: item.url });
     await env.DB.prepare("UPDATE kap_disclosures SET telegram_status='sent',telegram_sent_at=CURRENT_TIMESTAMP WHERE disclosure_id=?").bind(String(item.id)).run();
   } catch (error) {
     console.warn("public KAP telegram delivery failed", { id: item.id, error: error instanceof Error ? error.message : String(error) });
