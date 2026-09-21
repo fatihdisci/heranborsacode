@@ -19,7 +19,7 @@ export async function telegramCall<T = unknown>(env: Env, method: string, body: 
   return result.result as T;
 }
 
-export type InlineButton = { text: string; url: string } | { text: string; callback_data: string };
+export type InlineButton = { text: string; url: string } | { text: string; callback_data: string } | { text: string; web_app: { url: string } };
 export interface MessageOptions { keyboard?: InlineButton[][]; replyTo?: number; }
 
 export async function sendMessage(env: Env, html: string, button?: { text: string; url: string }, options: MessageOptions = {}): Promise<number> {

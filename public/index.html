@@ -32,10 +32,35 @@
 
       <div class="stream-head">
         <p id="section-title">Tüm gelişmeler</p>
-        <p id="status" role="status" aria-live="polite"><i></i><span>Akış yükleniyor</span></p>
+        <div class="stream-tools">
+          <p id="status" role="status" aria-live="polite"><i></i><span>Akış yükleniyor</span></p>
+          <button id="search-button" type="button" aria-label="Ara ve filtrele" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.35-4.35m2.35-5.4A7.75 7.75 0 1 1 3.5 11.25a7.75 7.75 0 0 1 15.5 0Z" /></svg></button>
+        </div>
       </div>
       <section id="feed" class="feed" aria-live="polite"></section>
       <button id="more" class="load-more" hidden>Daha eski kayıtları göster</button>
+
+      <section id="command-center" class="command-center" hidden aria-labelledby="command-title">
+        <header class="command-head"><div><p>KOMUT OTOMASYONU</p><h2 id="command-title">Komut Merkezi</h2></div><span id="agent-state">Mac mini bekleniyor</span></header>
+        <section class="builder-card">
+          <div id="command-bots" class="choice-row" aria-label="Bot seç"></div>
+          <label class="command-label">Komut<select id="command-action"></select></label>
+          <label id="custom-command-row" class="command-label" hidden>Özel komut<input id="custom-command" maxlength="160" placeholder="/komut {HISSE}" autocomplete="off" /></label>
+          <label class="command-label">Hisse seç<input id="symbol-search" maxlength="12" placeholder="Kod ara: THYAO" autocomplete="off" /></label>
+          <div id="symbol-suggestions" class="symbol-suggestions" hidden></div>
+          <div id="selected-symbols" class="selected-symbols" aria-live="polite"></div>
+          <button id="add-command" class="primary-command" type="button">Akışa ekle</button>
+        </section>
+        <section class="draft-card">
+          <div class="section-title"><h3>Hazırlanan akış</h3><button id="clear-steps" type="button">Temizle</button></div>
+          <ol id="command-steps" class="command-steps"><li class="empty-step">Henüz komut eklenmedi.</li></ol>
+          <label class="command-label">Akış adı<input id="flow-name" maxlength="60" placeholder="Örn. Sabah kontrolü" autocomplete="off" /></label>
+          <div class="command-actions"><button id="save-template" type="button">Şablonu kaydet</button><button id="run-commands" class="primary-command" type="button">Şimdi çalıştır</button></div>
+          <p id="command-message" class="command-message" role="status" aria-live="polite"></p>
+        </section>
+        <section class="command-list-section"><div class="section-title"><h3>Şablonlarım</h3></div><div id="template-list" class="template-list"></div></section>
+        <section class="command-list-section"><div class="section-title"><h3>Son işler</h3><button id="refresh-jobs" type="button">Yenile</button></div><div id="job-list" class="job-list"></div></section>
+      </section>
     </main>
 
     <nav class="bottom-nav" aria-label="Akış bölümleri">
@@ -43,7 +68,7 @@
       <button data-type="kap" aria-label="KAP bildirimleri"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5" /></svg><small>KAP</small></button>
       <button data-type="spk" aria-label="SPK bültenleri"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l3 3v15H6zM9 10h6M9 14h6M9 18h4" /></svg><small>SPK</small></button>
       <button data-type="news" aria-label="Haberler"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4zM7 8h4v4H7zM13 8h4M13 11h4M7 15h10" /></svg><small>Haber</small></button>
-      <button id="search-button" aria-label="Ara ve filtrele" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.35-4.35m2.35-5.4A7.75 7.75 0 1 1 3.5 11.25a7.75 7.75 0 0 1 15.5 0Z" /></svg><small>Ara</small></button>
+      <button id="commands-button" aria-label="Komut merkezi"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 12h3M11 12h9M4 17h7M15 17h5M14 5v4M7 10v4M11 15v4" /></svg><small>Komut</small></button>
     </nav>
 
     <template id="item-template">

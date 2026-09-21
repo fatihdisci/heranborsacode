@@ -1,6 +1,7 @@
 import { connectTelegramBack, restoreFeedPosition } from './navigation.js';
+import { createCommandCenter } from './commands.js';
 const telegram = window.Telegram?.WebApp;
-const state = { type: "", ticker: "", q: "", source: "", cursor: null, loading: false, seen: new Set(), searchOpen: false };
+const state = { type: "", ticker: "", q: "", source: "", cursor: null, loading: false, seen: new Set(), searchOpen: false, view: 'feed' };
 
 const $ = selector => document.querySelector(selector);
 const feed = $("#feed");
@@ -10,6 +11,8 @@ const more = $("#more");
 const template = $("#item-template");
 const searchPanel = $("#search-panel");
 const searchButton = $("#search-button");
+const commandButton = $('#commands-button');
+const streamHead = $('.stream-head');
 const tweetDialog = $("#tweet-dialog");
 const tweetDraft = $("#tweet-draft");
 const tweetProgress = $("#tweet-progress");
@@ -17,6 +20,7 @@ const tweetMessage = $("#tweet-message");
 const copyTweetButton = $("#copy-tweet");
 const readerDialog = $('#reader-dialog');
 const navigation = connectTelegramBack(telegram, [readerDialog, tweetDialog]);
+const commandCenter = createCommandCenter(telegram);
 let readerAbort;
 let readerItem;
 let readerScrollY = 0;
@@ -258,6 +262,9 @@ async function load(append = false) {
 }
 
 function setType(type) {
+  state.view = 'feed';
+  commandCenter.hide();
+  streamHead.hidden = feed.hidden = false;
   state.type = type;
   state.cursor = null;
   state.searchOpen = false;
@@ -265,8 +272,17 @@ function setType(type) {
   searchButton.setAttribute("aria-expanded", "false");
   $("#section-title").textContent = labels[type] || labels[""];
   document.querySelectorAll(".bottom-nav [data-type]").forEach(button => button.classList.toggle("nav-active", button.dataset.type === type));
-  searchButton.classList.remove("nav-active");
+  commandButton.classList.remove('nav-active');
   load();
+}
+
+async function showCommands() {
+  state.view = 'commands';
+  state.searchOpen = false; searchPanel.hidden = true; searchButton.setAttribute('aria-expanded', 'false');
+  streamHead.hidden = feed.hidden = more.hidden = true;
+  document.querySelectorAll('.bottom-nav button').forEach(button => button.classList.remove('nav-active'));
+  commandButton.classList.add('nav-active');
+  await commandCenter.show();
 }
 
 function toggleSearch(force) {
@@ -303,6 +319,7 @@ async function loadSources() {
 
 document.querySelectorAll("[data-type]").forEach(button => { button.onclick = () => setType(button.dataset.type); });
 searchButton.onclick = () => toggleSearch();
+commandButton.onclick = showCommands;
 $("#query").oninput = scheduleSearch;
 $("#ticker").oninput = scheduleSearch;
 $("#source").onchange = event => { state.source = event.target.value; state.cursor = null; load(); };
@@ -330,4 +347,4 @@ updateClock();
 setInterval(updateClock, 1000);
 loadSources();
 load();
-setInterval(() => { if (!state.loading && !readerDialog.open && !tweetDialog.open && window.scrollY < 240) load(); }, 60_000);
+setInterval(() => { if (state.view === 'feed' && !state.loading && !readerDialog.open && !tweetDialog.open && window.scrollY < 240) load(); }, 60_000);

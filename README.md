@@ -6,6 +6,10 @@ Cloudflare Workers + D1 üzerinde çalışan finans akışı: MKK/KAP bildirimle
 
 `cron gözetmeni → bağımsız Durable Object alarmları (RSS kaynakları / KAP / SPK) → D1 kaynak tabloları + ortak feed_items → Telegram / REST / Mini App → isteğe bağlı AI tweet taslağı`
 
+Komut Merkezi ayrı bir kalıcı hat kullanır:
+
+`Mini App → D1 komut kuyruğu → Mac mini ajanı → harici Telegram botları → R2/D1 sonuçları → Heran Borsa bot sohbeti`
+
 Dakikalık cron yalnız görev parçalarının alarmını denetler. Her RSS kaynağı kendi CPU bütçesiyle dakikada bir, canlı KAP taraması normalde 30 saniyede bir, geçmiş KAP doldurma işi 10 dakikada bir; SPK ise İstanbul saatine göre planlı aralıklarda çalışır. Canlı KAP taraması art arda geçerli bildirimler bulduğunda, alarm başına sabit küçük iş yükünü koruyarak geçici olarak 5 saniyelik yakalama moduna geçer ve güncel sınıra ulaştığında yeniden 30 saniyeye döner. Böylece yavaş veya hatalı bir kaynak diğer akışları geciktirmez. İlk kurulumdaki geçmiş kayıtlar Mini App için sessizce doldurulur, Telegram'a eski bildirim olarak yeniden gönderilmez. Sonraki yeni kayıtlar benzersiz kaynak kimlikleriyle tekilleştirilerek iletilir.
 
 ## Kurulum
@@ -31,6 +35,10 @@ wrangler secret put MKK_API_KEY
 wrangler secret put MKK_API_SECRET
 ```
 
+Mac mini ajanı kurulurken `COMMAND_AGENT_TOKEN`, `mac-agent/configure.py`
+tarafından üretilir ve değeri ekrana yazılmadan hem Worker secret'ına hem izinleri
+600 olan yerel yapılandırmaya kaydedilir.
+
 `CLOUDFLARE_API_TOKEN` ve `CLOUDFLARE_ACCOUNT_ID` deploy ortamının kimlik bilgileridir; Worker runtime secret'ı değillerdir. `MKK_API_BASE_URL`, yalnızca MKK dokümantasyonundaki gerçek API kök URL'si doğrulandıktan sonra `wrangler.toml` `[vars]` alanına veya deploy değişkenlerine eklenmelidir. Sağlayıcının kaynak yolu/kimlik doğrulama şeması farklıysa sadece `src/kap/poll.ts` içindeki adapter güncellenir.
 
 ## RSS ve KAP kapsamı
@@ -52,6 +60,22 @@ DKB grubunun üyeleri gönderimden önce sabitlenir; sonraki kayıtlar yanlışl
 `/health.operations` son kuyruk durumunu ve son 500 teslimatın gecikmesini verir. İmzalı Mini App oturumuyla `/api/delivery?sourceRef=kap:...` kayıt bazında `published_at`, `first_seen_at`, `sent_at` ve Telegram mesaj kimliğini döndürür. İlk görülme RSS'e gerçek eklenme zamanı değildir; gönderim zamanı Telegram API kabulüdür, cihazda okunma zamanı değildir. SPK yayın tarihleri saat içermediği için yayın-ilk görülme farkı yaklaşık kabul edilmelidir.
 
 AI promptu `src/ai/prompt.ts` içinde sürümlenir. GPT-5.6 Luna yalnız kullanıcı butona bastığında çalışır; aynı kaydın doğrulanmış taslağı önbellekten sunulur. Model gövdeyi yazar; doğrulanmış hashtagler ve kaynak URL uygulama tarafından eklenir. Tamamlanmamış model cevabı veya boyut sınırını aşan kaynak sessizce kesilerek kullanılmaz. Yeni sürüm ilk taslak isteğinde eski prompt önbelleğini yeniler.
+
+## Komut Merkezi
+
+Mini App'in **Komut** sekmesi B0PT komutlarını, KAP'ın güncel BIST şirket
+listesinden aranan bir veya çok sayıda hisseyle birleştirir. Kullanıcı komutları
+sıralayabilir, akışı adlandırıp kalıcı şablon olarak saklayabilir ve tek dokunuşla
+kuyruğa alabilir. Diğer izinli botlarda bilinmeyen komutlar için `/komut
+{HISSE}` biçiminde özel şablon kullanılabilir. Bir akış en fazla 80 komut,
+hisse seçimi en fazla 40 kod içerir.
+
+Kuyruk D1'da kalıcıdır. Mac mini kapalıyken işler kaybolmaz; ajan açıldığında
+işleri dışarıdan HTTPS ile çeker. Telegram kullanıcı oturumu yalnız Mac mini'deki
+şifreli `telegram.enc` içinde kalır. Medya sonuçları tahmin edilemez anahtarla R2'ye
+yüklenir ve sonuçlar kendi bot sohbetine gönderilir. Mac kurulumu için
+[`MAC_MINI_CODEX_PROMPT.md`](MAC_MINI_CODEX_PROMPT.md) ve
+[`mac-agent/README.md`](mac-agent/README.md) kullanılır.
 
 ## Kontrol
 

@@ -1,6 +1,6 @@
 import type { Env, FeedItem } from '../types';
 import { json } from '../utils/http';
-import { telegramCall } from './client';
+import { sendMessage, telegramCall } from './client';
 import { feedKeyboard } from './buttons';
 import { wakeActions } from './actions';
 
@@ -8,6 +8,14 @@ interface Callback {
   id: string; data: string; from: {id:number;username?:string};
   message: {message_id:number;chat:{id:number;type:string}};
 }
+interface IncomingMessage {
+  message_id: number;
+  text?: string;
+  from?: { id: number; username?: string };
+  chat: { id: number; type: string };
+}
+
+const MINI_APP_URL = 'https://heranborsa.av-fatihdisci.workers.dev';
 async function answer(env: Env, id: string, text: string): Promise<void> {
   try { await telegramCall(env,'answerCallbackQuery',new URLSearchParams({callback_query_id:id,text})); }
   catch { /* Old callbacks can expire. Their persisted job is still delivered. */ }
@@ -52,6 +60,44 @@ export async function handleCallback(env: Env, value: unknown, ctx: Pick<Executi
   return json({ok:true});
 }
 
+async function handleMessage(env: Env, message: IncomingMessage): Promise<void> {
+  const permitted = message.chat?.type === 'private' && String(message.chat.id) === env.TELEGRAM_CHAT_ID
+    && String(message.from?.id ?? '') === env.TELEGRAM_CHAT_ID;
+  if (!permitted || !message.text?.startsWith('/')) return;
+  const command = message.text.split(/\s|@/)[0].toLowerCase();
+  const panel = { keyboard: [[{ text: '🎛 Komut Merkezini Aç', web_app: { url: MINI_APP_URL } }]] };
+  if (['/start','/panel','/komut','/komutlar'].includes(command)) {
+    await sendMessage(env, '<b>Heran Borsa Komut Merkezi</b>\n\nBot, komut ve hisseleri seçebilir; kendi şablonlarını oluşturup sonuçları bu sohbetten alabilirsin.', undefined, panel);
+    return;
+  }
+  if (command === '/sablonlar') {
+    const rows = await env.DB.prepare('SELECT name,steps_json FROM command_templates ORDER BY updated_at DESC LIMIT 15').all<{name:string;steps_json:string}>();
+    const lines = (rows.results ?? []).map(row => `• <b>${row.name.replace(/[<&>]/g, '')}</b> · ${JSON.parse(row.steps_json).length} komut`);
+    await sendMessage(env, lines.length ? `<b>Kayıtlı şablonlar</b>\n\n${lines.join('\n')}` : 'Henüz kayıtlı şablon yok.', undefined, panel);
+    return;
+  }
+  if (command === '/durum') {
+    const rows = await env.DB.prepare("SELECT name,status,created_at FROM command_jobs ORDER BY created_at DESC LIMIT 8").all<{name:string;status:string;created_at:string}>();
+    const labels: Record<string,string> = {queued:'Bekliyor',leased:'Çalışıyor',completed:'Tamamlandı',failed:'Hata',cancelled:'İptal'};
+    const lines = (rows.results ?? []).map(row => `• ${row.name.replace(/[<&>]/g, '')}: <b>${labels[row.status] ?? row.status}</b>`);
+    await sendMessage(env, lines.length ? `<b>Son işler</b>\n\n${lines.join('\n')}` : 'Henüz komut işi yok.', undefined, panel);
+    return;
+  }
+  if (command === '/iptal') {
+    const job = await env.DB.prepare("SELECT id,name FROM command_jobs WHERE status='queued' ORDER BY created_at DESC LIMIT 1").first<{id:string;name:string}>();
+    if (!job) { await sendMessage(env, 'İptal edilebilecek bekleyen iş yok.'); return; }
+    await env.DB.prepare("UPDATE command_jobs SET status='cancelled',finished_at=CURRENT_TIMESTAMP WHERE id=? AND status='queued'").bind(job.id).run();
+    await sendMessage(env, `“${job.name.replace(/[<&>]/g, '')}” iptal edildi.`);
+  }
+}
+
+async function handleUpdate(env: Env, value: unknown, ctx: Pick<ExecutionContext,'waitUntil'>): Promise<Response> {
+  const update = value as {callback_query?: Callback; message?: IncomingMessage} | null;
+  if (update?.callback_query) return handleCallback(env,value,ctx);
+  if (update?.message) ctx.waitUntil(handleMessage(env,update.message));
+  return json({ok:true});
+}
+
 const WEBHOOK_URL = 'https://heranborsa.av-fatihdisci.workers.dev/api/telegram/webhook';
 interface WebhookInfo {url:string;pending_update_count:number;last_error_date?:number;last_error_message?:string;allowed_updates?:string[];}
 
@@ -65,14 +111,14 @@ export async function telegramRoutes(request: Request, env: Env, ctx: Pick<Execu
     if (body.length > 32_000) return json({error:'too_large'},413);
     let value: unknown;
     try { value = JSON.parse(body); } catch { return json({error:'invalid_json'},400); }
-    return handleCallback(env,value,ctx);
+    return handleUpdate(env,value,ctx);
   }
   if (!['GET','POST'].includes(request.method)) return json({error:'method_not_allowed'},405);
   const info = await telegramCall<WebhookInfo>(env,'getWebhookInfo',new URLSearchParams());
   if (request.method === 'GET') return json({configured:info.url === WEBHOOK_URL,pendingUpdates:info.pending_update_count,lastErrorAt:info.last_error_date ?? null,allowedUpdates:info.allowed_updates});
   // Never replace a different application's webhook.
   if (info.url && info.url !== WEBHOOK_URL) return json({error:'different_webhook_exists'},409);
-  await telegramCall(env,'setWebhook',new URLSearchParams({url:WEBHOOK_URL,secret_token:env.TELEGRAM_WEBHOOK_SECRET,allowed_updates:JSON.stringify(['callback_query']),max_connections:'2',drop_pending_updates:'false'}));
+  await telegramCall(env,'setWebhook',new URLSearchParams({url:WEBHOOK_URL,secret_token:env.TELEGRAM_WEBHOOK_SECRET,allowed_updates:JSON.stringify(['callback_query','message']),max_connections:'2',drop_pending_updates:'false'}));
   const recent = await env.DB.prepare(`SELECT f.*,q.message_id FROM telegram_outbox q JOIN feed_items f ON f.source_ref=q.source_ref
     WHERE q.status='sent' AND q.kind='message' AND q.message_id IS NOT NULL AND f.type IN ('news','kap')
     ORDER BY q.sent_at DESC LIMIT 10`).all<FeedItem & {message_id:number}>();
@@ -85,4 +131,13 @@ export async function telegramRoutes(request: Request, env: Env, ctx: Pick<Execu
     } catch { skipped++; }
   }
   return json({configured:true,updatedRecentMessages:updated,skipped});
+}
+
+export async function ensureTelegramWebhook(env: Env): Promise<void> {
+  if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_WEBHOOK_SECRET) return;
+  const version = await env.DB.prepare("SELECT value FROM system_state WHERE key='telegram_webhook_version'").first<{value:string}>();
+  if (version?.value === 'commands-v1') return;
+  await telegramCall(env,'setWebhook',new URLSearchParams({url:WEBHOOK_URL,secret_token:env.TELEGRAM_WEBHOOK_SECRET,
+    allowed_updates:JSON.stringify(['callback_query','message']),max_connections:'2',drop_pending_updates:'false'}));
+  await env.DB.prepare("INSERT INTO system_state(key,value) VALUES ('telegram_webhook_version','commands-v1') ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=CURRENT_TIMESTAMP").run();
 }
