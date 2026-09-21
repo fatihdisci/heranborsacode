@@ -37,3 +37,11 @@ export async function sendDocument(env: Env, pdfUrl: string, filename: string): 
   form.set("caption", filename);
   return (await telegramCall<{message_id:number}>(env, "sendDocument", form)).message_id;
 }
+
+export async function sendDocumentData(env: Env, data: string, filename: string, caption: string, contentType: string): Promise<number> {
+  const form = new FormData();
+  form.set("chat_id", env.TELEGRAM_CHAT_ID!);
+  form.set("document", new File([data], filename, { type: contentType }));
+  form.set("caption", caption);
+  return (await telegramCall<{message_id:number}>(env, "sendDocument", form)).message_id;
+}

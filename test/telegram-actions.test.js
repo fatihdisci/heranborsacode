@@ -6,6 +6,7 @@ import {deliverOne,enqueueStatement} from '../src/telegram/outbox';
 import {feedKeyboard} from '../src/telegram/buttons';
 import {readerContent} from '../src/reader/content';
 import {generateTweetDraft} from '../src/ai/tweet';
+import {sendDocumentData} from '../src/telegram/client';
 vi.mock('../src/reader/content',()=>({readerContent:vi.fn()}));
 vi.mock('../src/ai/tweet',()=>({generateTweetDraft:vi.fn()}));
 let sql,env,ctx,pending,item,wake;
@@ -121,4 +122,14 @@ it('queues /kurum and /terane templates once per Telegram message',async()=>{
   expect(jobs.map(job=>job.name).sort()).toEqual(['Kurum','Terane']);
   expect(jobs.every(job=>job.request_key.startsWith('telegram:123:'))).toBe(true);
   expect(vi.mocked(fetch).mock.calls.filter(([url])=>url.endsWith('/sendMessage'))).toHaveLength(2);
+});
+
+it('uploads long combined text as a real Telegram document',async()=>{
+  await sendDocumentData(env,'uzun kurum sonucu','kurum-tum-metinler.txt','Kurum · Tüm metinler','text/plain; charset=utf-8');
+  const call=vi.mocked(fetch).mock.calls.find(([url])=>url.endsWith('/sendDocument'));
+  expect(call).toBeTruthy();
+  const file=call[1].body.get('document');
+  expect(file).toBeInstanceOf(File);
+  expect(file.name).toBe('kurum-tum-metinler.txt');
+  expect(await file.text()).toBe('uzun kurum sonucu');
 });

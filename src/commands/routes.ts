@@ -2,7 +2,7 @@ import type { Env } from "../types";
 import { authorizeTelegramRequest } from "../security/telegram";
 import { json } from "../utils/http";
 import { escapeTelegramHtml } from "../utils/text";
-import { sendDocument, sendMessage, telegramCall } from "../telegram/client";
+import { sendDocument, sendDocumentData, sendMessage, telegramCall } from "../telegram/client";
 import { PDFDocument } from "pdf-lib";
 import { COMMAND_BOTS, validateSteps, type CommandStep } from "./catalog";
 import { listBistSymbols } from "./symbols";
@@ -165,28 +165,51 @@ async function combinedPdf(env: Env, jobId: string, name: string, rows: CommandR
   return key;
 }
 
-async function sendCombinedText(env: Env, origin: string, jobId: string, name: string, rows: CommandResultRow[]): Promise<boolean> {
+async function sendCombinedText(env: Env, name: string, rows: CommandResultRow[]): Promise<number | null> {
   const text = rows.map(row => {
     const content = String(row.response_text || '').trim();
     return content ? `${row.command}\n${content}` : '';
   }).filter(Boolean).join('\n\n────────\n\n');
-  if (!text) return false;
+  if (!text) return null;
   const heading = `✅ <b>${escapeTelegramHtml(name)} sonuçları</b>\n\n`;
   if (heading.length + text.length <= 3900) {
-    await sendMessage(env,`${heading}${escapeTelegramHtml(text)}`); return true;
+    return sendMessage(env,`${heading}${escapeTelegramHtml(text)}`);
   }
   const filename = `${name.toLocaleLowerCase('tr-TR').replace(/[^a-z0-9çğıöşü]+/gi,'-') || 'komut'}-tum-metinler.txt`;
-  const key = `commands/${jobId}/${filename}`;
-  await env.COMMAND_MEDIA.put(key,text,{httpMetadata:{contentType:'text/plain; charset=utf-8'},customMetadata:{filename}});
-  await sendDocument(env,resultMediaUrl(origin,key),`✅ ${name} · Tüm metinler`); return true;
+  return sendDocumentData(env,text,filename,`✅ ${name} · Tüm metinler`,'text/plain; charset=utf-8');
 }
 
-async function notifyBundledTemplate(env: Env, origin: string, job: {id:string;name:string;template_id:string|null}, rows: CommandResultRow[]): Promise<void> {
+async function deliverPart(env: Env, jobId: string, part: string, deliver: () => Promise<number | null>): Promise<boolean> {
+  const claimed = await env.DB.prepare(`INSERT INTO command_deliveries(job_id,part,status) VALUES (?,?,'processing')
+    ON CONFLICT(job_id,part) DO UPDATE SET status='processing',error=NULL,updated_at=CURRENT_TIMESTAMP
+    WHERE command_deliveries.status='failed' OR (command_deliveries.status='processing' AND command_deliveries.updated_at<datetime('now','-5 minutes'))`)
+    .bind(jobId,part).run();
+  if (!claimed.meta.changes) {
+    const existing = await env.DB.prepare("SELECT status FROM command_deliveries WHERE job_id=? AND part=?").bind(jobId,part).first<{status:string}>();
+    if (existing?.status === 'sent') return true;
+    if (existing?.status === 'processing') return false;
+  }
+  try {
+    const messageId = await deliver();
+    await env.DB.prepare("UPDATE command_deliveries SET status='sent',message_id=?,error=NULL,updated_at=CURRENT_TIMESTAMP WHERE job_id=? AND part=?")
+      .bind(messageId,jobId,part).run();
+    return true;
+  } catch (error) {
+    await env.DB.prepare("UPDATE command_deliveries SET status='failed',error=?,updated_at=CURRENT_TIMESTAMP WHERE job_id=? AND part=?")
+      .bind(String(error instanceof Error ? error.message : error).slice(0,500),jobId,part).run();
+    throw error;
+  }
+}
+
+async function notifyBundledTemplate(env: Env, origin: string, job: {id:string;name:string;template_id:string|null}, rows: CommandResultRow[]): Promise<boolean> {
   const wantsText = job.template_id === KURUM_TEMPLATE_ID;
-  const sentText = wantsText ? await sendCombinedText(env,origin,job.id,job.name,rows) : false;
-  const pdfKey = await combinedPdf(env,job.id,job.name,rows);
-  if (pdfKey) await sendDocument(env,resultMediaUrl(origin,pdfKey),`✅ ${job.name} · ${rows.filter(row => row.response_kind === 'image').length} görsel tek PDF`);
-  else await sendMessage(env,`${sentText ? '⚠️' : '✅'} <b>${escapeTelegramHtml(job.name)}</b> tamamlandı ancak PDF oluşturulabilecek görsel yanıt alınmadı.`);
+  const textReady = wantsText ? await deliverPart(env,job.id,'text',() => sendCombinedText(env,job.name,rows)) : true;
+  const pdfReady = await deliverPart(env,job.id,'pdf',async() => {
+    const pdfKey = await combinedPdf(env,job.id,job.name,rows);
+    if (pdfKey) return sendDocument(env,resultMediaUrl(origin,pdfKey),`✅ ${job.name} · ${rows.filter(row => row.response_kind === 'image').length} görsel tek PDF`);
+    return sendMessage(env,`⚠️ <b>${escapeTelegramHtml(job.name)}</b> tamamlandı ancak PDF oluşturulabilecek görsel yanıt alınmadı.`);
+  });
+  return textReady && pdfReady;
 }
 
 async function notifyResults(env: Env, origin: string, jobId: string): Promise<void> {
@@ -195,8 +218,8 @@ async function notifyResults(env: Env, origin: string, jobId: string): Promise<v
   const resultRows = await env.DB.prepare("SELECT step_index,bot_username,command,response_text,response_kind,media_key,file_name,created_at FROM command_results WHERE job_id=? ORDER BY step_index,id").bind(jobId).all<CommandResultRow>();
   const rows = finalCommandResults(resultRows.results ?? []);
   if (job.template_id === KURUM_TEMPLATE_ID || job.template_id === TERANE_TEMPLATE_ID) {
-    await notifyBundledTemplate(env,origin,job,rows);
-    await env.DB.prepare("UPDATE command_jobs SET notified_at=CURRENT_TIMESTAMP WHERE id=?").bind(jobId).run();
+    if (await notifyBundledTemplate(env,origin,job,rows))
+      await env.DB.prepare("UPDATE command_jobs SET notified_at=CURRENT_TIMESTAMP WHERE id=?").bind(jobId).run();
     return;
   }
   await sendMessage(env, `✅ <b>${escapeTelegramHtml(job.name)}</b> tamamlandı\n${rows.length} yanıt alındı.`);
@@ -212,6 +235,16 @@ async function notifyResults(env: Env, origin: string, jobId: string): Promise<v
     }
   }
   await env.DB.prepare("UPDATE command_jobs SET notified_at=CURRENT_TIMESTAMP WHERE id=?").bind(jobId).run();
+}
+
+export async function retryUnnotifiedCommandJobs(env: Env, origin = 'https://heranborsa.arvia.site'): Promise<void> {
+  const jobs = await env.DB.prepare(`SELECT id FROM command_jobs WHERE status='completed' AND notified_at IS NULL
+    AND template_id IN (?,?) AND finished_at>datetime('now','-24 hours') ORDER BY finished_at LIMIT 3`)
+    .bind(KURUM_TEMPLATE_ID,TERANE_TEMPLATE_ID).all<{id:string}>();
+  for (const job of jobs.results ?? []) {
+    try { await notifyResults(env,origin,job.id); }
+    catch { /* Delivery parts retain a retryable error; the next cron tries again. */ }
+  }
 }
 
 async function agentRoutes(request: Request, env: Env, ctx: Pick<ExecutionContext,"waitUntil">, path: string): Promise<Response | null> {

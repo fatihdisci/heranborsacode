@@ -3,7 +3,7 @@ import { ensurePollingShards, PollShard } from "./scheduler/shards";
 import type { Env } from "./types";
 import { ensureTelegramWebhook, telegramRoutes } from './telegram/webhook';
 import { ensureTelegramActions } from './telegram/actions';
-import { commandRoutes } from './commands/routes';
+import { commandRoutes, retryUnnotifiedCommandJobs } from './commands/routes';
 export { TelegramActions } from './telegram/action-worker';
 
 export { PollShard };
@@ -33,5 +33,6 @@ export default {
   },
   async scheduled(event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     ctx.waitUntil(runScheduled(env));
+    ctx.waitUntil(retryUnnotifiedCommandJobs(env));
   }
 } satisfies ExportedHandler<Env>;
