@@ -107,6 +107,26 @@
       </div>
     </dialog>
 
+    <dialog id="command-results-dialog" aria-labelledby="command-results-title">
+      <header class="reader-toolbar">
+        <button id="command-results-close" type="button" aria-label="Komut merkezine dön"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg><span>Geri</span></button>
+        <span>Komut sonuçları</span>
+        <span class="result-count" id="command-results-count"></span>
+      </header>
+      <div class="command-results-scroll">
+        <section class="command-results-head">
+          <p id="command-results-state">Sonuçlar yükleniyor…</p>
+          <h2 id="command-results-title">Komut sonucu</h2>
+          <div class="command-result-actions">
+            <button id="copy-command-texts" type="button" disabled>Tüm metinleri kopyala</button>
+            <button id="download-command-pdf" type="button" disabled>Görselleri tek PDF yap</button>
+          </div>
+          <p id="command-results-message" role="status" aria-live="polite"></p>
+        </section>
+        <div id="command-result-list" class="command-result-list"></div>
+      </div>
+    </dialog>
+
     <dialog id="tweet-dialog">
       <form method="dialog" class="tweet-sheet">
         <div class="sheet-handle" aria-hidden="true"></div>

@@ -25,6 +25,16 @@ LOCK_FILE = Path(os.environ.get("HERANBORSA_AGENT_LOCK", "/tmp/heranborsa-comman
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "INFO"), format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("heranborsa-agent")
 
+PROGRESS_MARKERS = (
+    "alınıyor", "aliniyor", "hazırlanıyor", "hazirlaniyor", "işleniyor", "isleniyor",
+    "yükleniyor", "yukleniyor", "bekleyin", "lütfen bekle", "lutfen bekle",
+)
+
+
+def is_progress_message(message: Any) -> bool:
+    text = (getattr(message, "raw_text", "") or "").lower()
+    return not getattr(message, "media", None) and any(marker in text for marker in PROGRESS_MARKERS)
+
 
 def validate_environment() -> None:
     if not AGENT_TOKEN or not MASTER_KEY:
@@ -92,21 +102,26 @@ class CloudQueue:
 
 
 async def wait_for_final_message(client: TelegramClient, message: Any, bot_username: str) -> Any:
-    progress_markers = ("veri alınıyor", "veri aliniyor", "hazırlanıyor", "hazirlaniyor", "işleniyor", "isleniyor", "yükleniyor", "yukleniyor", "bekleyin")
     refreshed = await client.get_messages(message.chat_id, ids=message.id)
     if refreshed:
         message = refreshed
-    if message.media or not any(marker in (message.raw_text or "").lower() for marker in progress_markers):
+    if not is_progress_message(message):
+        # Bots may edit an apparently complete answer shortly after sending it.
+        await asyncio.sleep(2)
+        refreshed = await client.get_messages(message.chat_id, ids=message.id)
+        if refreshed:
+            message = refreshed
         return message
-    original = message.raw_text or ""
     for _ in range(45):
         await asyncio.sleep(2)
         refreshed = await client.get_messages(message.chat_id, ids=message.id)
-        if refreshed and (refreshed.media or (refreshed.raw_text or "") != original):
-            return refreshed
+        if refreshed:
+            message = refreshed
+            if not is_progress_message(message):
+                return message
         recent = await client.get_messages(bot_username, limit=10)
         for candidate in sorted(recent or [], key=lambda item: item.id):
-            if candidate.id >= message.id and not candidate.out and (candidate.media or (candidate.raw_text or "") != original):
+            if candidate.id >= message.id and not candidate.out and not is_progress_message(candidate):
                 return candidate
     return message
 
@@ -156,6 +171,16 @@ async def run_step(client: TelegramClient, queue: CloudQueue, job_id: str, lease
                     if candidate.id not in seen_ids:
                         messages.append(candidate)
                         seen_ids.add(candidate.id)
+                # Read every message once more so edited Telegram messages are
+                # persisted in their final form, not in their first placeholder form.
+                refreshed_messages = []
+                for item in messages:
+                    refreshed = await client.get_messages(item.chat_id, ids=item.id)
+                    refreshed_messages.append(refreshed or item)
+                messages = refreshed_messages
+                final_messages = [item for item in messages if not is_progress_message(item)]
+                if final_messages:
+                    messages = final_messages
             break
         except FloodWaitError as error:
             log.warning("Telegram FLOOD_WAIT: %s saniye", error.seconds)

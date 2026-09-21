@@ -11,7 +11,10 @@ export function connectTelegramBack(telegram, dialogs) {
   if (supported) {
     try { telegram.BackButton.onClick(back); } catch { /* retain in-page navigation */ }
   }
-  dialogs.forEach(dialog => dialog.addEventListener('close', sync));
+  dialogs.forEach(dialog => {
+    dialog.addEventListener('close', sync);
+    dialog.addEventListener('toggle', sync);
+  });
   sync();
   return { sync, back };
 }

@@ -5,6 +5,7 @@ import { escapeTelegramHtml } from "../utils/text";
 import { sendMessage, telegramCall } from "../telegram/client";
 import { COMMAND_BOTS, validateSteps, type CommandStep } from "./catalog";
 import { listBistSymbols } from "./symbols";
+import { commandMediaUrl, finalCommandResults, type CommandResultRow } from "./results";
 
 interface CommandJob {
   id: string; name: string; steps_json: string; status: string; lease_token: string | null;
@@ -106,8 +107,12 @@ async function userRoutes(request: Request, env: Env, path: string): Promise<Res
     const job = await env.DB.prepare(`SELECT id,name,steps_json,status,attempts,error,created_at,started_at,finished_at
       FROM command_jobs WHERE id=?`).bind(jobMatch[1]).first<CommandJob>();
     if (!job) return json({ error: "not_found" }, 404);
-    const results = await env.DB.prepare("SELECT step_index,bot_username,command,response_text,response_kind,media_key,file_name,created_at FROM command_results WHERE job_id=? ORDER BY step_index,id").bind(job.id).all();
-    return json({ job: publicJob(job), results: results.results ?? [] });
+    const results = await env.DB.prepare("SELECT step_index,bot_username,command,response_text,response_kind,media_key,file_name,created_at FROM command_results WHERE job_id=? ORDER BY step_index,id").bind(job.id).all<CommandResultRow>();
+    const visible = finalCommandResults(results.results ?? []).map(({ media_key, ...row }) => ({
+      ...row,
+      media_url: commandMediaUrl(media_key),
+    }));
+    return json({ job: publicJob(job), results: visible });
   }
   if (jobMatch && request.method === "DELETE") {
     const changed = await env.DB.prepare("UPDATE command_jobs SET status='cancelled',finished_at=CURRENT_TIMESTAMP WHERE id=? AND status='queued'").bind(jobMatch[1]).run();
