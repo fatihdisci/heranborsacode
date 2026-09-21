@@ -14,6 +14,9 @@ describe('command center validation', () => {
     expect(validateSteps([{botUsername:'@B0PT_BOT',command:'/derinlik THYAO',delaySeconds:99}])).toEqual([
       {botUsername:'b0pt_bot',command:'/derinlik THYAO',delaySeconds:30},
     ]);
+    expect(validateSteps([{botUsername:'ucretsizderinlikbot',command:'/derinlik NETGL',delaySeconds:4.8}])).toEqual([
+      {botUsername:'ucretsizderinlikbot',command:'/derinlik NETGL',delaySeconds:4.8},
+    ]);
   });
 
   it('rejects unknown bots, multiline commands and oversized flows', () => {

@@ -30,6 +30,14 @@ PROGRESS_MARKERS = (
     "yükleniyor", "yukleniyor", "bekleyin", "lütfen bekle", "lutfen bekle",
 )
 
+# This bot can publish or edit a result shortly after its first response. Give it
+# a small, bot-specific grace period without slowing down the other integrations.
+SLOW_RESPONSE_BOTS = {"ucretsizderinlikbot"}
+
+
+def is_slow_response_bot(bot_username: str) -> bool:
+    return bot_username.lstrip("@").lower() in SLOW_RESPONSE_BOTS
+
 
 def is_progress_message(message: Any) -> bool:
     text = (getattr(message, "raw_text", "") or "").lower()
@@ -102,18 +110,19 @@ class CloudQueue:
 
 
 async def wait_for_final_message(client: TelegramClient, message: Any, bot_username: str) -> Any:
+    settle_seconds = 2.4 if is_slow_response_bot(bot_username) else 2
     refreshed = await client.get_messages(message.chat_id, ids=message.id)
     if refreshed:
         message = refreshed
     if not is_progress_message(message):
         # Bots may edit an apparently complete answer shortly after sending it.
-        await asyncio.sleep(2)
+        await asyncio.sleep(settle_seconds)
         refreshed = await client.get_messages(message.chat_id, ids=message.id)
         if refreshed:
             message = refreshed
         return message
     for _ in range(45):
-        await asyncio.sleep(2)
+        await asyncio.sleep(settle_seconds)
         refreshed = await client.get_messages(message.chat_id, ids=message.id)
         if refreshed:
             message = refreshed
@@ -155,7 +164,10 @@ async def run_step(client: TelegramClient, queue: CloudQueue, job_id: str, lease
     command = str(step["command"])
     while True:
         try:
-            async with client.conversation(bot_username, timeout=120) as conversation:
+            slow_response_bot = is_slow_response_bot(bot_username)
+            conversation_timeout = 144 if slow_response_bot else 120
+            quiet_timeout = 2.4 if slow_response_bot else 2
+            async with client.conversation(bot_username, timeout=conversation_timeout) as conversation:
                 await conversation.send_message(command)
                 response = await conversation.get_response()
                 response = await wait_for_final_message(client, response, bot_username)
@@ -165,7 +177,7 @@ async def run_step(client: TelegramClient, queue: CloudQueue, job_id: str, lease
                 # consuming until the conversation is quiet for two seconds.
                 for _ in range(11):
                     try:
-                        candidate = await asyncio.wait_for(conversation.get_response(), timeout=2)
+                        candidate = await asyncio.wait_for(conversation.get_response(), timeout=quiet_timeout)
                     except asyncio.TimeoutError:
                         break
                     if candidate.id not in seen_ids:
@@ -197,7 +209,8 @@ async def execute_job(client: TelegramClient, queue: CloudQueue, payload: dict[s
             await queue.renew(job["id"], lease)
             results.extend(await run_step(client, queue, job["id"], lease, step, index))
             if index < len(job["steps"]) - 1:
-                await asyncio.sleep(max(1, min(30, int(step.get("delaySeconds", 4)))))
+                delay_seconds = max(1.0, min(30.0, float(step.get("delaySeconds", 4))))
+                await asyncio.sleep(delay_seconds)
         await queue.complete(job["id"], lease, results)
         log.info("İş tamamlandı: %s", job["id"])
     except Exception as error:
