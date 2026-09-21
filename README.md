@@ -63,12 +63,18 @@ AI promptu `src/ai/prompt.ts` içinde sürümlenir. GPT-5.6 Luna yalnız kullan�
 
 ## Komut Merkezi
 
-Mini App'in **Komut** sekmesi B0PT komutlarını, KAP'ın güncel BIST şirket
-listesinden aranan bir veya çok sayıda hisseyle birleştirir. Kullanıcı komutları
+Mini App'in **Komut** sekmesi yalnız `@b0pt_bot` ve `@ucretsizderinlikbot`
+komutlarını, KAP'ın güncel BIST şirket listesinden aranan bir veya çok sayıda hisseyle birleştirir. Kullanıcı komutları
 sıralayabilir, akışı adlandırıp kalıcı şablon olarak saklayabilir ve tek dokunuşla
-kuyruğa alabilir. Diğer izinli botlarda bilinmeyen komutlar için `/komut
-{HISSE}` biçiminde özel şablon kullanılabilir. Bir akış en fazla 80 komut,
+kuyruğa alabilir. Bilinmeyen komutlar için özel komut alanı kullanılabilir. Bir akış en fazla 80 komut,
 hisse seçimi en fazla 40 kod içerir.
+
+Özel bot sohbetinde `/kurum`, yedi kurum sorgusundan oluşan hazır Kurum
+şablonunu; `/terane` ise on iki derinlik sorgusundan oluşan Terane şablonunu
+kuyruğa alır. Telegram güncelleme tekrarları aynı işi ikinci kez oluşturmaz.
+Kurum tamamlandığında bütün metinler tek mesaj veya sınır aşılırsa tek TXT ve
+bütün görseller tek PDF olarak gönderilir. Terane tek birleşik PDF olarak gelir;
+bu iki akışta tek tek ara sonuçlar Telegram sohbetine gönderilmez.
 
 Kuyruk D1'da kalıcıdır. Mac mini kapalıyken işler kaybolmaz; ajan açıldığında
 işleri dışarıdan HTTPS ile çeker. Telegram kullanıcı oturumu yalnız Mac mini'deki

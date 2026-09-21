@@ -2,13 +2,15 @@ import type { Env } from "../types";
 import { authorizeTelegramRequest } from "../security/telegram";
 import { json } from "../utils/http";
 import { escapeTelegramHtml } from "../utils/text";
-import { sendMessage, telegramCall } from "../telegram/client";
+import { sendDocument, sendMessage, telegramCall } from "../telegram/client";
+import { PDFDocument } from "pdf-lib";
 import { COMMAND_BOTS, validateSteps, type CommandStep } from "./catalog";
 import { listBistSymbols } from "./symbols";
 import { commandMediaUrl, finalCommandResults, type CommandResultRow } from "./results";
+import { enqueueTemplateJob, KURUM_TEMPLATE_ID, TERANE_TEMPLATE_ID } from "./jobs";
 
 interface CommandJob {
-  id: string; name: string; steps_json: string; status: string; lease_token: string | null;
+  id: string; name: string; steps_json: string; status: string; lease_token: string | null; template_id?: string | null;
   lease_expires_at: string | null; attempts: number; error: string | null; created_at: string;
   started_at: string | null; finished_at: string | null;
 }
@@ -88,9 +90,13 @@ async function userRoutes(request: Request, env: Env, path: string): Promise<Res
       let steps = validateSteps(value?.steps), name = templateName(value?.name) ?? "Tek seferlik komut";
       let templateId: string | null = null;
       if (typeof value?.templateId === "string") {
-        const template = await env.DB.prepare("SELECT id,name,steps_json FROM command_templates WHERE id=?").bind(value.templateId).first<{id:string;name:string;steps_json:string}>();
-        if (!template) return json({ error: "template_not_found" }, 404);
-        templateId = template.id; name = template.name; steps = validateSteps(JSON.parse(template.steps_json));
+        try {
+          const queued = await enqueueTemplateJob(env, value.templateId);
+          return json({ id: queued.id, name: queued.name, status: queued.status, steps: queued.steps }, 202);
+        } catch (error) {
+          const code = error instanceof Error ? error.message : "invalid_steps";
+          return json({ error: code }, code === "template_not_found" ? 404 : code === "queue_full" ? 429 : 400);
+        }
       }
       if (!steps) return json({ error: "invalid_steps" }, 400);
       const queued = await env.DB.prepare("SELECT COUNT(*) AS count FROM command_jobs WHERE status IN ('queued','leased')").first<{count:number}>();
@@ -133,15 +139,72 @@ async function uploadMedia(request: Request, env: Env, jobId: string): Promise<R
   return json({ mediaKey: key, fileName: filename }, 201);
 }
 
-async function notifyResults(env: Env, origin: string, jobId: string, name: string): Promise<void> {
-  const rows = await env.DB.prepare("SELECT step_index,bot_username,command,response_text,response_kind,media_key,file_name FROM command_results WHERE job_id=? ORDER BY step_index,id").bind(jobId).all<any>();
-  await sendMessage(env, `✅ <b>${escapeTelegramHtml(name)}</b> tamamlandı\n${rows.results.length} yanıt alındı.`);
-  for (const row of rows.results) {
+function resultMediaUrl(origin: string, mediaKey: string): string {
+  return `${origin}/api/commands/media/${mediaKey.split('/').map(encodeURIComponent).join('/')}`;
+}
+
+async function combinedPdf(env: Env, jobId: string, name: string, rows: CommandResultRow[]): Promise<string | null> {
+  const pdf = await PDFDocument.create(); let pageCount = 0;
+  for (const row of rows) {
+    if (row.response_kind !== 'image' || !row.media_key) continue;
+    const object = await env.COMMAND_MEDIA.get(row.media_key); if (!object) continue;
+    const bytes = await object.arrayBuffer(); const contentType = object.httpMetadata?.contentType ?? '';
+    try {
+      const image = contentType.includes('png') || row.file_name?.toLowerCase().endsWith('.png')
+        ? await pdf.embedPng(bytes) : await pdf.embedJpg(bytes);
+      const pageWidth = 595.28, pageHeight = 841.89, margin = 24;
+      const scale = Math.min((pageWidth-margin*2)/image.width,(pageHeight-margin*2)/image.height,1);
+      const width = image.width*scale, height = image.height*scale; const page = pdf.addPage([pageWidth,pageHeight]);
+      page.drawImage(image,{x:(pageWidth-width)/2,y:(pageHeight-height)/2,width,height}); pageCount++;
+    } catch { /* Unsupported bot media is left out of the image-only PDF. */ }
+  }
+  if (!pageCount) return null;
+  const filename = `${name.toLocaleLowerCase('tr-TR').replace(/[^a-z0-9çğıöşü]+/gi,'-').replace(/^-|-$/g,'') || 'komut'}-sonuclari.pdf`;
+  const key = `commands/${jobId}/${filename}`;
+  await env.COMMAND_MEDIA.put(key,await pdf.save(),{httpMetadata:{contentType:'application/pdf'},customMetadata:{filename}});
+  return key;
+}
+
+async function sendCombinedText(env: Env, origin: string, jobId: string, name: string, rows: CommandResultRow[]): Promise<boolean> {
+  const text = rows.map(row => {
+    const content = String(row.response_text || '').trim();
+    return content ? `${row.command}\n${content}` : '';
+  }).filter(Boolean).join('\n\n────────\n\n');
+  if (!text) return false;
+  const heading = `✅ <b>${escapeTelegramHtml(name)} sonuçları</b>\n\n`;
+  if (heading.length + text.length <= 3900) {
+    await sendMessage(env,`${heading}${escapeTelegramHtml(text)}`); return true;
+  }
+  const filename = `${name.toLocaleLowerCase('tr-TR').replace(/[^a-z0-9çğıöşü]+/gi,'-') || 'komut'}-tum-metinler.txt`;
+  const key = `commands/${jobId}/${filename}`;
+  await env.COMMAND_MEDIA.put(key,text,{httpMetadata:{contentType:'text/plain; charset=utf-8'},customMetadata:{filename}});
+  await sendDocument(env,resultMediaUrl(origin,key),`✅ ${name} · Tüm metinler`); return true;
+}
+
+async function notifyBundledTemplate(env: Env, origin: string, job: {id:string;name:string;template_id:string|null}, rows: CommandResultRow[]): Promise<void> {
+  const wantsText = job.template_id === KURUM_TEMPLATE_ID;
+  const sentText = wantsText ? await sendCombinedText(env,origin,job.id,job.name,rows) : false;
+  const pdfKey = await combinedPdf(env,job.id,job.name,rows);
+  if (pdfKey) await sendDocument(env,resultMediaUrl(origin,pdfKey),`✅ ${job.name} · ${rows.filter(row => row.response_kind === 'image').length} görsel tek PDF`);
+  else await sendMessage(env,`${sentText ? '⚠️' : '✅'} <b>${escapeTelegramHtml(job.name)}</b> tamamlandı ancak PDF oluşturulabilecek görsel yanıt alınmadı.`);
+}
+
+async function notifyResults(env: Env, origin: string, jobId: string): Promise<void> {
+  const job = await env.DB.prepare("SELECT id,name,template_id FROM command_jobs WHERE id=?").bind(jobId).first<{id:string;name:string;template_id:string|null}>();
+  if (!job) return;
+  const resultRows = await env.DB.prepare("SELECT step_index,bot_username,command,response_text,response_kind,media_key,file_name,created_at FROM command_results WHERE job_id=? ORDER BY step_index,id").bind(jobId).all<CommandResultRow>();
+  const rows = finalCommandResults(resultRows.results ?? []);
+  if (job.template_id === KURUM_TEMPLATE_ID || job.template_id === TERANE_TEMPLATE_ID) {
+    await notifyBundledTemplate(env,origin,job,rows);
+    await env.DB.prepare("UPDATE command_jobs SET notified_at=CURRENT_TIMESTAMP WHERE id=?").bind(jobId).run();
+    return;
+  }
+  await sendMessage(env, `✅ <b>${escapeTelegramHtml(job.name)}</b> tamamlandı\n${rows.length} yanıt alındı.`);
+  for (const row of rows) {
     const heading = `<b>@${escapeTelegramHtml(row.bot_username)}</b> · <code>${escapeTelegramHtml(row.command)}</code>`;
     const content = String(row.response_text || "").trim();
     if (row.media_key) {
-      const encodedKey = String(row.media_key).split('/').map(encodeURIComponent).join('/');
-      const url = `${origin}/api/commands/media/${encodedKey}`;
+      const url = resultMediaUrl(origin,String(row.media_key));
       const form = new URLSearchParams({ chat_id: env.TELEGRAM_CHAT_ID!, document: url, caption: `${heading}${content ? `\n\n${escapeTelegramHtml(content).slice(0, 800)}` : ""}`, parse_mode: "HTML" });
       await telegramCall(env, "sendDocument", form);
     } else {
@@ -200,7 +263,7 @@ async function agentRoutes(request: Request, env: Env, ctx: Pick<ExecutionContex
     statements.push(env.DB.prepare("UPDATE command_jobs SET status=?,error=?,lease_token=NULL,lease_expires_at=NULL,finished_at=CURRENT_TIMESTAMP WHERE id=?")
       .bind(finalStatus, finalStatus === "failed" ? String(value.error ?? "Ajan işi tamamlayamadı.").slice(0,1000) : null, job.id));
     await env.DB.batch(statements);
-    if (finalStatus === "completed") ctx.waitUntil(notifyResults(env, new URL(request.url).origin, job.id, job.name));
+    if (finalStatus === "completed") ctx.waitUntil(notifyResults(env, new URL(request.url).origin, job.id));
     else ctx.waitUntil(sendMessage(env, `⚠️ <b>${escapeTelegramHtml(job.name)}</b> tamamlanamadı. Mini App geçmişinden yeniden deneyebilirsin.`));
     return json({ ok: true });
   }

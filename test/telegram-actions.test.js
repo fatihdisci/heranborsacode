@@ -109,3 +109,16 @@ it('does not overwrite a different webhook during setup',async()=>{
   const response=await telegramRoutes(new Request('https://worker/api/telegram/setup',{method:'POST',headers:{'x-telegram-bot-api-secret-token':'test-secret'}}),env,ctx);
   expect(response.status).toBe(409);expect(fetch).toHaveBeenCalledTimes(1);
 });
+
+it('queues /kurum and /terane templates once per Telegram message',async()=>{
+  const send=async(messageId,text)=>{
+    const response=await telegramRoutes(new Request('https://worker/api/telegram/webhook',{method:'POST',headers:{'x-telegram-bot-api-secret-token':'test-secret'},body:JSON.stringify({message:{message_id:messageId,text,from:{id:123},chat:{id:123,type:'private'}}})}),env,ctx);
+    expect(response.status).toBe(200);await Promise.all(pending.splice(0));
+  };
+  await send(201,'/kurum');await send(202,'/terane');await send(201,'/kurum');
+  const jobs=sql.prepare('SELECT name,template_id,request_key FROM command_jobs ORDER BY created_at,id').all();
+  expect(jobs).toHaveLength(2);
+  expect(jobs.map(job=>job.name).sort()).toEqual(['Kurum','Terane']);
+  expect(jobs.every(job=>job.request_key.startsWith('telegram:123:'))).toBe(true);
+  expect(vi.mocked(fetch).mock.calls.filter(([url])=>url.endsWith('/sendMessage'))).toHaveLength(2);
+});
