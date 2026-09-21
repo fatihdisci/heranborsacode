@@ -1,17 +1,39 @@
-const KEYWORDS = [
-  "bist", "borsa", "borsa istanbul", "hisse", "pay", "halka arz", "sermaye artır",
-  "bedelsiz", "bedelli", "temettü", "geri alım", "birleşme", "satın alma", "yatırım",
-  "finansal sonuç", "bilanço", "fon", "spk", "piyasa düzenlemesi", "endeks", "tcmb",
-  "faiz", "enflasyon", "döviz", "kur", "altın", "petrol", "emtia", "bankacılık",
-  "tahvil", "kredi derecelendirme", "ihracat", "cari açık", "işsizlik",
-  "portföy", "portföy yönetim", "yatırım fonu", "emeklilik fonu", "fon yönetimi",
+// A single broad finance word is not enough. Economic RSS feeds also use words
+// such as "yatırım", "faiz" and "petrol" for stories that have no meaningful
+// connection to the user's BIST/KAP/fund focus.
+const DIRECT_BIST_SIGNALS = [
+  "bist", "borsa istanbul", "kap", "spk", "tefas", "devre kesici", "gyo",
+  "borsada işlem gören"
+];
+
+const CAPITAL_MARKET_SIGNALS = [
+  "halka arz", "sermaye artır", "bedelsiz", "bedelli", "temettü", "pay geri alım",
+  "hisse geri alım", "finansal sonuç", "bilanço", "hedef fiyat", "model portföy",
+  "aracı kurum", "takas analizi", "şirket pay", "pay sahip",
+  "gayrimenkul yatırım ortaklığı", "menkul kıymet yatırım ortaklığı"
+];
+
+const FUND_SIGNALS = [
+  "fon", "portföy", "portföy yönetim", "yatırım fonu", "emeklilik fonu", "fon yönetimi",
   "varlık yönetim", "serbest fon", "katılım fonu", "para piyasası fonu",
-  "girişim sermayesi yatırım fonu", "gayrimenkul yatırım fonu", "yatırım ortaklığı"
+  "girişim sermayesi yatırım fonu", "gayrimenkul yatırım fonu"
+];
+
+const TURKEY_MARKET_ANCHORS = [
+  "türkiye", "türk lirası", "dolar/tl", "euro/tl", "tcmb", "tüik", "bddk",
+  "hazine ve maliye", "merkez bankası", "yurt içi", "masak", "mkk",
+  "istanbul cumhuriyet başsavcılığı", "a.ş."
+];
+
+const MARKET_MOVING_MACRO_SIGNALS = [
+  "politika faizi", "faiz kararı", "enflasyon", "tüfe", "üfe", "döviz", "kur",
+  "rezerv", "cari açık", "işsizlik", "sanayi üretimi", "ekonomik büyüme",
+  "kredi notu", "kredi derecelendirme"
 ];
 
 // These short roots commonly occur inside unrelated Turkish words
 // (for example `kur` in `tahtakurusu` and `pay` in `yapay`).
-const EXACT_KEYWORDS = new Set(["pay", "kur", "fon", "altın"]);
+const EXACT_KEYWORDS = new Set(["fon", "kur", "kap", "spk", "bist", "tüfe", "üfe"]);
 
 function containsKeyword(text: string, keyword: string): boolean {
   if (!EXACT_KEYWORDS.has(keyword)) return text.includes(keyword);
@@ -32,11 +54,21 @@ const WATCHED_INSTITUTIONS = [
   "ata portföy", "ak portföy", "iş portföy", "garanti portföy", "ziraat portföy"
 ];
 
+const NON_TICKER_ACRONYMS = new Set(["TEFAS", "MASAK", "TCMB", "BDDK", "BIST", "TÜİK", "OPEC"]);
+
 export function isRelevantNews(title: string, summary = ""): boolean {
-  const normalized = `${title} ${summary}`.toLocaleLowerCase("tr-TR");
-  return KEYWORDS.some(keyword => containsKeyword(normalized, keyword)) ||
-    Object.keys(COMPANIES).some(company => normalized.includes(company.toLocaleLowerCase("tr-TR"))) ||
-    WATCHED_INSTITUTIONS.some(institution => normalized.includes(institution));
+  const combined = `${title} ${summary}`;
+  const normalized = combined.toLocaleLowerCase("tr-TR");
+  const companyMatch = Object.keys(COMPANIES).some(company => normalized.includes(company.toLocaleLowerCase("tr-TR")));
+  const institutionMatch = WATCHED_INSTITUTIONS.some(institution => normalized.includes(institution));
+  const explicitTicker = [...combined.matchAll(/(?:#|\()([A-ZÇĞİÖŞÜ]{4,6})(?=\)|\b)/g)]
+    .some(([,ticker]) => !NON_TICKER_ACRONYMS.has(ticker));
+  if (companyMatch || institutionMatch || explicitTicker) return true;
+  if (DIRECT_BIST_SIGNALS.some(signal => containsKeyword(normalized, signal))) return true;
+  const localMarketContext = TURKEY_MARKET_ANCHORS.some(anchor => containsKeyword(normalized, anchor));
+  if (localMarketContext && CAPITAL_MARKET_SIGNALS.some(signal => containsKeyword(normalized, signal))) return true;
+  if (localMarketContext && FUND_SIGNALS.some(signal => containsKeyword(normalized, signal))) return true;
+  return localMarketContext && MARKET_MOVING_MACRO_SIGNALS.some(signal => containsKeyword(normalized, signal));
 }
 
 // RSS providers occasionally put an international/English stream behind a

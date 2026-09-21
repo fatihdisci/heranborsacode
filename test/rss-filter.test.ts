@@ -38,4 +38,22 @@ describe("RSS news filters", () => {
     expect(isRelevantNews("Paralarını kurtarmak için iade kuyruğuna geçtiler")).toBe(false);
     expect(isRelevantNews("Süper Lig'in eski yıldızı silindirin altında kaldı")).toBe(false);
   });
+
+  it("rejects broad economy stories outside the BIST and fund focus", () => {
+    expect(isRelevantNews("Oyun içi satın almalara dikkat!", "Kayıtlı kredi kartıyla yapılan harcamalar aile bütçesini etkiliyor.")).toBe(false);
+    expect(isRelevantNews("Turist gelsin diye ormana 1 milyon liralık altın sakladılar")).toBe(false);
+    expect(isRelevantNews("Hong Kong borsasında güçlü kapanış: Hang Seng yüzde 1,18 yükseldi")).toBe(false);
+    expect(isRelevantNews("Bessent'ten tahvil ve Fed mesajı: Faizler savaş sonrası düşebilir")).toBe(false);
+    expect(isRelevantNews("Ulaştırmada demir yolu önceliği", "Kamu Yatırım Programı kapsamında yeni projeler hazırlanacak.")).toBe(false);
+    expect(isRelevantNews("Trafigura, Volare Shipping için halka arz planlıyor", "Şirket Londra piyasasını değerlendiriyor.")).toBe(false);
+    expect(isRelevantNews("ABD merkezli yatırım fonu teknoloji hisselerine yöneldi")).toBe(false);
+  });
+
+  it("keeps Turkish market-moving macro and listed-company stories", () => {
+    expect(isRelevantNews("TCMB politika faizi kararını açıkladı")).toBe(true);
+    expect(isRelevantNews("Türkiye'de yıllık enflasyon geriledi")).toBe(true);
+    expect(isRelevantNews("Gen İlaç'tan açıklama", "Gen İlaç ve Sağlık Ürünleri A.Ş. (GENIL) yeni kararını duyurdu.")).toBe(true);
+    expect(isRelevantNews("Adra GYO'dan 250 milyon TL'lik pay geri alım kararı")).toBe(true);
+    expect(isRelevantNews("Türkiye'de yeni halka arz için hazırlık başladı")).toBe(true);
+  });
 });
