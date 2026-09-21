@@ -15,7 +15,7 @@ interface IncomingMessage {
   chat: { id: number; type: string };
 }
 
-const MINI_APP_URL = 'https://heranborsa.av-fatihdisci.workers.dev';
+const MINI_APP_URL = 'https://heranborsa.arvia.site';
 async function answer(env: Env, id: string, text: string): Promise<void> {
   try { await telegramCall(env,'answerCallbackQuery',new URLSearchParams({callback_query_id:id,text})); }
   catch { /* Old callbacks can expire. Their persisted job is still delivered. */ }
@@ -98,7 +98,7 @@ async function handleUpdate(env: Env, value: unknown, ctx: Pick<ExecutionContext
   return json({ok:true});
 }
 
-const WEBHOOK_URL = 'https://heranborsa.av-fatihdisci.workers.dev/api/telegram/webhook';
+const WEBHOOK_URL = 'https://heranborsa.arvia.site/api/telegram/webhook';
 interface WebhookInfo {url:string;pending_update_count:number;last_error_date?:number;last_error_message?:string;allowed_updates?:string[];}
 
 export async function telegramRoutes(request: Request, env: Env, ctx: Pick<ExecutionContext,'waitUntil'>): Promise<Response | null> {
@@ -136,8 +136,9 @@ export async function telegramRoutes(request: Request, env: Env, ctx: Pick<Execu
 export async function ensureTelegramWebhook(env: Env): Promise<void> {
   if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_WEBHOOK_SECRET) return;
   const version = await env.DB.prepare("SELECT value FROM system_state WHERE key='telegram_webhook_version'").first<{value:string}>();
-  if (version?.value === 'commands-v1') return;
+  if (version?.value === 'custom-domain-v2') return;
   await telegramCall(env,'setWebhook',new URLSearchParams({url:WEBHOOK_URL,secret_token:env.TELEGRAM_WEBHOOK_SECRET,
     allowed_updates:JSON.stringify(['callback_query','message']),max_connections:'2',drop_pending_updates:'false'}));
-  await env.DB.prepare("INSERT INTO system_state(key,value) VALUES ('telegram_webhook_version','commands-v1') ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=CURRENT_TIMESTAMP").run();
+  await telegramCall(env,'setChatMenuButton',new URLSearchParams({menu_button:JSON.stringify({type:'web_app',text:'Heran Borsa',web_app:{url:MINI_APP_URL}})}));
+  await env.DB.prepare("INSERT INTO system_state(key,value) VALUES ('telegram_webhook_version','custom-domain-v2') ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=CURRENT_TIMESTAMP").run();
 }

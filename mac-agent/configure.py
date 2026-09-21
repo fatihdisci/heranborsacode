@@ -60,7 +60,7 @@ def main() -> None:
     target = home / ".config/heranborsa-agent/env"
     target.parent.mkdir(parents=True, exist_ok=True)
     content = "\n".join([
-        "HERANBORSA_BASE_URL=https://heranborsa.av-fatihdisci.workers.dev",
+        "HERANBORSA_BASE_URL=https://heranborsa.arvia.site",
         f"COMMAND_AGENT_TOKEN={shlex.quote(token)}",
         f"TELEFLOW_MASTER_KEY={shlex.quote(master_key)}",
         f"TELEFLOW_DATA_DIR={shlex.quote(str(data_dir))}",

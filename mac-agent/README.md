@@ -10,7 +10,7 @@ veya Termius gerekmez.
 `~/.config/heranborsa-agent/env` dosyası sadece Mac mini'de bulunmalıdır:
 
 ```dotenv
-HERANBORSA_BASE_URL=https://heranborsa.av-fatihdisci.workers.dev
+HERANBORSA_BASE_URL=https://heranborsa.arvia.site
 COMMAND_AGENT_TOKEN=Cloudflare-ile-ayni-gizli-deger
 TELEFLOW_MASTER_KEY=mevcut-Teleflow-anahtari
 TELEFLOW_DATA_DIR=/Users/KULLANICI/Library/Application Support/TeleflowAgent/data
