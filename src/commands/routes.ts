@@ -237,7 +237,7 @@ async function notifyResults(env: Env, origin: string, jobId: string): Promise<v
   await env.DB.prepare("UPDATE command_jobs SET notified_at=CURRENT_TIMESTAMP WHERE id=?").bind(jobId).run();
 }
 
-export async function retryUnnotifiedCommandJobs(env: Env, origin = 'https://heranborsa.arvia.site'): Promise<void> {
+export async function retryUnnotifiedCommandJobs(env: Env, origin = (env.PUBLIC_BASE_URL?.trim() || 'https://borsa.discilaw.com').replace(/\/+$/, '')): Promise<void> {
   const jobs = await env.DB.prepare(`SELECT id FROM command_jobs WHERE status='completed' AND notified_at IS NULL
     AND template_id IN (?,?) AND finished_at>datetime('now','-24 hours') ORDER BY finished_at LIMIT 3`)
     .bind(KURUM_TEMPLATE_ID,TERANE_TEMPLATE_ID).all<{id:string}>();

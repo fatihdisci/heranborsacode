@@ -49,7 +49,7 @@ KAP akışı şirket, fon/portföy yönetimi ve piyasa açısından anlamlı bil
 
 ## Telegram ve Mini App
 
-Botun **Menu Button / Web App URL** adresi `https://heranborsa.arvia.site` olarak Worker tarafından korunur. Uygulamanın salt-okunur akışı normal tarayıcıda da çalışır. AI tweet endpoint'i yalnız Telegram Mini App'in imzalı `initData` verisi doğrulandıktan ve kullanıcı adı allowlist'i eşleştikten sonra çağrılabilir.
+Botun **Menu Button / Web App URL** adresi `https://borsa.discilaw.com` olarak Worker tarafından korunur. Alt alan adı arama motorlarına kapalıdır; akış ve içerik API'leri yalnız Telegram Mini App'in imzalı `initData` verisi doğrulandıktan sonra çalışır. AI tweet endpoint'i ayrıca kullanıcı adı allowlist'ini denetler.
 
 Kaynak, akış ve `telegram_outbox` aynı D1 transaction'ında kaydedilir. Bağımsız `telegram` alarmı boşken 3 saniyede bir kontrol eder; doluyken özel sohbete en az 1,1 saniye arayla tek mesaj yollar (gruplarda 3,1 saniye). SPK PDF'si açıklamasıyla tek gönderidir. Telegram 429 yanıtındaki `retry_after` tüm kuyruğa uygulanır; ağ/5xx hatalarında 5 saniyeden 5 dakikaya kadar artan bekleme vardır. Kalıcı 400/401/403/404 hataları `blocked` olarak görünür, diğer mesajları durdurmaz. Alarm çakışmaları için 90 saniyelik kalıcı sahiplenme kullanılır.
 

@@ -27,6 +27,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--teleflow-env", type=Path)
     parser.add_argument("--teleflow-data", type=Path)
+    parser.add_argument("--base-url", default="https://borsa.discilaw.com")
     args = parser.parse_args()
     home = Path.home()
     env_candidates = [
@@ -60,7 +61,7 @@ def main() -> None:
     target = home / ".config/heranborsa-agent/env"
     target.parent.mkdir(parents=True, exist_ok=True)
     content = "\n".join([
-        "HERANBORSA_BASE_URL=https://heranborsa.arvia.site",
+        f"HERANBORSA_BASE_URL={args.base_url.rstrip('/')}",
         f"COMMAND_AGENT_TOKEN={shlex.quote(token)}",
         f"TELEFLOW_MASTER_KEY={shlex.quote(master_key)}",
         f"TELEFLOW_DATA_DIR={shlex.quote(str(data_dir))}",

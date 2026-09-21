@@ -1,6 +1,15 @@
 import { connectTelegramBack, restoreFeedPosition } from './navigation.js';
 import { createCommandCenter } from './commands.js';
 const telegram = window.Telegram?.WebApp;
+const telegramHeaders = () => ({ 'x-telegram-init-data': telegram?.initData || '' });
+const accessScreen = document.querySelector('#access-screen');
+if (telegram?.initData) {
+  document.title = 'Heran Borsa';
+  document.body.classList.remove('auth-pending');
+  accessScreen?.remove();
+} else {
+  document.body.classList.add('auth-denied');
+}
 const state = { type: "", ticker: "", q: "", source: "", cursor: null, loading: false, seen: new Set(), searchOpen: false, view: 'feed' };
 
 const $ = selector => document.querySelector(selector);
@@ -57,7 +66,7 @@ async function loadReader(item) {
   try {
     let data;
     for (let attempt = 0; attempt < 16; attempt++) {
-      const response = await fetch(`/api/content?id=${item.id}`, {signal:controller.signal});
+      const response = await fetch(`/api/content?id=${item.id}`, {signal:controller.signal, headers:telegramHeaders()});
       if (response.status === 202) {
         await new Promise(resolve => setTimeout(resolve, 2000));
         if (controller.signal.aborted) return;
@@ -246,7 +255,7 @@ async function load(append = false) {
   for (const [key, value] of Object.entries({ type: state.type, ticker: state.ticker, q: state.q, source: state.source })) if (value) params.set(key, value);
   if (append && state.cursor) params.set("cursor", state.cursor);
   try {
-    const response = await fetch(`/api/feed?${params}`);
+    const response = await fetch(`/api/feed?${params}`, {headers:telegramHeaders()});
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
     if (!append) { feed.replaceChildren(); state.seen.clear(); }
@@ -307,7 +316,7 @@ function scheduleSearch() {
 
 async function loadSources() {
   try {
-    const response = await fetch("/api/sources");
+    const response = await fetch("/api/sources", {headers:telegramHeaders()});
     const data = await response.json();
     const select = $("#source");
     data.sources.forEach(source => {

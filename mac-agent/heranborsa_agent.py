@@ -14,7 +14,7 @@ from telethon import TelegramClient
 from telethon.errors import FloodWaitError
 from telethon.sessions import StringSession
 
-BASE_URL = os.environ.get("HERANBORSA_BASE_URL", "https://heranborsa.arvia.site").rstrip("/")
+BASE_URL = os.environ.get("HERANBORSA_BASE_URL", "https://borsa.discilaw.com").rstrip("/")
 AGENT_TOKEN = os.environ.get("COMMAND_AGENT_TOKEN", "")
 MASTER_KEY = os.environ.get("TELEFLOW_MASTER_KEY", "")
 DATA_DIR = Path(os.environ.get("TELEFLOW_DATA_DIR", Path.home() / "Library/Application Support/TeleflowAgent/data"))

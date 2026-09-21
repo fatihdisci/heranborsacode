@@ -16,6 +16,7 @@ export async function api(request: Request, env: Env): Promise<Response | null> 
     const item = await env.DB.prepare('SELECT * FROM feed_items WHERE id=?').bind(id).first<import('../types').FeedItem>();
     if (!item) return json({error:'not_found'},404);
     if (item.type === 'spk' || (item.type === 'kap' && /devre kesici/i.test(item.title))) return json({error:'source_only'},422);
+    if (!await authorizeTelegramRequest(request,env)) return json({error:'unauthorized'},401);
     try {
       const content = await readerContent(env,item);
       return content ? json(content) : json({status:'loading'},202,{'retry-after':'2'});
@@ -48,6 +49,7 @@ export async function api(request: Request, env: Env): Promise<Response | null> 
     return json({items:rows.results ?? [],note:'first_seen_at bizim ilk gördüğümüz andır; RSS’e gerçek eklenme anı değildir. sent_at Telegram API kabul zamanıdır.'});
   }
   if (url.pathname === "/api/sources" && request.method === "GET") {
+    if (!await authorizeTelegramRequest(request,env)) return json({error:'unauthorized'},401);
     const sources = await env.DB.prepare("SELECT DISTINCT source FROM feed_items ORDER BY source COLLATE NOCASE").all<{ source: string }>();
     return json({ sources: (sources.results ?? []).map(row => row.source) }, 200, { "cache-control": "public, max-age=60" });
   }
@@ -73,6 +75,7 @@ export async function api(request: Request, env: Env): Promise<Response | null> 
   }
   if (url.pathname !== "/api/feed") return null;
   if (request.method !== "GET") return json({ error: "method_not_allowed" }, 405, { allow: "GET" });
+  if (!await authorizeTelegramRequest(request,env)) return json({error:'unauthorized'},401);
   const requestedType = url.searchParams.get("type");
   if (requestedType && !TYPES.has(requestedType as FeedType)) return json({ error: "invalid_type" }, 400);
   const rawLimit = Number(url.searchParams.get("limit") ?? "30");

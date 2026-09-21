@@ -13,6 +13,7 @@ export interface Env {
   MKK_API_SECRET?: string;
   MKK_API_BASE_URL?: string;
   OPENAI_API_KEY?: string;
+  PUBLIC_BASE_URL?: string;
 }
 
 export type FeedType = "kap" | "spk" | "news";

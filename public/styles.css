@@ -256,3 +256,13 @@ body.reading { position: fixed; width: 100%; overflow: hidden; }
   .item-footer { padding-left: 49px; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; } }
+body.auth-pending .app-shell,
+body.auth-pending .bottom-nav,
+body.auth-denied .app-shell,
+body.auth-denied .bottom-nav { display: none !important; }
+
+.access-screen { min-height: 100dvh; display: grid; place-items: center; padding: 32px; background: #080b10; color: #f5f7fa; text-align: center; }
+.access-screen div { max-width: 320px; }
+.access-screen span { display: inline-block; color: #2dd4a8; font-size: 24px; margin-bottom: 14px; }
+.access-screen h1 { margin: 0 0 10px; font-size: 24px; }
+.access-screen p { margin: 0; color: #8d98a8; line-height: 1.55; }
