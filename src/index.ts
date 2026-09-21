@@ -8,6 +8,14 @@ export { TelegramActions } from './telegram/action-worker';
 
 export { PollShard };
 
+function privateResponse(response: Response): Response {
+  const headers = new Headers(response.headers);
+  headers.set('x-robots-tag', 'noindex, nofollow, noarchive, nosnippet');
+  headers.set('referrer-policy', 'no-referrer');
+  headers.set('x-content-type-options', 'nosniff');
+  return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
+}
+
 async function runScheduled(env: Env): Promise<void> {
   const startedAt = new Date().toISOString();
   await env.DB.prepare("INSERT INTO system_state(key,value) VALUES ('cron_last_started_at',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=CURRENT_TIMESTAMP").bind(startedAt).run();
@@ -24,12 +32,22 @@ async function runScheduled(env: Env): Promise<void> {
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    const path = new URL(request.url).pathname;
+    if (path === '/robots.txt') {
+      return new Response('User-agent: *\nDisallow: /\n', {
+        headers: {
+          'content-type': 'text/plain; charset=utf-8',
+          'cache-control': 'public, max-age=86400',
+          'x-robots-tag': 'noindex, nofollow, noarchive, nosnippet',
+        },
+      });
+    }
     const telegram = await telegramRoutes(request,env,ctx);
-    if (telegram) return telegram;
+    if (telegram) return privateResponse(telegram);
     const commands = await commandRoutes(request,env,ctx);
-    if (commands) return commands;
+    if (commands) return privateResponse(commands);
     const response = await api(request, env);
-    return response ?? env.ASSETS.fetch(request);
+    return privateResponse(response ?? await env.ASSETS.fetch(request));
   },
   async scheduled(event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     ctx.waitUntil(runScheduled(env));
