@@ -1,8 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { validateSteps } from '../src/commands/catalog';
+import { COMMAND_BOTS, validateSteps } from '../src/commands/catalog';
 import { extractKapSymbols } from '../src/commands/symbols';
 
 describe('command center validation', () => {
+  it('exposes only the two supported bots with understandable commands', () => {
+    expect(COMMAND_BOTS.map(bot => bot.username)).toEqual(['b0pt_bot', 'ucretsizderinlikbot']);
+    expect(COMMAND_BOTS[0].commands.find(command => command.id === 'derinlik')).toMatchObject({ label: 'Piyasa Derinliği (25 kademe)', pattern: '/derinlik {HISSE}' });
+    expect(COMMAND_BOTS[0].commands.find(command => command.id === 'kurum')).toMatchObject({ argumentKind: 'text', pattern: '/kurum {ARGUMAN}' });
+    expect(COMMAND_BOTS[1].commands.map(command => command.id)).toEqual(['derinlik', 'akd', 'takas', 'teorik', 'kurum']);
+  });
+
   it('normalizes allowed steps and bounds delays', () => {
     expect(validateSteps([{botUsername:'@B0PT_BOT',command:'/derinlik THYAO',delaySeconds:99}])).toEqual([
       {botUsername:'b0pt_bot',command:'/derinlik THYAO',delaySeconds:30},

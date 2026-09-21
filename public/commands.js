@@ -25,11 +25,21 @@ export function createCommandCenter(telegram, onShowFeed) {
   function renderActions() {
     const select = $('#command-action'); select.replaceChildren();
     for (const command of state.bot?.commands || []) {
-      const option = document.createElement('option'); option.value = command.id; option.textContent = command.label; select.append(option);
+      const option = document.createElement('option'); option.value = command.id; option.textContent = `/${command.id} · ${command.label}`; select.append(option);
     }
     const custom = document.createElement('option'); custom.value = '__custom'; custom.textContent = 'Özel komut'; select.append(custom);
     if (!state.bot?.commands?.length) select.value = '__custom';
-    $('#custom-command-row').hidden = select.value !== '__custom';
+    $('#custom-command-row').hidden = select.value !== '__custom'; updateArgumentField();
+  }
+
+  function updateArgumentField() {
+    const definition = selectedDefinition(); const kind = definition?.argumentKind || 'none'; const row = $('#command-argument-row');
+    $('#command-action-help').textContent = definition ? `/${definition.id} — ${definition.label}${kind === 'symbol' ? ' · Hisse koduyla çalışır.' : kind === 'text' ? ' · Kurum veya parametre girilmelidir.' : ' · Ek bilgi gerektirmez.'}` : 'Komutu tam biçimiyle yazabilirsin.';
+    row.hidden = kind === 'none'; $('#symbol-suggestions').hidden = true;
+    $('#selected-symbols').hidden = kind !== 'symbol';
+    $('#command-argument-label').textContent = definition?.argumentLabel || 'Hisse seç';
+    $('#symbol-search').placeholder = definition?.placeholder || (kind === 'text' ? 'Parametreyi yaz' : 'Kod ara: THYAO');
+    $('#symbol-search').value = ''; state.selected.clear(); renderSelected();
   }
 
   function renderSelected() {
@@ -43,6 +53,7 @@ export function createCommandCenter(telegram, onShowFeed) {
 
   function showSuggestions(query) {
     const root = $('#symbol-suggestions'); root.replaceChildren();
+    if (selectedDefinition()?.argumentKind !== 'symbol') { root.hidden = true; return; }
     const normalized = query.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
     if (!normalized) { root.hidden = true; return; }
     const matches = state.symbols.filter(symbol => symbol.includes(normalized) && !state.selected.has(symbol)).slice(0, 24);
@@ -73,12 +84,19 @@ export function createCommandCenter(telegram, onShowFeed) {
     const definition = selectedDefinition();
     const pattern = definition?.pattern || $('#custom-command').value.trim();
     if (!pattern.startsWith('/')) return message('Komut / işaretiyle başlamalı.', true);
-    const needsSymbol = definition?.needsSymbol || pattern.includes('{HISSE}');
+    const argumentKind = definition?.argumentKind || (pattern.includes('{HISSE}') ? 'symbol' : 'none');
+    const needsSymbol = argumentKind === 'symbol';
     if (needsSymbol && !state.selected.size) return message('En az bir hisse seç.', true);
+    const textArgument = argumentKind === 'text' ? $('#symbol-search').value.trim() : '';
+    if (argumentKind === 'text' && !textArgument) return message(`${definition?.argumentLabel || 'Parametre'} gerekli.`, true);
     const symbols = needsSymbol ? [...state.selected] : [null];
-    const additions = symbols.map(symbol => ({ botUsername: state.bot.username, command: symbol ? pattern.replaceAll('{HISSE}', symbol) : pattern, delaySeconds: 4 }));
+    const additions = symbols.map(symbol => ({
+      botUsername: state.bot.username,
+      command: symbol ? pattern.replaceAll('{HISSE}', symbol) : argumentKind === 'text' ? pattern.replaceAll('{ARGUMAN}', textArgument) : pattern,
+      delaySeconds: 4,
+    }));
     if (state.steps.length + additions.length > 80) return message('Bir akışta en fazla 80 komut olabilir.', true);
-    state.steps.push(...additions); state.selected.clear(); renderSelected(); renderSteps(); message(`${additions.length} komut akışa eklendi.`);
+    state.steps.push(...additions); state.selected.clear(); $('#symbol-search').value = ''; renderSelected(); renderSteps(); message(`${additions.length} komut akışa eklendi.`);
   }
 
   function templateCard(template) {
@@ -229,7 +247,7 @@ export function createCommandCenter(telegram, onShowFeed) {
     } catch (error) { message(error.message === 'unauthorized' ? 'Mini App’i bot sohbetinden yeniden aç.' : 'Komut Merkezi yüklenemedi.', true); }
   }
 
-  $('#command-action').onchange = () => { $('#custom-command-row').hidden = $('#command-action').value !== '__custom'; };
+  $('#command-action').onchange = () => { $('#custom-command-row').hidden = $('#command-action').value !== '__custom'; updateArgumentField(); };
   $('#symbol-search').oninput = event => showSuggestions(event.target.value);
   $('#add-command').onclick = addCommands;
   $('#clear-steps').onclick = () => { state.steps = []; renderSteps(); };

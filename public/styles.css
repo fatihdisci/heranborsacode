@@ -125,6 +125,7 @@ time { flex: none; color: var(--muted-2); font-size: 11px; font-variant-numeric:
 .command-label { display: grid; gap: 6px; margin: 10px 0; color: var(--muted); font-size: 10px; font-weight: 750; letter-spacing: .06em; text-transform: uppercase; }
 .command-label input, .command-label select { width: 100%; height: 48px; padding: 0 13px; border: 1px solid var(--line-strong); border-radius: 13px; outline: 0; background: #0a0f16; color: var(--text); font-size: 14px; font-weight: 500; letter-spacing: normal; text-transform: none; }
 .command-label input:focus, .command-label select:focus { border-color: rgba(46,230,170,.45); box-shadow: 0 0 0 3px rgba(46,230,170,.08); }
+.command-action-help { margin: -3px 2px 10px; color: var(--muted); font-size: 11px; line-height: 1.5; }
 .symbol-suggestions { display: grid; grid-template-columns: repeat(auto-fill,minmax(68px,1fr)); gap: 6px; max-height: 180px; overflow-y: auto; margin: -2px 0 10px; padding: 9px; border: 1px solid var(--line); border-radius: 13px; background: #080c12; }
 .symbol-suggestions button, .selected-symbols button { min-height: 36px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface-2); color: var(--text); font-size: 11px; font-weight: 750; }
 .selected-symbols { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 12px; }

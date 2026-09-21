@@ -45,8 +45,9 @@
         <section class="builder-card">
           <div id="command-bots" class="choice-row" aria-label="Bot seç"></div>
           <label class="command-label">Komut<select id="command-action"></select></label>
+          <p id="command-action-help" class="command-action-help"></p>
           <label id="custom-command-row" class="command-label" hidden>Özel komut<input id="custom-command" maxlength="160" placeholder="/komut {HISSE}" autocomplete="off" /></label>
-          <label class="command-label">Hisse seç<input id="symbol-search" maxlength="12" placeholder="Kod ara: THYAO" autocomplete="off" /></label>
+          <label id="command-argument-row" class="command-label"><span id="command-argument-label">Hisse seç</span><input id="symbol-search" maxlength="60" placeholder="Kod ara: THYAO" autocomplete="off" /></label>
           <div id="symbol-suggestions" class="symbol-suggestions" hidden></div>
           <div id="selected-symbols" class="selected-symbols" aria-live="polite"></div>
           <button id="add-command" class="primary-command" type="button">Akışa ekle</button>
