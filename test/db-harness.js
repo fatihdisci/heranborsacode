@@ -2,7 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { readFileSync, readdirSync } from 'node:fs';
 export function database({queueMigration=true}={}) {
   const sql = new DatabaseSync(':memory:');
-  for (const name of readdirSync('migrations').filter(n=>n.endsWith('.sql') && (queueMigration || !n.startsWith('0005'))).sort()) sql.exec(readFileSync(`migrations/${name}`,'utf8'));
+  for (const name of readdirSync('migrations').filter(n=>n.endsWith('.sql') && (queueMigration || (!n.startsWith('0005') && !n.startsWith('0012')))).sort()) sql.exec(readFileSync(`migrations/${name}`,'utf8'));
   function statement(query, values=[]) {
     return {
       bind(...args) { return statement(query,args); },

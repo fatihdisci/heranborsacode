@@ -3,6 +3,11 @@ import { enqueueStatement } from '../telegram/outbox';
 import { RSS_SOURCES } from '../rss/sources';
 
 export interface ShardHealth { startedAt: string; finishedAt: string; nextScheduledAt?: string; lastSuccessAt?: string; failures?: number; error: string | null; }
+interface OperationsSnapshot {
+  latency?: unknown;
+  latencyCheckedAt?: string;
+}
+const LATENCY_SAMPLE_INTERVAL_MS = 15 * 60_000;
 export function shardProblem(state: ShardHealth, now: number): string | null {
   if ((state.failures ?? 0) >= 3) return 'Üç veya daha fazla ardışık kontrol başarısız.';
   const due = Date.parse(state.nextScheduledAt ?? state.finishedAt);
@@ -51,13 +56,23 @@ export async function monitorOperations(env: Env): Promise<void> {
       enqueueStatement(env,`recovery:${incident.id}:${incident.opened_at}`,'message',{text:`✅ Heran Borsa\n\n${label(incident.id)} yeniden sağlıklı.`,plain:true},null,now,null),
     ]);
   }
-  // The bounded sample avoids full-history aggregates on every cron.
-  const latency = await env.DB.prepare(`SELECT COUNT(*) AS samples,
-    ROUND(AVG((julianday(sent_at)-julianday(first_seen_at))*86400),1) AS meanDeliverySeconds,
-    ROUND(MAX((julianday(sent_at)-julianday(first_seen_at))*86400),1) AS maxDeliverySeconds,
-    ROUND(AVG(CASE WHEN published_at IS NOT NULL THEN (julianday(first_seen_at)-julianday(published_at))*86400 END),1) AS meanPublicationToSeenSeconds
-    FROM (SELECT first_seen_at,published_at,sent_at FROM telegram_outbox WHERE source_ref IS NOT NULL AND status='sent' ORDER BY first_seen_at DESC LIMIT 500)`)
-    .first();
+  // Health checks remain minute-level, but the historical latency aggregate
+  // changes slowly and is expensive in D1 rows_read. Reuse it for 15 minutes.
+  const previousRow = await env.DB.prepare("SELECT value FROM system_state WHERE key='operations_status'").first<{value:string}>();
+  let previous: OperationsSnapshot = {};
+  try { previous = previousRow ? JSON.parse(previousRow.value) as OperationsSnapshot : {}; } catch { /* refresh below */ }
+  let latency = previous.latency ?? null;
+  let latencyCheckedAt = previous.latencyCheckedAt ?? null;
+  const lastLatencyCheck = latencyCheckedAt ? Date.parse(latencyCheckedAt) : Number.NaN;
+  if (latency === null || !Number.isFinite(lastLatencyCheck) || Date.now()-lastLatencyCheck>=LATENCY_SAMPLE_INTERVAL_MS) {
+    latency = await env.DB.prepare(`SELECT COUNT(*) AS samples,
+      ROUND(AVG((julianday(sent_at)-julianday(first_seen_at))*86400),1) AS meanDeliverySeconds,
+      ROUND(MAX((julianday(sent_at)-julianday(first_seen_at))*86400),1) AS maxDeliverySeconds,
+      ROUND(AVG(CASE WHEN published_at IS NOT NULL THEN (julianday(first_seen_at)-julianday(published_at))*86400 END),1) AS meanPublicationToSeenSeconds
+      FROM (SELECT first_seen_at,published_at,sent_at FROM telegram_outbox WHERE source_ref IS NOT NULL AND status='sent' ORDER BY first_seen_at DESC LIMIT 500)`)
+      .first();
+    latencyCheckedAt = now;
+  }
   await env.DB.prepare("INSERT INTO system_state(key,value) VALUES ('operations_status',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=CURRENT_TIMESTAMP")
-    .bind(JSON.stringify({checkedAt:now,queue,latency,incidents:[...problems.keys()]})).run();
+    .bind(JSON.stringify({checkedAt:now,queue,latency,latencyCheckedAt,incidents:[...problems.keys()]})).run();
 }

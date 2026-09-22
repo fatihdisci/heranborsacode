@@ -38,20 +38,15 @@ async function pollSource(env: Env, source: { name: string; url: string }): Prom
     isRelevantNews(item.title, item.description ?? "")
   );
   let inserted = 0;
-  // Read the comparison window once per source. Previously this query ran for
-  // every item in every feed and was the largest avoidable part of cron CPU.
-  const recent = (await env.DB.prepare(`SELECT r.title, r.normalized_url, COALESCE(f.body,'') AS summary
-    FROM rss_items r LEFT JOIN feed_items f ON f.source_ref='rss:'||r.content_hash
-    WHERE datetime(r.fetched_at)>=datetime('now','-1 day') ORDER BY r.fetched_at DESC LIMIT 500`)
-    .all<{title:string; normalized_url:string; summary:string}>()).results ?? [];
-  const fingerprints = new Set(recent.map(newsFingerprint));
   for (const item of items) {
     const normalizedUrl = normalizeUrl(item.url);
     const summary = item.description?.replace(/\s+/g, ' ').trim().slice(0,700) ?? '';
     const identity = {title:item.title, summary};
     const fingerprint = newsFingerprint(identity);
-    if (fingerprints.has(fingerprint)) continue;
     const hash = await sha256(fingerprint);
+    // content_hash is UNIQUE, so this point lookup provides the same
+    // cross-source fingerprint deduplication without rescanning the whole
+    // 24-hour comparison window for every RSS source every minute.
     if (await env.DB.prepare("SELECT content_hash FROM rss_items WHERE content_hash=?").bind(hash).first()) continue;
     const existing = await env.DB.prepare("SELECT content_hash FROM rss_items WHERE normalized_url=?").bind(normalizedUrl).first();
     const tickers = findTickers(item.title, item.description ?? "");
@@ -66,7 +61,6 @@ async function pollSource(env: Env, source: { name: string; url: string }): Prom
     ];
     if (!initialSeed) statements.push(enqueueStatement(env,ref,"message",{text,button:{text:"🔗 Haberi Aç",url:item.url}},item.publishedAt,seen));
     await env.DB.batch(statements);
-    fingerprints.add(fingerprint);
     inserted++;
   }
   await env.DB.prepare(`INSERT INTO feed_sources(url, name, etag, last_modified, last_success_at, last_error) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, NULL)

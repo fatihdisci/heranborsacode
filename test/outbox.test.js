@@ -65,6 +65,21 @@ describe('operational signals',()=>{
   it('does not confuse no news or a long SPK interval with failure',()=>{
     expect(shardProblem({finishedAt:'2026-09-20T12:00:00Z',nextScheduledAt:'2026-09-20T22:00:00Z',failures:0,error:null},Date.now())).toBeNull();
   });
+  it('keeps minute-level health checks while refreshing latency every 15 minutes',async()=>{
+    const prepare=env.DB.prepare;
+    let latencyQueries=0;
+    env.DB.prepare=(query)=>{
+      if(query.includes('ROUND(AVG')) latencyQueries++;
+      return prepare(query);
+    };
+    await monitorOperations(env);
+    vi.advanceTimersByTime(14*60_000);
+    await monitorOperations(env);
+    expect(latencyQueries).toBe(1);
+    vi.advanceTimersByTime(60_001);
+    await monitorOperations(env);
+    expect(latencyQueries).toBe(2);
+  });
 });
 describe('editorial correctness',()=>{
   it('keeps updated amounts, opposite decisions and body-only updates',()=>{
