@@ -4,7 +4,7 @@ import { sha256 } from "../utils/text";
 
 import { SYSTEM_PROMPT, PROMPT_VERSION, formatDraft } from "./prompt";
 
-const MODEL = "gpt-5.6-luna";
+const MODEL = "gpt-6-luna";
 interface OpenAIResponse {
   status?: string;
   output_text?: string;

@@ -108,6 +108,7 @@ export function circuitBreakerMessage(items: PublicDisclosure[]): string | null 
 
 export function isImportantPublicDisclosure(item: PublicDisclosure): boolean {
   const title = `${item.title} ${item.company ?? ""}`.toLocaleUpperCase("tr-TR");
+  if (/PORTFÖY DAĞILIM RAPORU|TEMERRÜT İŞLEMİ|BORSA DIŞI VAAD SÖZLEŞMESİ|BORSA DIŞI REPO\s*-\s*TERS REPO SÖZLEŞMESİ|FONU? SÜREKLİ BİLGİLENDİRME FORMU|KREDİ DERECELENDİRMESİ|YATIRIMCI BİLGİ FORMU/.test(item.title.toLocaleUpperCase("tr-TR"))) return false;
   if (!item.codes.length) return /FON|PORTFÖY|VARLIK YÖNETİM/.test(title);
   if (/ŞİRKET GENEL BİLGİ FORMU|HAK KULLANIM SÜREÇ DURUMU/.test(title)) return false;
   // The Mac mini flow applies the BIST 50 restriction to the specific pay
