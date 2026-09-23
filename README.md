@@ -72,6 +72,7 @@ hisse seçimi en fazla 40 kod içerir.
 Özel bot sohbetinde `/kurum` altı kurum sorgusunu, `/terane` on iki derinlik
 sorgusunu, `/sonhalkaarzlar` ise on bir halka arz derinlik sorgusunu kuyruğa
 alır. Telegram güncelleme tekrarları aynı işi ikinci kez oluşturmaz.
+Kurum ve Terane şablonlarında komutlar arasındaki bekleme 3 saniyedir.
 Kurum tamamlandığında bütün metinler tek mesaj veya sınır aşılırsa tek TXT ve
 bütün görseller tek PDF olarak gönderilir. Terane ve Son halka arzlar tek birleşik
 PDF olarak gelir; bu akışlarda tek tek ara sonuçlar Telegram sohbetine gönderilmez.
