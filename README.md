@@ -69,12 +69,12 @@ sıralayabilir, akışı adlandırıp kalıcı şablon olarak saklayabilir ve te
 kuyruğa alabilir. Bilinmeyen komutlar için özel komut alanı kullanılabilir. Bir akış en fazla 80 komut,
 hisse seçimi en fazla 40 kod içerir.
 
-Özel bot sohbetinde `/kurum`, altı kurum sorgusundan oluşan hazır Kurum
-şablonunu; `/terane` ise on iki derinlik sorgusundan oluşan Terane şablonunu
-kuyruğa alır. Telegram güncelleme tekrarları aynı işi ikinci kez oluşturmaz.
+Özel bot sohbetinde `/kurum` altı kurum sorgusunu, `/terane` on iki derinlik
+sorgusunu, `/sonhalkaarzlar` ise on bir halka arz derinlik sorgusunu kuyruğa
+alır. Telegram güncelleme tekrarları aynı işi ikinci kez oluşturmaz.
 Kurum tamamlandığında bütün metinler tek mesaj veya sınır aşılırsa tek TXT ve
-bütün görseller tek PDF olarak gönderilir. Terane tek birleşik PDF olarak gelir;
-bu iki akışta tek tek ara sonuçlar Telegram sohbetine gönderilmez.
+bütün görseller tek PDF olarak gönderilir. Terane ve Son halka arzlar tek birleşik
+PDF olarak gelir; bu akışlarda tek tek ara sonuçlar Telegram sohbetine gönderilmez.
 
 Kuyruk D1'da kalıcıdır. Mac mini kapalıyken işler kaybolmaz; ajan açıldığında
 işleri dışarıdan HTTPS ile çeker. Telegram kullanıcı oturumu yalnız Mac mini'deki

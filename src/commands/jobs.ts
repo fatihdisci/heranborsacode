@@ -3,6 +3,7 @@ import { validateSteps, type CommandStep } from "./catalog";
 
 export const KURUM_TEMPLATE_ID = "7e8eced2-e884-4a46-9da4-4809a7b96179";
 export const TERANE_TEMPLATE_ID = "c7250fb2-82f5-446c-aa89-d2ba2cb1dcf6";
+export const SON_HALKA_ARZLAR_TEMPLATE_ID = "d3b5c7ca-f364-4bfc-b9ce-0cbcb7255c5f";
 
 export interface QueuedTemplateJob {
   id: string;

@@ -7,7 +7,7 @@ import { PDFDocument } from "pdf-lib";
 import { COMMAND_BOTS, validateSteps, type CommandStep } from "./catalog";
 import { listBistSymbols } from "./symbols";
 import { commandMediaUrl, finalCommandResults, type CommandResultRow } from "./results";
-import { enqueueTemplateJob, KURUM_TEMPLATE_ID, TERANE_TEMPLATE_ID } from "./jobs";
+import { enqueueTemplateJob, KURUM_TEMPLATE_ID, TERANE_TEMPLATE_ID, SON_HALKA_ARZLAR_TEMPLATE_ID } from "./jobs";
 
 interface CommandJob {
   id: string; name: string; steps_json: string; status: string; lease_token: string | null; template_id?: string | null;
@@ -143,12 +143,14 @@ function resultMediaUrl(origin: string, mediaKey: string): string {
   return `${origin}/api/commands/media/${mediaKey.split('/').map(encodeURIComponent).join('/')}`;
 }
 
-async function combinedPdf(env: Env, jobId: string, name: string, rows: CommandResultRow[]): Promise<string | null> {
+async function combinedPdf(env: Env, jobId: string, name: string, rows: CommandResultRow[]): Promise<{key:string;pageCount:number} | null> {
   const pdf = await PDFDocument.create(); let pageCount = 0;
   for (const row of rows) {
-    if (row.response_kind !== 'image' || !row.media_key) continue;
+    if (!row.media_key) continue;
     const object = await env.COMMAND_MEDIA.get(row.media_key); if (!object) continue;
-    const bytes = await object.arrayBuffer(); const contentType = object.httpMetadata?.contentType ?? '';
+    const contentType = object.httpMetadata?.contentType ?? '';
+    if (row.response_kind !== 'image' && !contentType.startsWith('image/') && !/\.(?:png|jpe?g)$/i.test(row.file_name ?? '')) continue;
+    const bytes = await object.arrayBuffer();
     try {
       const image = contentType.includes('png') || row.file_name?.toLowerCase().endsWith('.png')
         ? await pdf.embedPng(bytes) : await pdf.embedJpg(bytes);
@@ -162,7 +164,7 @@ async function combinedPdf(env: Env, jobId: string, name: string, rows: CommandR
   const filename = `${name.toLocaleLowerCase('tr-TR').replace(/[^a-z0-9çğıöşü]+/gi,'-').replace(/^-|-$/g,'') || 'komut'}-sonuclari.pdf`;
   const key = `commands/${jobId}/${filename}`;
   await env.COMMAND_MEDIA.put(key,await pdf.save(),{httpMetadata:{contentType:'application/pdf'},customMetadata:{filename}});
-  return key;
+  return {key,pageCount};
 }
 
 async function sendCombinedText(env: Env, name: string, rows: CommandResultRow[]): Promise<number | null> {
@@ -205,8 +207,8 @@ async function notifyBundledTemplate(env: Env, origin: string, job: {id:string;n
   const wantsText = job.template_id === KURUM_TEMPLATE_ID;
   const textReady = wantsText ? await deliverPart(env,job.id,'text',() => sendCombinedText(env,job.name,rows)) : true;
   const pdfReady = await deliverPart(env,job.id,'pdf',async() => {
-    const pdfKey = await combinedPdf(env,job.id,job.name,rows);
-    if (pdfKey) return sendDocument(env,resultMediaUrl(origin,pdfKey),`✅ ${job.name} · ${rows.filter(row => row.response_kind === 'image').length} görsel tek PDF`);
+    const pdf = await combinedPdf(env,job.id,job.name,rows);
+    if (pdf) return sendDocument(env,resultMediaUrl(origin,pdf.key),`✅ ${job.name} · ${pdf.pageCount} görsel tek PDF`);
     return sendMessage(env,`⚠️ <b>${escapeTelegramHtml(job.name)}</b> tamamlandı ancak PDF oluşturulabilecek görsel yanıt alınmadı.`);
   });
   return textReady && pdfReady;
@@ -217,7 +219,7 @@ async function notifyResults(env: Env, origin: string, jobId: string): Promise<v
   if (!job) return;
   const resultRows = await env.DB.prepare("SELECT step_index,bot_username,command,response_text,response_kind,media_key,file_name,created_at FROM command_results WHERE job_id=? ORDER BY step_index,id").bind(jobId).all<CommandResultRow>();
   const rows = finalCommandResults(resultRows.results ?? []);
-  if (job.template_id === KURUM_TEMPLATE_ID || job.template_id === TERANE_TEMPLATE_ID) {
+  if (job.template_id === KURUM_TEMPLATE_ID || job.template_id === TERANE_TEMPLATE_ID || job.template_id === SON_HALKA_ARZLAR_TEMPLATE_ID) {
     if (await notifyBundledTemplate(env,origin,job,rows))
       await env.DB.prepare("UPDATE command_jobs SET notified_at=CURRENT_TIMESTAMP WHERE id=?").bind(jobId).run();
     return;
@@ -239,8 +241,8 @@ async function notifyResults(env: Env, origin: string, jobId: string): Promise<v
 
 export async function retryUnnotifiedCommandJobs(env: Env, origin = (env.PUBLIC_BASE_URL?.trim() || 'https://borsa.discilaw.com').replace(/\/+$/, '')): Promise<void> {
   const jobs = await env.DB.prepare(`SELECT id FROM command_jobs WHERE status='completed' AND notified_at IS NULL
-    AND template_id IN (?,?) AND finished_at>datetime('now','-24 hours') ORDER BY finished_at LIMIT 3`)
-    .bind(KURUM_TEMPLATE_ID,TERANE_TEMPLATE_ID).all<{id:string}>();
+    AND template_id IN (?,?,?) AND finished_at>datetime('now','-24 hours') ORDER BY finished_at LIMIT 3`)
+    .bind(KURUM_TEMPLATE_ID,TERANE_TEMPLATE_ID,SON_HALKA_ARZLAR_TEMPLATE_ID).all<{id:string}>();
   for (const job of jobs.results ?? []) {
     try { await notifyResults(env,origin,job.id); }
     catch { /* Delivery parts retain a retryable error; the next cron tries again. */ }
