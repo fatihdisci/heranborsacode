@@ -35,7 +35,7 @@ describe("parsePublicKapPage", () => {
   it("keeps fund and portfolio disclosures even without an equity ticker", () => {
     expect(isImportantPublicDisclosure({
       id: 1,
-      title: "Yatırım Fonu Sürekli Bilgilendirme Formu",
+      title: "Yatırım Fonu Kuruluşu",
       company: "Örnek Portföy Yönetimi A.Ş.",
       codes: [],
       disclosureClass: "FON",
@@ -45,6 +45,30 @@ describe("parsePublicKapPage", () => {
       publishedAt: "2026-09-20T10:00:00.000Z",
       url: "https://www.kap.org.tr/tr/Bildirim/1",
     })).toBe(true);
+  });
+
+  it.each([
+    { title: "Portföy Dağılım Raporu", codes: [] },
+    { title: "Temerrüt İşlemi", codes: ["YKBNK"] },
+    { title: "01285 - Borsa Dışı Vaad Sözleşmesi", codes: [] },
+    { title: "Borsa Dışı Repo - Ters Repo Sözleşmesi", codes: [] },
+    { title: "Fon Sürekli Bilgilendirme Formu", codes: [] },
+    { title: "Yatırım Fonu Sürekli Bilgilendirme Formu", codes: [] },
+    { title: "Kredi Derecelendirmesi", codes: ["HEDEF"] },
+    { title: "Yatırımcı Bilgi Formu", codes: [] },
+  ])("filters $title disclosures", ({ title, codes }) => {
+    expect(isImportantPublicDisclosure({
+      id: 1,
+      title,
+      company: "Örnek Kurum A.Ş.",
+      codes,
+      disclosureClass: "DUY",
+      disclosureType: "DUY",
+      summary: null,
+      resumeAt: null,
+      publishedAt: "2026-09-20T10:00:00.000Z",
+      url: "https://www.kap.org.tr/tr/Bildirim/1",
+    })).toBe(false);
   });
 
   it("does not turn a portfolio manager institution code into a stock hashtag", () => {

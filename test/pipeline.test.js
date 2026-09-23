@@ -55,7 +55,7 @@ it('keeps GPT-5.6 Luna, separates source data, caches validated output and rejec
   let incomplete=false;
   const mock=vi.fn(async(url,init)=>{
     if(url===item.url) return new Response('<article>Vestel, 2 milyon avroluk sözleşme imzaladı.</article>',{headers:{'content-type':'text/html'}});
-    const body=JSON.parse(init.body);expect(body.model).toBe('gpt-5.6-luna');expect(body.instructions).toContain('brüt/net'.replace('brüt','Brüt'));
+    const body=JSON.parse(init.body);expect(body.model).toBe('gpt-6-luna');expect(body.instructions).toContain('brüt/net'.replace('brüt','Brüt'));
     expect(JSON.parse(body.input[0].content[0].text).target.url).toBe(item.url);
     return new Response(JSON.stringify({status:incomplete?'incomplete':'completed',output_text:'Vestel, 2 milyon avroluk sözleşme imzaladığını açıkladı.'}));
   });
