@@ -69,7 +69,7 @@ sıralayabilir, akışı adlandırıp kalıcı şablon olarak saklayabilir ve te
 kuyruğa alabilir. Bilinmeyen komutlar için özel komut alanı kullanılabilir. Bir akış en fazla 80 komut,
 hisse seçimi en fazla 40 kod içerir.
 
-Özel bot sohbetinde `/kurum`, yedi kurum sorgusundan oluşan hazır Kurum
+Özel bot sohbetinde `/kurum`, altı kurum sorgusundan oluşan hazır Kurum
 şablonunu; `/terane` ise on iki derinlik sorgusundan oluşan Terane şablonunu
 kuyruğa alır. Telegram güncelleme tekrarları aynı işi ikinci kez oluşturmaz.
 Kurum tamamlandığında bütün metinler tek mesaj veya sınır aşılırsa tek TXT ve
