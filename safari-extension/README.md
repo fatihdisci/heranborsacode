@@ -18,7 +18,7 @@ Bir test gönderisinde ✦ görünmesini kontrol edin. Benim notum boşken Yanı
 ## Teknik notlar
 
 - WebExtension kaynakları [`extension/`](extension/) altındadır; Xcode projesi Apple'ın `xcrun safari-web-extension-converter` aracıyla üretildi ve bu dosyalara referans verir.
-- `https://x.com/intent/tweet?in_reply_to=...&text=...` resmî yanıt akışını kullanır. Alıntı için aynı composer'a `text` ve gönderi `url` parametreleri verilir. X arayüzü bu bağlantıyı alıntıya dönüştürmezse kullanıcı metni ve bağlantıyı composer'da kontrol edebilir; otomatik paylaşım yoktur.
+- Yanıt için `https://x.com/intent/tweet?in_reply_to=...&text=...` kullanılır. Alıntı için uzantı yalnız seçili gönderinin X üzerindeki **Alıntıla** menüsünü açar; alıntı kartında aynı gönderi doğrulanırsa taslağı editöre yerleştirir. Doğrulama başarısız olursa taslak popover'da kalır ve **Kopyala** kullanılabilir. Otomatik paylaşım yoktur.
 - Yalnız x.com/twitter.com içerik erişimi, Worker host erişimi ve `storage` izni istenir. Backend'e `POST /api/x-draft` isteğini yalnız background yapar.
 - Genel alan adına erişilemezse background aynı Worker'ın `workers.dev` adresini dener; `PUBLIC_BASE_URL` ve OpenAI key'i değişmez.
 - X arayüzü değişirse güvenilir gönderi metni veya bağlantısı bulunamayabilir. Bu durumda taslak üretilmez veya composer düğmesi devre dışı kalır; Kopyala kullanılabilir.

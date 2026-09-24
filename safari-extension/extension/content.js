@@ -14,6 +14,7 @@
     return [...article.querySelectorAll(selector)].filter(node=>node.closest('article[data-testid="tweet"]')===article&&!node.closest('[data-testid="quoteTweet"]'));
   }
   function textOf(element) {return (element?.innerText??element?.textContent??'').trim();}
+  function compact(value) {return value.replace(/\s+/g,' ').trim();}
   function referenceFrom(article) {
     const mainText=ownElements(article,'[data-testid="tweetText"]')[0];
     const links=ownElements(article,'a[href*="/status/"]');
@@ -44,6 +45,44 @@
     const left=Math.max(12,Math.min(rect.left,window.innerWidth-width-12));
     const top=rect.bottom+8+420>window.innerHeight?Math.max(12,rect.top-428):rect.bottom+8;
     pop.style.left=`${left}px`;pop.style.top=`${top}px`;pop.style.width=`${width}px`;
+  }
+  function waitFor(find,timeout=2500) {
+    const found=find();if(found)return Promise.resolve(found);
+    return new Promise(resolve=>{
+      const observer=new MutationObserver(()=>{const value=find();if(value){observer.disconnect();clearTimeout(timer);resolve(value);}});
+      observer.observe(document.documentElement,{subtree:true,childList:true});
+      const timer=setTimeout(()=>{observer.disconnect();resolve(null);},timeout);
+    });
+  }
+  async function placeQuote(article,reference,draft) {
+    const repost=ownElements(article,'[data-testid="retweet"]')[0];
+    if(!repost||!reference.id)return false;
+    const oldMenuItems=new Set(document.querySelectorAll('[role="menuitem"]'));
+    repost.click();
+    const quoteItem=await waitFor(()=>[...document.querySelectorAll('[role="menuitem"]')].find(item=>!oldMenuItems.has(item)&&/^(Alıntıla|Quote)(?:\s|$)/i.test(textOf(item))));
+    if(!quoteItem)return false;
+    quoteItem.click();
+    const composer=await waitFor(()=>{
+      const dialog=document.querySelector('[role="dialog"]');
+      const editor=dialog?.querySelector('[data-testid^="tweetTextarea_"][contenteditable="true"]');
+      if(!editor||compact(textOf(editor)))return null;
+      const card=[...dialog.querySelectorAll('button')].find(node=>{
+        const content=compact(textOf(node));
+        return content.includes(reference.text)&&(!reference.authorHandle||content.includes(`@${reference.authorHandle}`));
+      });
+      return card?editor:null;
+    },4000);
+    if(!composer)return false;
+    composer.focus();
+    document.execCommand('selectAll');
+    if(!document.execCommand('insertText',false,draft))return false;
+    await new Promise(resolve=>setTimeout(resolve,200));
+    if(compact(textOf(composer))===compact(draft))return true;
+    composer.focus();
+    document.execCommand('selectAll');
+    if(!document.execCommand('insertText',false,draft))return false;
+    await new Promise(resolve=>setTimeout(resolve,200));
+    return compact(textOf(composer))===compact(draft);
   }
   function open(article,button) {
     close();
@@ -86,13 +125,23 @@
       try {await navigator.clipboard.writeText($('.vr-draft').value);$('.vr-status').textContent='Kopyalandı.';}
       catch {$('.vr-status').textContent='Kopyalanamadı; metni seçip kopyalayın.';}
     });
-    $('.vr-intent').addEventListener('click',()=>{
+    $('.vr-intent').addEventListener('click',async()=>{
       const fresh=referenceFrom(article),draft=$('.vr-draft').value.trim();
       if(!fresh||!draft||((state.initialId&&fresh.id!==state.initialId)||(!state.initialId&&fresh.text!==state.initialText))) {close();return;}
       if((state.mode==='reply'&&!fresh.id)||(state.mode==='quote'&&!fresh.url)) {$('.vr-status').textContent='Gönderi bağlantısı bulunamadı; taslağı kopyalayın.';return;}
+      if(state.mode==='quote') {
+        state.placing=true;
+        $('.vr-intent').disabled=true;
+        $('.vr-status').textContent='Alıntı açılıyor…';
+        try {
+          const placed=await placeQuote(article,fresh,draft);
+          if(current===state) {if(placed)close();else $('.vr-status').textContent='X alıntı editörü doğrulanamadı. Taslağı kopyalayın.';}
+        } catch {if(current===state) $('.vr-status').textContent='Alıntı açılamadı. Taslağı kopyalayın.';}
+        finally {state.placing=false;if(current===state) $('.vr-intent').disabled=false;}
+        return;
+      }
       const intent=new URL('https://x.com/intent/tweet');intent.searchParams.set('text',draft);
-      if(state.mode==='reply') intent.searchParams.set('in_reply_to',fresh.id);
-      else intent.searchParams.set('url',fresh.url);
+      intent.searchParams.set('in_reply_to',fresh.id);
       window.open(intent.href,'_blank','noopener,noreferrer');
     });
     if(!reference?.text) $('.vr-status').textContent='Bu gönderide AI için yeterli metin yok.';
@@ -110,17 +159,17 @@
   }
   function scan() {
     scheduled=false;
-    if(location.href!==lastHref){lastHref=location.href;close();}
-    if(current&&!current.article.isConnected) close();
+    if(location.href!==lastHref){lastHref=location.href;if(!current?.placing)close();}
+    if(current&&!current.placing&&!current.article.isConnected) close();
     for(const article of document.querySelectorAll('article[data-testid="tweet"]')) addButton(article);
   }
   function schedule() {if(!scheduled){scheduled=true;requestAnimationFrame(scan);}}
   const observer=new MutationObserver(schedule);observer.observe(document.documentElement,{subtree:true,childList:true});
-  document.addEventListener('click',event=>{if(current&&!event.composedPath().includes(current.host)&&!event.composedPath().includes(current.button))close();},true);
-  window.addEventListener('scroll',()=>{if(current)position(current.host,current.button);},true);
-  window.addEventListener('resize',()=>{if(current)position(current.host,current.button);});
+  document.addEventListener('click',event=>{if(current&&!current.placing&&!event.composedPath().includes(current.host)&&!event.composedPath().includes(current.button))close();},true);
+  window.addEventListener('scroll',()=>{if(current&&current.button.isConnected)position(current.host,current.button);},true);
+  window.addEventListener('resize',()=>{if(current&&current.button.isConnected)position(current.host,current.button);});
   window.addEventListener('popstate',schedule);
-  setInterval(()=>{if(location.href!==lastHref)schedule();else if(current&&!current.article.isConnected)close();},900);
+  setInterval(()=>{if(location.href!==lastHref)schedule();else if(current&&!current.placing&&!current.article.isConnected)close();},900);
   for(const stale of document.querySelectorAll('.vr-popover-host')) stale.remove();
   schedule();
 })();
