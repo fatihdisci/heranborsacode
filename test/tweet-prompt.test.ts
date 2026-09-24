@@ -3,7 +3,7 @@ import {SYSTEM_PROMPT,PROMPT_VERSION,formatDraft} from '../src/ai/prompt';
 
 describe('Turkish tweet editor',()=>{
  it('uses a new cache version and requires Turkish for English sources and reference tweets',()=>{
-   expect(PROMPT_VERSION).toBe('vibe-radar-v3-shared-tr');
+   expect(PROMPT_VERSION).toBe('vibe-radar-v4-conversational-tr');
    expect(SYSTEM_PROMPT).toContain('Nihai metin HER ZAMAN TÜRKÇE');
    expect(SYSTEM_PROMPT).toContain('İngilizce veya başka dildeki kaynağı');
    expect(SYSTEM_PROMPT).toContain('Referans tweet varsa düz çeviri veya özet üretme');

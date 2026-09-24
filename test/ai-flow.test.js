@@ -26,7 +26,9 @@ it('uses one Responses call per draft, Turkish output and only the supplied note
    const request=JSON.parse(init.body);expect(request.model).toBe('gpt-6-luna');inputs.push(JSON.parse(request.input[0].content[0].text));
    return new Response(JSON.stringify({status:'completed',output_text:inputs.length===1?'Codex için yeni model duyuruldu.':'Codex için yeni model duyuruldu. Haftalık limitimi de tam bitirmiştim :)'}),{headers:{'content-type':'application/json'}});
  }));
+ sql.prepare("INSERT INTO ai_tweet_drafts(feed_item_id,tweet_text,model,source_digest,created_at) VALUES (1,?,'gpt-6-luna:vibe-radar-v3-shared-tr','old',CURRENT_TIMESTAMP)").run('Eski robotik haber taslağı');
  const first=await generateTweetDraft(env,item);
+ expect(first.tweet).not.toContain('Eski robotik');
  const cached=await generateTweetDraft(env,item);
  expect(first.cached).toBe(false);expect(cached.cached).toBe(true);expect(inputs).toHaveLength(1);expect(inputs[0].userNote).toBe('');expect(inputs[0].language).toBe('tr');
  const noted=await generateTweetDraft(env,item,{language:'tr',tone:'commentary',note:'Haftalık limitimi yeni bitirmiştim'});
