@@ -13,4 +13,13 @@
     field.value='';
     status.textContent='Token kaydedildi.';
   });
+  document.querySelector('#token-file').addEventListener('change',async event=>{
+    const file=event.target.files?.[0];if(!file)return;
+    try {
+      const token=(await file.text()).trim();
+      if(token.length<32) throw new Error('invalid');
+      await ext.storage.local.set({safariExtensionToken:token});
+      event.target.value='';status.textContent='Token kaydedildi; yerel dosyayı silebilirsiniz.';
+    } catch {status.textContent='Token dosyası okunamadı veya biçimi geçersiz.';}
+  });
 })();

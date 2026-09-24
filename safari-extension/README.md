@@ -8,7 +8,7 @@ Bu macOS Safari WebExtension, x.com ve twitter.com üzerindeki metin içeren gö
 2. Cloudflare Worker'a `SAFARI_EXTENSION_TOKEN` secret'ını `npx wrangler secret put SAFARI_EXTENSION_TOKEN` komutuyla kaydedin. En az 32 karakterlik, rastgele ve yalnız size ait bir değer kullanın. Mevcut `OPENAI_API_KEY` değişmez. Token değerini git'e veya manifest'e koymayın.
 3. [Xcode projesini](SafariApp/Vibe%20Radar%20X/Vibe%20Radar%20X.xcodeproj) açın. `Vibe Radar X` şemasını seçin; Signing & Capabilities bölümünde kendi Apple takımınızı seçin. App ve extension hedeflerinin bundle kimliklerini aynı önekle imzalayın. Run ile macOS uygulamasını derleyip açın.
 4. Safari > Ayarlar > Uzantılar içinde **Vibe Radar X** uzantısını etkinleştirin. x.com (gerekirse twitter.com) erişimine izin verin. Worker adresi `borsa.discilaw.com` için ağ iznini de onaylayın.
-5. Uzantı ayarlarını açıp 2. adımda kaydettiğiniz token'ı girin. Token Safari WebExtension storage içinde saklanır; X sayfasına, content script'e veya loglara aktarılmaz.
+5. Uzantı ayarlarını açıp 2. adımda kaydettiğiniz token'ı girin veya `SAFARI_EXTENSION_TOKEN` dosyasını içe aktarın. Token Safari WebExtension storage içinde saklanır; X sayfasına, content script'e veya loglara aktarılmaz.
 6. x.com'da metin içeren bir gönderiyi açın. Gönderinin yanındaki ✦ düğmesinden Yanıt veya Alıntı seçin, isterseniz Benim notum alanını doldurun, Oluştur'a basın. Metni düzenleyin; Kopyala veya X'te aç / yerleştir ile composer'a aktarın. Son paylaşımı yalnız siz yaparsınız.
 
 ## İlk güvenli deneme
