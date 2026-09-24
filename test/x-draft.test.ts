@@ -12,6 +12,18 @@ function setup() {const {sql,env}=database();env.SAFARI_EXTENSION_TOKEN=secret;e
 afterEach(()=>vi.unstubAllGlobals());
 
 describe('Safari extension endpoint',()=>{
+ it('answers Safari preflight and includes CORS on the authenticated response',async()=>{
+  const {env}=setup();
+  const origin='safari-web-extension://cc34eec5-5987-4202-8a19-bd8ca75dfcda';
+  const preflight=await api(new Request(endpoint,{method:'OPTIONS',headers:{origin,'access-control-request-method':'POST','access-control-request-headers':'authorization,content-type'}}),env as any);
+  expect(preflight?.status).toBe(204);
+  expect(preflight?.headers.get('access-control-allow-origin')).toBe(origin);
+  expect(preflight?.headers.get('access-control-allow-headers')).toContain('authorization');
+  expect((await api(new Request(endpoint,{method:'OPTIONS',headers:{origin:'https://evil.test'}}),env as any))?.status).toBe(403);
+  const unauthorized=await api(new Request(endpoint,{method:'POST',headers:{origin,authorization:'Bearer wrong','content-type':'application/json'},body:'{}'}),env as any);
+  expect(unauthorized?.status).toBe(401);
+  expect(unauthorized?.headers.get('access-control-allow-origin')).toBe(origin);
+ });
  it('accepts its own token and rejects wrong token before AI generation',async()=>{
   const {env}=setup();const fetchMock=vi.fn(async()=>new Response(JSON.stringify({status:'completed',output_text:'Codex limitleri sıfırlandı.'}),{headers:{'content-type':'application/json'}}));vi.stubGlobal('fetch',fetchMock);
   expect((await api(request({mode:'reply',userNote:'',reference},'wrong-token'),env as any))?.status).toBe(401);

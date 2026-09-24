@@ -8,7 +8,8 @@
   "host_permissions": [
     "https://x.com/*",
     "https://twitter.com/*",
-    "https://borsa.discilaw.com/*"
+    "https://borsa.discilaw.com/*",
+    "https://heranborsa.av-fatihdisci.workers.dev/*"
   ],
   "background": {"service_worker": "background.js"},
   "options_ui": {"page": "options.html"},

@@ -11,6 +11,11 @@ import {generateXDraft,parseXDraftInput} from '../ai/x-draft';
 
 const CATEGORIES=new Set<Category>(['openai','claude','coding','resets','ai-news']);
 const itemById=(env:Env,id:number)=>env.DB.prepare('SELECT * FROM feed_items WHERE id=? AND category IS NOT NULL').bind(id).first<FeedItem>();
+function extensionCorsHeaders(request:Request):HeadersInit {
+  const origin=request.headers.get('origin')??'';
+  if(!/^safari-web-extension:\/\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(origin)) return {};
+  return {'access-control-allow-origin':origin,'access-control-allow-methods':'POST','access-control-allow-headers':'authorization,content-type','access-control-max-age':'600','vary':'Origin'};
+}
 export async function api(request:Request,env:Env):Promise<Response|null> {
   const url=new URL(request.url);
   if (url.pathname==='/api/config') return json(BRAND);
@@ -24,21 +29,24 @@ export async function api(request:Request,env:Env):Promise<Response|null> {
     } catch {return json({ok:false,service:BRAND.slug,database:'unavailable'},503);}
   }
   if (url.pathname==='/api/x-draft') {
-    if(request.method!=='POST') return json({error:'method_not_allowed'},405);
-    if(!env.SAFARI_EXTENSION_TOKEN||env.SAFARI_EXTENSION_TOKEN.length<32) return json({error:'extension_not_configured'},503);
-    if(!await authorizeExtension(request,env)) return json({error:'unauthorized'},401);
-    if(!env.OPENAI_API_KEY) return json({error:'openai_not_configured'},503);
+    const cors=extensionCorsHeaders(request);
+    const reply=(data:unknown,status=200,headers:HeadersInit={})=>json(data,status,{...cors,...headers});
+    if(request.method==='OPTIONS') return Object.keys(cors).length?new Response(null,{status:204,headers:cors}):reply({error:'forbidden_origin'},403);
+    if(request.method!=='POST') return reply({error:'method_not_allowed'},405);
+    if(!env.SAFARI_EXTENSION_TOKEN||env.SAFARI_EXTENSION_TOKEN.length<32) return reply({error:'extension_not_configured'},503);
+    if(!await authorizeExtension(request,env)) return reply({error:'unauthorized'},401);
+    if(!env.OPENAI_API_KEY) return reply({error:'openai_not_configured'},503);
     let body:unknown;
     try {
       const raw=await request.text();
-      if(raw.length>15_000) return json({error:'payload_too_large'},413);
+      if(raw.length>15_000) return reply({error:'payload_too_large'},413);
       body=JSON.parse(raw);
-    } catch {return json({error:'invalid_json'},400);}
+    } catch {return reply({error:'invalid_json'},400);}
     const input=parseXDraftInput(body);
-    if(!input) return json({error:'invalid_input'},400);
-    if(!await takeExtensionRateSlot(env)) return json({error:'rate_limited'},429,{'retry-after':'60'});
-    try {return json({draft:await generateXDraft(env,input)});}
-    catch {return json({error:'draft_generation_failed'},502);}
+    if(!input) return reply({error:'invalid_input'},400);
+    if(!await takeExtensionRateSlot(env)) return reply({error:'rate_limited'},429,{'retry-after':'60'});
+    try {return reply({draft:await generateXDraft(env,input)});}
+    catch(error) {console.error('X draft generation failed',{reason:error instanceof Error?error.message.slice(0,200):'unknown'});return reply({error:'draft_generation_failed'},502);}
   }
   if (!['/api/feed','/api/sources','/api/content','/api/tweet-draft','/api/delivery'].includes(url.pathname)) return null;
   if (!await authorizeTelegramRequest(request,env)) return json({error:'unauthorized'},401);

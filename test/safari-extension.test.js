@@ -1,4 +1,4 @@
-import {it,expect} from 'vitest';
+import {it,expect,vi} from 'vitest';
 import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
 
@@ -24,4 +24,20 @@ it('normalizes reference data and message payload without exposing token',()=>{
  expect(manifest.content_scripts[0].matches).toEqual(['https://x.com/*','https://twitter.com/*']);
  expect(readFileSync(`${root}/content.js`,'utf8')).not.toContain('SAFARI_EXTENSION_TOKEN');
  expect(readFileSync(`${root}/content.js`,'utf8')).not.toContain('api.openai.com');
+});
+it('reaches the same Worker directly when the public domain is unavailable',async()=>{
+ let listener;
+ const fetchMock=vi.fn()
+  .mockRejectedValueOnce(new TypeError('network unavailable'))
+  .mockResolvedValueOnce(new Response(JSON.stringify({draft:'Codex için yeni sınır ne zaman açıklanacak?'}),{status:200}));
+ const browser={runtime:{onMessage:{addListener:fn=>{listener=fn;}}},storage:{local:{get:async()=>({safariExtensionToken:'test-token'})}}};
+ const context={browser,fetch:fetchMock,URL,AbortSignal,Response};context.globalThis=context;
+ runInNewContext(readFileSync(`${root}/background.js`,'utf8'),context);
+ const result=await listener({type:'VIBE_RADAR_GENERATE',payload:{mode:'reply'}},{url:'https://x.com/home'});
+ expect(result).toEqual({draft:'Codex için yeni sınır ne zaman açıklanacak?'});
+ expect(fetchMock.mock.calls.map(([url])=>url)).toEqual([
+  'https://borsa.discilaw.com/api/x-draft',
+  'https://heranborsa.av-fatihdisci.workers.dev/api/x-draft',
+ ]);
+ expect(fetchMock.mock.calls[0][1].headers.authorization).toBe('Bearer test-token');
 });

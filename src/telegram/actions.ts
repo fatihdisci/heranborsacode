@@ -87,7 +87,8 @@ export async function processAction(env: Env, lane: ActionLane): Promise<number 
       payload = pagePayload(item,job,job.page_ref!,pages,job.page_index);
     }
     await finish(env,job,payload,result);
-  } catch {
+  } catch (error) {
+    console.error('Telegram action failed',{action:job.action,feedItemId:job.feed_item_id,reason:error instanceof Error?error.message.slice(0,200):'unknown'});
     await finish(env,job,{text:job.action === 'tweet'
       ? 'Tweet oluşturulamadı; eksik bir taslak gönderilmedi. İlgili mesajdaki “Tweet oluştur” butonuyla yeniden deneyebilirsiniz.'
       : 'İçerik şu anda okunamadı. Kaynak bağlantısını açabilir veya “Oku” butonuyla yeniden deneyebilirsiniz.',plain:true,replyTo:job.reply_to},null,'failed');

@@ -99,6 +99,7 @@
   }
   function addButton(article) {
     if(handled.has(article)) return;handled.add(article);
+    for(const stale of article.querySelectorAll('.vr-button-host')) stale.remove();
     const host=document.createElement('span');host.className='vr-button-host';
     const shadow=host.attachShadow({mode:'closed'});stylesheet(shadow);
     const button=document.createElement('button');button.type='button';button.className='vr-button';button.textContent='✦';button.setAttribute('aria-label','Bu gönderi için AI taslak');button.title='AI taslak';
@@ -120,5 +121,6 @@
   window.addEventListener('resize',()=>{if(current)position(current.host,current.button);});
   window.addEventListener('popstate',schedule);
   setInterval(()=>{if(location.href!==lastHref)schedule();else if(current&&!current.article.isConnected)close();},900);
+  for(const stale of document.querySelectorAll('.vr-popover-host')) stale.remove();
   schedule();
 })();
