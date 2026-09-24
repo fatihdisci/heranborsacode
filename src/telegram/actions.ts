@@ -62,7 +62,7 @@ export async function processAction(env: Env, lane: ActionLane): Promise<number 
   if (!job) return null;
   try {
     const item = await env.DB.prepare('SELECT * FROM feed_items WHERE id=?').bind(job.feed_item_id).first<FeedItem>();
-    if (!item) throw new Error('item_missing');
+    if (!item?.category) throw new Error('item_missing');
     let payload: DeliveryPayload;
     let result: string | null = null;
     if (job.action === 'tweet') {

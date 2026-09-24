@@ -1,24 +1,13 @@
 import { DurableObject } from "cloudflare:workers";
-import { pollPublicKAPBackfill, pollPublicKAPLive } from "../kap/public";
-import { pollRSSSource } from "../rss/poll";
-import { RSS_SOURCES } from "../rss/sources";
-import { pollSPK } from "../spk/poll";
+import { pollSource } from "../sources/poll";
+import { SOURCES, sourceById } from "../sources/registry";
 import type { Env } from "../types";
 import { pollDelivery } from '../telegram/outbox';
 import { monitorOperations } from './monitor';
 
-export const POLL_TASKS = [
-  ...RSS_SOURCES.map((_, index) => `rss:${index}`),
-  "kap:live",
-  "kap:backfill",
-  "spk",
-  "telegram",
-  "monitor",
-] as const;
+export const POLL_TASKS = [...SOURCES.map(source=>`source:${source.id}`), 'telegram', 'monitor'] as const;
 
 type PollTask = (typeof POLL_TASKS)[number];
-const KAP_CATCH_UP_DELAY_MS = 5_000;
-
 function isPollTask(value: string | null | undefined): value is PollTask {
   return typeof value === "string" && (POLL_TASKS as readonly string[]).includes(value);
 }
@@ -27,46 +16,19 @@ function nextMinuteBoundary(now = Date.now()): number {
   return Math.floor(now / 60_000) * 60_000 + 60_000;
 }
 
-function nextSpkRun(now = Date.now()): number {
-  const candidate = new Date(now + 60_000);
-  candidate.setUTCSeconds(0, 0);
-  const istanbulHours = new Set([0, 8, 10, 12, 14, 16, 18, 20, 22]);
-  for (let minutes = 0; minutes <= 24 * 60; minutes++) {
-    const istanbulHour = (candidate.getUTCHours() + 3) % 24;
-    if (candidate.getUTCMinutes() === 0 && istanbulHours.has(istanbulHour)) return candidate.getTime();
-    candidate.setUTCMinutes(candidate.getUTCMinutes() + 1);
-  }
-  return nextMinuteBoundary(now);
-}
-
 export function nextAlarmAt(task: PollTask, now = Date.now()): number {
   if (task === 'telegram') return now + 3000;
-  if (task === "kap:live") return now + 30_000;
-  if (task === "kap:backfill") return now + 10 * 60_000;
-  if (task === "spk") return nextSpkRun(now);
+  const source=task.startsWith('source:')?sourceById(task.slice(7)):null;
+  if (source) return now+source.intervalMinutes*60_000;
   return nextMinuteBoundary(now);
 }
 
 async function runTask(env: Env, task: PollTask): Promise<number | null> {
   if (task === 'telegram') return pollDelivery(env);
   if (task === 'monitor') { await monitorOperations(env); return null; }
-  if (task.startsWith("rss:")) {
-    const source = RSS_SOURCES[Number(task.slice(4))];
-    if (!source) throw new Error(`Unknown RSS shard ${task}`);
-    await pollRSSSource(env, source);
-    return null;
-  }
-  if (task === "kap:live") {
-    const result = await pollPublicKAPLive(env);
-    // Three consecutive valid IDs mean there may be a queue. Keep the CPU
-    // budget fixed per alarm, but temporarily accelerate until the live edge.
-    return result.reachedEdge ? null : KAP_CATCH_UP_DELAY_MS;
-  }
-  if (task === "kap:backfill") {
-    await pollPublicKAPBackfill(env);
-    return null;
-  }
-  await pollSPK(env);
+  const source=sourceById(task.slice(7));
+  if (!source) throw new Error(`Unknown source shard ${task}`);
+  await pollSource(env,source);
   return null;
 }
 
@@ -103,7 +65,7 @@ export class PollShard extends DurableObject<Env> {
       const previousFailures = health?.failures ?? 0;
       const failures = error ? previousFailures+1 : 0;
       const lastSuccessAt = error ? health?.lastSuccessAt ?? null : new Date().toISOString();
-      // Back off failing upstreams, and schedule SPK retries before its next long interval.
+      // Back off each failing upstream independently.
       const next = error ? Date.now()+Math.min(300_000,30_000*2**Math.min(failures-1,4)) : nextDelayMs === null ? nextAlarmAt(task) : Date.now()+nextDelayMs;
       await this.ctx.storage.setAlarm(next);
       // A hot delivery queue must not write a D1 heartbeat for every message.

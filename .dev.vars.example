@@ -1,10 +1,10 @@
-# Local-only values. Never commit a file containing real values.
-CLOUDFLARE_API_TOKEN=
-CLOUDFLARE_ACCOUNT_ID=
+# Local-only values. Never commit real tokens or keys.
 TELEGRAM_BOT_TOKEN=
 TELEGRAM_CHAT_ID=
-MKK_API_KEY=
-MKK_API_SECRET=
-# Required only after confirming the MKK/KAP API base endpoint from its documentation.
-MKK_API_BASE_URL=
-
+TELEGRAM_ALLOWED_USERNAME=
+TELEGRAM_WEBHOOK_SECRET=
+OPENAI_API_KEY=
+SAFARI_EXTENSION_TOKEN=
+# Deployment CLI credentials, only if your local setup requires them:
+CLOUDFLARE_API_TOKEN=
+CLOUDFLARE_ACCOUNT_ID=

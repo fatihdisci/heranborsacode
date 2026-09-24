@@ -1,155 +1,22 @@
 <!doctype html>
 <html lang="tr">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#080b10" />
-    <meta name="robots" content="noindex,nofollow,noarchive,nosnippet" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <title>Özel Uygulama</title>
-    <link rel="stylesheet" href="/styles.css" />
-    <script src="https://telegram.org/js/telegram-web-app.js?63"></script>
-  </head>
-  <body class="auth-pending">
-    <section id="access-screen" class="access-screen" aria-live="polite">
-      <div><span aria-hidden="true">●</span><h1>Özel uygulama</h1><p>Bu ekran yalnızca yetkili Telegram oturumundan açılır.</p></div>
-    </section>
-    <main class="app-shell">
-      <header class="app-header">
-        <div class="brand-mark" aria-hidden="true">HB</div>
-        <div class="brand-copy"><p>Piyasa akışı</p><h1>Heran Borsa</h1></div>
-        <div class="live-status" aria-label="Canlı akış"><i></i><span id="clock">--:--</span></div>
-      </header>
-
-      <section id="search-panel" class="search-panel" hidden aria-label="Akışta ara">
-        <label class="search-field">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.35-4.35m2.35-5.4A7.75 7.75 0 1 1 3.5 11.25a7.75 7.75 0 0 1 15.5 0Z" /></svg>
-          <input id="query" maxlength="120" placeholder="Haber, şirket veya konu ara" autocomplete="off" />
-        </label>
-        <div class="filter-row">
-          <label><span>Hisse</span><input id="ticker" maxlength="10" placeholder="THYAO" autocomplete="off" /></label>
-          <label><span>Kaynak</span><select id="source" aria-label="Kaynak filtresi"><option value="">Tüm kaynaklar</option></select></label>
-          <button id="clear-filters" type="button">Temizle</button>
-        </div>
-      </section>
-
-      <div class="stream-head">
-        <p id="section-title">Tüm gelişmeler</p>
-        <div class="stream-tools">
-          <p id="status" role="status" aria-live="polite"><i></i><span>Akış yükleniyor</span></p>
-          <button id="search-button" type="button" aria-label="Ara ve filtrele" aria-expanded="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m21 21-4.35-4.35m2.35-5.4A7.75 7.75 0 1 1 3.5 11.25a7.75 7.75 0 0 1 15.5 0Z" /></svg></button>
-        </div>
-      </div>
-      <section id="feed" class="feed" aria-live="polite"></section>
-      <button id="more" class="load-more" hidden>Daha eski kayıtları göster</button>
-
-      <section id="command-center" class="command-center" hidden aria-labelledby="command-title">
-        <header class="command-head"><div><p>KOMUT OTOMASYONU</p><h2 id="command-title">Komut Merkezi</h2></div><span id="agent-state">Mac mini bekleniyor</span></header>
-        <section class="builder-card">
-          <div id="command-bots" class="choice-row" aria-label="Bot seç"></div>
-          <label class="command-label">Komut<select id="command-action"></select></label>
-          <p id="command-action-help" class="command-action-help"></p>
-          <label id="custom-command-row" class="command-label" hidden>Özel komut<input id="custom-command" maxlength="160" placeholder="/komut {HISSE}" autocomplete="off" /></label>
-          <label id="command-argument-row" class="command-label"><span id="command-argument-label">Hisse seç</span><input id="symbol-search" maxlength="60" placeholder="Kod ara: THYAO" autocomplete="off" /></label>
-          <div id="symbol-suggestions" class="symbol-suggestions" hidden></div>
-          <div id="selected-symbols" class="selected-symbols" aria-live="polite"></div>
-          <button id="add-command" class="primary-command" type="button">Akışa ekle</button>
-        </section>
-        <section class="draft-card">
-          <div class="section-title"><h3>Hazırlanan akış</h3><button id="clear-steps" type="button">Temizle</button></div>
-          <ol id="command-steps" class="command-steps"><li class="empty-step">Henüz komut eklenmedi.</li></ol>
-          <label class="command-label">Akış adı<input id="flow-name" maxlength="60" placeholder="Örn. Sabah kontrolü" autocomplete="off" /></label>
-          <div class="command-actions"><button id="save-template" type="button">Şablonu kaydet</button><button id="run-commands" class="primary-command" type="button">Şimdi çalıştır</button></div>
-          <p id="command-message" class="command-message" role="status" aria-live="polite"></p>
-        </section>
-        <section class="command-list-section"><div class="section-title"><h3>Şablonlarım</h3></div><div id="template-list" class="template-list"></div></section>
-        <section class="command-list-section"><div class="section-title"><h3>Son işler</h3><button id="refresh-jobs" type="button">Yenile</button></div><div id="job-list" class="job-list"></div></section>
-      </section>
-    </main>
-
-    <nav class="bottom-nav" aria-label="Akış bölümleri">
-      <button class="nav-active" data-type="" aria-label="Tüm akış"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10.5 12 4l8 6.5V20H5V10.5Z" /></svg><small>Akış</small></button>
-      <button data-type="kap" aria-label="KAP bildirimleri"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5" /></svg><small>KAP</small></button>
-      <button data-type="spk" aria-label="SPK bültenleri"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l3 3v15H6zM9 10h6M9 14h6M9 18h4" /></svg><small>SPK</small></button>
-      <button data-type="news" aria-label="Haberler"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4zM7 8h4v4H7zM13 8h4M13 11h4M7 15h10" /></svg><small>Haber</small></button>
-      <button id="commands-button" aria-label="Komut merkezi"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h10M18 7h2M4 12h3M11 12h9M4 17h7M15 17h5M14 5v4M7 10v4M11 15v4" /></svg><small>Komut</small></button>
-    </nav>
-
-    <template id="item-template">
-      <article class="feed-item">
-        <a class="item-open" target="_blank" rel="noopener noreferrer">
-          <span class="source-icon" aria-hidden="true"></span>
-          <span class="item-content">
-            <span class="item-meta"><strong class="badge"></strong><time></time></span>
-            <span class="item-title"></span>
-            <span class="item-summary"></span>
-            <span class="tickers"></span>
-          </span>
-          <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7" /></svg>
-        </a>
-        <div class="item-footer"><button class="tweet" type="button"><span>✦</span> Tweet oluştur</button></div>
-      </article>
-    </template>
-
-    <dialog id="reader-dialog" aria-labelledby="reader-title">
-      <header class="reader-toolbar">
-        <button id="reader-close" type="button" aria-label="Akışa dön"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg><span>Geri</span></button>
-        <span id="reader-kind">Haber</span>
-        <a id="reader-source" target="_blank" rel="noopener noreferrer"><span>Kaynağa git</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M7 7h10v10"/></svg></a>
-      </header>
-      <div class="reader-scroll" tabindex="0">
-        <article class="reader-article">
-          <p id="reader-meta" class="reader-meta"></p>
-          <h2 id="reader-title"></h2>
-          <p id="reader-symbols" class="tickers"></p>
-          <p id="reader-status" role="status" aria-live="polite">İçerik yükleniyor…</p>
-          <div id="reader-body" class="reader-body"></div>
-          <section id="reader-attachments" hidden><h3>Ek dosyalar</h3><p>Ekler kaynak üzerinden açılır.</p><div id="reader-files"></div></section>
-          <p id="reader-notice" class="reader-notice" hidden></p>
-          <button id="reader-retry" type="button" hidden>Tekrar dene</button>
-        </article>
-      </div>
-    </dialog>
-
-    <dialog id="command-results-dialog" aria-labelledby="command-results-title">
-      <header class="reader-toolbar">
-        <button id="command-results-close" type="button" aria-label="Komut merkezine dön"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m14 6-6 6 6 6"/></svg><span>Geri</span></button>
-        <span>Komut sonuçları</span>
-        <span class="result-count" id="command-results-count"></span>
-      </header>
-      <div class="command-results-scroll">
-        <section class="command-results-head">
-          <p id="command-results-state">Sonuçlar yükleniyor…</p>
-          <h2 id="command-results-title">Komut sonucu</h2>
-          <div class="command-result-actions">
-            <button id="copy-command-texts" type="button" disabled>Tüm metinleri kopyala</button>
-            <button id="download-command-pdf" type="button" disabled>Görselleri tek PDF yap</button>
-          </div>
-          <p id="command-results-message" role="status" aria-live="polite"></p>
-        </section>
-        <div id="command-result-list" class="command-result-list"></div>
-      </div>
-    </dialog>
-
-    <dialog id="tweet-dialog">
-      <form method="dialog" class="tweet-sheet">
-        <div class="sheet-handle" aria-hidden="true"></div>
-        <header class="tweet-sheet-head">
-          <div><small>AI TASLAĞI</small><strong>Paylaşıma hazır tweet</strong></div>
-          <button class="close-sheet" value="close" aria-label="Kapat">×</button>
-        </header>
-        <div id="tweet-progress" class="tweet-progress" hidden><i></i><span>Kaynak ve ekler okunuyor…</span></div>
-        <p id="tweet-message" class="tweet-message" hidden></p>
-        <textarea id="tweet-draft" readonly hidden aria-label="Oluşturulan tweet"></textarea>
-        <div class="tweet-sheet-actions">
-          <button id="copy-tweet" type="button" disabled>Tweeti kopyala</button>
-          <button value="close" class="secondary-action">Kapat</button>
-        </div>
-        <p class="review-note">Yayımlamadan önce rakamları ve isimleri kaynakla karşılaştır.</p>
-      </form>
-    </dialog>
-
-    <script type="module" src="/app.js"></script>
-  </body>
-</html>
+<head>
+  <meta charset="UTF-8" /><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#080b10" /><meta name="robots" content="noindex,nofollow,noarchive,nosnippet" />
+  <title>AI akışı</title><link rel="stylesheet" href="/styles.css" />
+  <script src="https://telegram.org/js/telegram-web-app.js?63"></script>
+</head>
+<body class="auth-pending">
+  <section id="access-screen" class="access-screen"><div><span>✦</span><h1>Özel uygulama</h1><p>Bu ekran yetkili Telegram oturumundan açılır.</p></div></section>
+  <main class="app-shell">
+    <header class="app-header"><div class="brand-mark">✦</div><div><p id="subtitle">AI akışı</p><h1 id="brand">AI akışı</h1></div><time id="clock"></time></header>
+    <section class="toolbar"><button id="search-button" type="button" aria-expanded="false">⌕ &nbsp; Ara ve filtrele</button><span id="status" role="status">Akış yükleniyor</span></section>
+    <section id="search-panel" class="search-panel" hidden><input id="query" maxlength="120" placeholder="Konu veya metin ara" /><select id="source" aria-label="Kaynak seç"><option value="">Tüm kaynaklar</option></select><button id="clear-filters" type="button">Temizle</button></section>
+    <h2 id="section-title">Tüm gelişmeler</h2><section id="feed" class="feed" aria-live="polite"></section><button id="more" class="load-more" hidden>Daha eski kayıtlar</button>
+  </main>
+  <nav class="bottom-nav" aria-label="Kategoriler"><button class="nav-active" data-category="">Akış</button><button data-category="openai">OpenAI</button><button data-category="claude">Claude</button><button data-category="coding">Coding</button><button data-category="resets">Resetler</button></nav>
+  <template id="item-template"><article class="feed-item"><button class="item-open" type="button"><span class="item-meta"><strong class="badge"></strong><time></time></span><strong class="item-title"></strong><span class="item-summary"></span></button><div class="item-actions"><a class="source-link" target="_blank" rel="noopener noreferrer">Kaynağı aç ↗</a><button class="tweet" type="button">Tweet oluştur</button></div><p class="attribution" hidden></p></article></template>
+  <dialog id="reader-dialog"><header class="dialog-head"><button id="reader-close" type="button">← Akış</button><span id="reader-kind"></span><a id="reader-source" target="_blank" rel="noopener noreferrer">Kaynağa git ↗</a></header><div class="reader-scroll"><p id="reader-meta"></p><h2 id="reader-title"></h2><p id="reader-status"></p><div id="reader-body"></div><p id="reader-notice"></p><button id="reader-retry" type="button" hidden>Tekrar dene</button><p id="reader-attribution" hidden></p></div></dialog>
+  <dialog id="tweet-dialog"><div class="tweet-sheet"><header class="dialog-head"><strong>Tweet taslağı</strong><button id="tweet-close" type="button">✕</button></header><p class="hint">Kaynak ve kendi notunla taslak oluştur. X'e otomatik gönderilmez.</p><label>Benim notum (opsiyonel)<textarea id="tweet-note" maxlength="500" placeholder="Varsa kendi görüşünü veya deneyimini yaz"></textarea></label><div class="options"><label>Ton<select id="tweet-tone"><option value="natural">Doğal</option><option value="news">Haber</option><option value="commentary">Yorumlu</option></select></label></div><button id="generate-tweet" class="primary" type="button">Taslak oluştur</button><p id="tweet-progress" hidden>Kaynak okunuyor ve taslak hazırlanıyor…</p><p id="tweet-message" role="status" hidden></p><textarea id="tweet-draft" readonly hidden aria-label="Oluşturulan tweet"></textarea><button id="copy-tweet" type="button" disabled>Tweeti kopyala</button></div></dialog>
+  <script type="module" src="/app.js"></script>
+</body></html>

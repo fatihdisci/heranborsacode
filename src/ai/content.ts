@@ -1,6 +1,7 @@
 import type { FeedItem } from "../types";
 import { fetchWithTimeout } from "../utils/http";
 import { decodeEntities, stripHtml } from "../utils/text";
+import { allowedSourceUrl } from "../sources/hosts";
 
 export interface SourceAttachment { url: string; filename: string; isPdf: boolean; }
 export interface SourceBundle { text: string; attachments: SourceAttachment[]; }
@@ -10,7 +11,7 @@ const FILE_NAME = /\.(?:pdf|docx?|xlsx?|csv|txt|xml)(?:$|[?#])/i;
 function absoluteUrl(value: string, base: string): string | null {
   try {
     const url = new URL(decodeEntities(value), base);
-    return url.protocol === "https:" ? url.toString() : null;
+    return allowedSourceUrl(url.toString()) ? url.toString() : null;
   } catch { return null; }
 }
 
@@ -54,7 +55,16 @@ export function extractAttachments(html: string, baseUrl: string): SourceAttachm
 }
 
 export async function fetchSourceBundle(item: FeedItem): Promise<SourceBundle> {
-  const response = await fetchWithTimeout(item.url, { headers: { accept: "text/html,application/pdf,application/xhtml+xml", "user-agent": "Mozilla/5.0 (compatible; HeranBorsa/1.0)" } }, 25_000);
+  if (item.category === 'resets') return {text:`Kaynak: Codex Resets\nBaşlık: ${item.title}\nDuyuru metni: ${item.body ?? ''}\nYayın zamanı: ${item.published_at ?? item.created_at}`,attachments:[]};
+  let url=item.url;
+  let response:Response|null=null;
+  for(let attempt=0;attempt<4;attempt++) {
+    if(!allowedSourceUrl(url)) throw new Error('unsupported_source');
+    response=await fetchWithTimeout(url,{redirect:'manual',headers:{accept:'text/html,application/pdf,application/xhtml+xml','user-agent':'Mozilla/5.0 (compatible; VibeRadar/1.0)'}},25_000);
+    if([301,302,303,307,308].includes(response.status)) {url=new URL(response.headers.get('location')??'',url).href;continue;}
+    break;
+  }
+  if(!response || [301,302,303,307,308].includes(response.status)) throw new Error('redirect_limit');
   if (!response.ok) throw new Error(`Kaynak HTTP ${response.status}`);
   const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
   const metadata = [`Tür: ${item.type.toUpperCase()}`, `Kaynak: ${item.source}`, `Başlık: ${item.title}`, item.body ? `Kayıt özeti: ${item.body}` : "", `Yayın zamanı: ${item.published_at ?? item.created_at}`, `Kaynak URL: ${item.url}`].filter(Boolean).join("\n");

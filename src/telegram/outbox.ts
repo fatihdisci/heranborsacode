@@ -64,6 +64,10 @@ export async function deliverOne(env: Env): Promise<number> {
     await env.DB.prepare("UPDATE telegram_outbox SET status='superseded',lease_until=0 WHERE id=? OR group_id=?").bind(job.id,job.id).run();
     return 1100;
   }
+  if (job.kind === 'dkb_group' || /^(?:kap|spk|rss):/.test(job.source_ref ?? '')) {
+    await env.DB.prepare("UPDATE telegram_outbox SET status='superseded',lease_until=0 WHERE id=? OR group_id=?").bind(job.id,job.id).run();
+    return 1100;
+  }
   const payload = JSON.parse(job.payload) as DeliveryPayload;
   let messageId: number;
   try {
@@ -97,6 +101,5 @@ export async function deliverOne(env: Env): Promise<number> {
 }
 
 export async function pollDelivery(env: Env): Promise<number> {
-  await flushCircuitBreakers(env);
   return deliverOne(env);
 }

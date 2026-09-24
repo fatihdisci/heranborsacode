@@ -1,91 +1,85 @@
-import type { Env, FeedType } from "../types";
-import { listFeed } from "../db/feed";
-import { json } from "../utils/http";
-import { generateTweetDraft } from "../ai/tweet";
-import { authorizeTelegramRequest } from "../security/telegram";
+import type { Env, FeedItem } from '../types';
+import { SOURCES, type Category } from '../sources/registry';
+import { listFeed } from '../db/feed';
+import { json } from '../utils/http';
+import { generateTweetDraft, type DraftOptions } from '../ai/tweet';
+import { authorizeTelegramRequest } from '../security/telegram';
 import { readerContent } from '../reader/content';
+import { BRAND } from '../config';
+import {authorizeExtension,takeExtensionRateSlot} from '../security/extension';
+import {generateXDraft,parseXDraftInput} from '../ai/x-draft';
 
-const TYPES = new Set<FeedType>(["kap", "spk", "news"]);
-
-export async function api(request: Request, env: Env): Promise<Response | null> {
-  const url = new URL(request.url);
-  if (url.pathname === '/api/content') {
-    if (request.method !== 'GET') return json({error:'method_not_allowed'},405,{allow:'GET'});
-    const id = Number(url.searchParams.get('id'));
-    if (!Number.isSafeInteger(id) || id < 1) return json({error:'invalid_feed_item'},400);
-    const item = await env.DB.prepare('SELECT * FROM feed_items WHERE id=?').bind(id).first<import('../types').FeedItem>();
-    if (!item) return json({error:'not_found'},404);
-    if (item.type === 'spk' || (item.type === 'kap' && /devre kesici/i.test(item.title))) return json({error:'source_only'},422);
-    if (!await authorizeTelegramRequest(request,env)) return json({error:'unauthorized'},401);
+const CATEGORIES=new Set<Category>(['openai','claude','coding','resets','ai-news']);
+const itemById=(env:Env,id:number)=>env.DB.prepare('SELECT * FROM feed_items WHERE id=? AND category IS NOT NULL').bind(id).first<FeedItem>();
+export async function api(request:Request,env:Env):Promise<Response|null> {
+  const url=new URL(request.url);
+  if (url.pathname==='/api/config') return json(BRAND);
+  if (url.pathname==='/health') {
     try {
-      const content = await readerContent(env,item);
-      return content ? json(content) : json({status:'loading'},202,{'retry-after':'2'});
-    } catch { return json({error:'content_unavailable'},503); }
+      await env.DB.prepare('SELECT 1').first();
+      const rows=await env.DB.prepare("SELECT key,value FROM system_state WHERE key LIKE 'poll_shard:%' OR key IN ('cron_last_started_at','cron_last_finished_at','operations_status','codex_resets_status')").all<{key:string;value:string}>();
+      const map=Object.fromEntries((rows.results??[]).map(row=>[row.key,row.value]));
+      const shards=Object.fromEntries(SOURCES.map(source=>[source.id,JSON.parse(map[`poll_shard:source:${source.id}`]??'null')]));
+      return json({ok:true,service:BRAND.slug,database:'connected',cron:{lastStartedAt:map.cron_last_started_at??null,lastFinishedAt:map.cron_last_finished_at??null},sources:shards,telegram:JSON.parse(map['poll_shard:telegram']??'null'),codexResets:{status:map.codex_resets_status?JSON.parse(map.codex_resets_status):null,source:shards['codex-resets'],attribution:{label:'Codex Resets',url:'https://codex-resets.com/'}},operations:JSON.parse(map.operations_status??'null'),timestamp:new Date().toISOString()});
+    } catch {return json({ok:false,service:BRAND.slug,database:'unavailable'},503);}
   }
-  if (url.pathname === "/health") {
+  if (url.pathname==='/api/x-draft') {
+    if(request.method!=='POST') return json({error:'method_not_allowed'},405);
+    if(!env.SAFARI_EXTENSION_TOKEN||env.SAFARI_EXTENSION_TOKEN.length<32) return json({error:'extension_not_configured'},503);
+    if(!await authorizeExtension(request,env)) return json({error:'unauthorized'},401);
+    if(!env.OPENAI_API_KEY) return json({error:'openai_not_configured'},503);
+    let body:unknown;
     try {
-      await env.DB.prepare("SELECT 1 AS ok").first();
-      const cron = await env.DB.prepare("SELECT key,value FROM system_state WHERE key IN ('cron_last_started_at','cron_last_finished_at')").all<{ key: string; value: string }>();
-      const cronState = Object.fromEntries((cron.results ?? []).map(row => [row.key, row.value]));
-      const shards = await env.DB.prepare("SELECT key,value FROM system_state WHERE key LIKE 'poll_shard:%' ORDER BY key").all<{ key: string; value: string }>();
-      const shardState = Object.fromEntries((shards.results ?? []).map(row => {
-        try { return [row.key.slice("poll_shard:".length), JSON.parse(row.value)]; }
-        catch { return [row.key.slice("poll_shard:".length), { error: "invalid_state" }]; }
-      }));
-      const ops = await env.DB.prepare("SELECT value FROM system_state WHERE key='operations_status'").first<{value:string}>();
-      return json({ ok: true, service: "heranborsa", database: "connected", cron: { lastStartedAt: cronState.cron_last_started_at ?? null, lastFinishedAt: cronState.cron_last_finished_at ?? null }, shards: shardState, operations:ops ? JSON.parse(ops.value) : null, timestamp: new Date().toISOString() });
-    } catch {
-      return json({ ok: false, service: "heranborsa", database: "unavailable" }, 503);
-    }
+      const raw=await request.text();
+      if(raw.length>15_000) return json({error:'payload_too_large'},413);
+      body=JSON.parse(raw);
+    } catch {return json({error:'invalid_json'},400);}
+    const input=parseXDraftInput(body);
+    if(!input) return json({error:'invalid_input'},400);
+    if(!await takeExtensionRateSlot(env)) return json({error:'rate_limited'},429,{'retry-after':'60'});
+    try {return json({draft:await generateXDraft(env,input)});}
+    catch {return json({error:'draft_generation_failed'},502);}
   }
-  if (url.pathname === '/api/delivery') {
-    if (!await authorizeTelegramRequest(request,env)) return json({error:'unauthorized'},401);
-    const ref = url.searchParams.get('sourceRef');
-    if (!ref) return json({error:'source_ref_required'},400);
-    const rows = await env.DB.prepare(`SELECT source_ref,status,published_at,first_seen_at,sent_at,attempts,last_error,message_id,
-      ROUND((julianday(sent_at)-julianday(first_seen_at))*86400,1) AS delivery_seconds,
-      ROUND((julianday(first_seen_at)-julianday(published_at))*86400,1) AS publication_to_seen_seconds
-      FROM telegram_outbox WHERE source_ref=?`).bind(ref).all();
-    return json({items:rows.results ?? [],note:'first_seen_at bizim ilk gördüğümüz andır; RSS’e gerçek eklenme anı değildir. sent_at Telegram API kabul zamanıdır.'});
-  }
-  if (url.pathname === "/api/sources" && request.method === "GET") {
-    if (!await authorizeTelegramRequest(request,env)) return json({error:'unauthorized'},401);
-    const sources = await env.DB.prepare("SELECT DISTINCT source FROM feed_items ORDER BY source COLLATE NOCASE").all<{ source: string }>();
-    return json({ sources: (sources.results ?? []).map(row => row.source) }, 200, { "cache-control": "public, max-age=60" });
-  }
-  if (url.pathname === "/api/tweet-draft") {
-    if (request.method !== "POST") return json({ error: "method_not_allowed" }, 405, { allow: "POST" });
-    if (!await authorizeTelegramRequest(request, env)) return json({ error: "unauthorized" }, 401);
-    if (!env.OPENAI_API_KEY) return json({ error: "openai_not_configured" }, 503);
-    let feedItemId: number;
-    try {
-      const body = await request.json<{ feedItemId?: unknown }>();
-      feedItemId = Number(body.feedItemId);
-    } catch { return json({ error: "invalid_json" }, 400); }
-    if (!Number.isSafeInteger(feedItemId) || feedItemId < 1) return json({ error: "invalid_feed_item" }, 400);
-    const item = await env.DB.prepare("SELECT * FROM feed_items WHERE id=?").bind(feedItemId).first<import("../types").FeedItem>();
-    if (!item) return json({ error: "not_found" }, 404);
-    try {
-      const draft = await generateTweetDraft(env, item);
-      return json(draft);
-    } catch (error) {
-      console.error("AI tweet generation failed", { feedItemId, error: error instanceof Error ? error.message : String(error) });
-      return json({ error: "tweet_generation_failed" }, 502);
-    }
-  }
-  if (url.pathname !== "/api/feed") return null;
-  if (request.method !== "GET") return json({ error: "method_not_allowed" }, 405, { allow: "GET" });
+  if (!['/api/feed','/api/sources','/api/content','/api/tweet-draft','/api/delivery'].includes(url.pathname)) return null;
   if (!await authorizeTelegramRequest(request,env)) return json({error:'unauthorized'},401);
-  const requestedType = url.searchParams.get("type");
-  if (requestedType && !TYPES.has(requestedType as FeedType)) return json({ error: "invalid_type" }, 400);
-  const rawLimit = Number(url.searchParams.get("limit") ?? "30");
-  const limit = Number.isInteger(rawLimit) ? Math.max(1, Math.min(rawLimit, 100)) : 30;
-  const rawCursor = url.searchParams.get("cursor");
-  const cursorParts = rawCursor?.split("|");
-  const cursor = cursorParts?.length === 2 && !Number.isNaN(Date.parse(cursorParts[0])) && /^\d+$/.test(cursorParts[1]) ? { time: cursorParts[0], id: Number(cursorParts[1]) } : undefined;
-  const ticker = url.searchParams.get("ticker")?.trim().toUpperCase().replace(/[^A-Z0-9]/g, "") || undefined;
-  const q = url.searchParams.get("q")?.trim().slice(0, 120) || undefined;
-  const source = url.searchParams.get("source")?.trim().slice(0, 100) || undefined;
-  const result = await listFeed(env, { type: requestedType as FeedType | undefined, ticker, q, source, cursor, limit });
-  return json(result, 200, { "cache-control": "public, max-age=15" });
+  if (url.pathname==='/api/sources' && request.method!=='GET') return json({error:'method_not_allowed'},405);
+  if (url.pathname==='/api/sources') return json({sources:SOURCES.map(source=>({id:source.id,name:source.name,category:source.category}))});
+  if (url.pathname==='/api/content') {
+    if (request.method!=='GET') return json({error:'method_not_allowed'},405);
+    const id=Number(url.searchParams.get('id'));
+    if (!Number.isSafeInteger(id)||id<1) return json({error:'invalid_feed_item'},400);
+    const item=await itemById(env,id);
+    if (!item) return json({error:'not_found'},404);
+    try {const content=await readerContent(env,item);return content?json(content):json({status:'loading'},202,{'retry-after':'2'});} catch {return json({error:'content_unavailable'},503);}
+  }
+  if (url.pathname==='/api/delivery') {
+    const ref=url.searchParams.get('sourceRef');
+    if (!ref?.startsWith('ai:')) return json({error:'source_ref_required'},400);
+    const rows=await env.DB.prepare('SELECT source_ref,status,published_at,first_seen_at,sent_at,attempts,last_error,message_id FROM telegram_outbox WHERE source_ref=?').bind(ref).all();
+    return json({items:rows.results??[]});
+  }
+  if (url.pathname==='/api/tweet-draft') {
+    if (request.method!=='POST') return json({error:'method_not_allowed'},405);
+    if (!env.OPENAI_API_KEY) return json({error:'openai_not_configured'},503);
+    let body:{feedItemId?:unknown;language?:unknown;tone?:unknown;note?:unknown};
+    try {body=await request.json();} catch {return json({error:'invalid_json'},400);}
+    const id=Number(body.feedItemId);
+    if (!Number.isSafeInteger(id)||id<1) return json({error:'invalid_feed_item'},400);
+    const language=body.language??'tr',tone=body.tone??'natural',note=body.note??'';
+    if (language!=='tr'||!['natural','news','commentary'].includes(String(tone))||typeof note!=='string'||note.length>500) return json({error:'invalid_options'},400);
+    const item=await itemById(env,id);
+    if (!item) return json({error:'not_found'},404);
+    try {return json(await generateTweetDraft(env,item,{language,tone,note} as DraftOptions));}
+    catch(error) {console.error('AI tweet generation failed',{feedItemId:id,error:error instanceof Error?error.message:String(error)});return json({error:'tweet_generation_failed'},502);}
+  }
+  if (request.method!=='GET') return json({error:'method_not_allowed'},405);
+  const rawCategory=url.searchParams.get('category');
+  if (rawCategory && !CATEGORIES.has(rawCategory as Category)) return json({error:'invalid_category'},400);
+  const rawLimit=Number(url.searchParams.get('limit')??'30');
+  const limit=Number.isInteger(rawLimit)?Math.max(1,Math.min(rawLimit,100)):30;
+  const parts=url.searchParams.get('cursor')?.split('|');
+  const cursor=parts?.length===2&&!Number.isNaN(Date.parse(parts[0]))&&/^\d+$/.test(parts[1])?{time:parts[0],id:Number(parts[1])}:undefined;
+  const q=url.searchParams.get('q')?.trim().slice(0,120)||undefined;
+  const source=url.searchParams.get('source')?.trim().slice(0,100)||undefined;
+  return json(await listFeed(env,{category:rawCategory as Category|undefined,q,source,cursor,limit}));
 }

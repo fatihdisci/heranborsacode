@@ -13,6 +13,7 @@ export interface Env {
   MKK_API_SECRET?: string;
   MKK_API_BASE_URL?: string;
   OPENAI_API_KEY?: string;
+  SAFARI_EXTENSION_TOKEN?: string;
   PUBLIC_BASE_URL?: string;
 }
 
@@ -29,4 +30,7 @@ export interface FeedItem {
   tickers_json: string | null;
   published_at: string | null;
   created_at: string;
+  category?: import('./sources/registry').Category | null;
+  priority?: 'high' | 'normal' | null;
+  metadata_json?: string | null;
 }

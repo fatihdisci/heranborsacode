@@ -1,0 +1,18 @@
+:host { all: initial; color-scheme: light dark; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+.vr-button { display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;margin:0 4px;border:0;border-radius:50%;background:transparent;color:#536471;font-size:17px;line-height:1;cursor:pointer; }
+.vr-button:hover,.vr-button:focus-visible {background:rgba(29,155,240,.13);color:#1d9bf0;outline:none;}
+.vr-panel {box-sizing:border-box;width:100%;padding:15px;border:1px solid #c9d3dc;border-radius:14px;background:#fff;color:#17212b;box-shadow:0 10px 35px rgba(0,0,0,.22);font:14px/1.4 -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;}
+.vr-head,.vr-modes,.vr-actions {display:flex;align-items:center;gap:7px;}
+.vr-head {justify-content:space-between;font-size:16px;margin-bottom:11px;}
+.vr-close {border:0;background:transparent;color:#536471;font-size:22px;cursor:pointer;}
+.vr-modes {margin-bottom:12px;}
+.vr-panel button:not(.vr-close) {border:1px solid #b8c7d3;border-radius:8px;background:#f4f7f9;color:#17212b;padding:6px 10px;font:inherit;cursor:pointer;}
+.vr-panel button.active,.vr-panel .vr-generate {background:#1d9bf0!important;border-color:#1d9bf0!important;color:#fff!important;}
+.vr-panel button:disabled {opacity:.5;cursor:not-allowed;}
+.vr-panel label {display:block;font-weight:600;}
+.vr-panel textarea {box-sizing:border-box;width:100%;resize:vertical;margin-top:6px;padding:8px;border:1px solid #b8c7d3;border-radius:8px;background:#fff;color:#17212b;font:inherit;}
+.vr-generate {margin-top:9px;}
+.vr-status {min-height:19px;margin:8px 0;color:#536471;}
+.vr-draft {min-height:100px;}
+.vr-actions {flex-wrap:wrap;margin-top:9px;}
+@media (prefers-color-scheme:dark) {.vr-panel {background:#15202b;color:#f7f9f9;border-color:#536471}.vr-panel textarea {background:#22303c;color:#f7f9f9;border-color:#536471}.vr-panel button:not(.vr-close) {background:#22303c;color:#f7f9f9;border-color:#536471}.vr-status,.vr-close {color:#aebbc5}}

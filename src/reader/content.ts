@@ -2,6 +2,7 @@ import { parseHTML } from 'linkedom';
 import type { Env, FeedItem } from '../types';
 import { extractAttachments, type SourceAttachment } from '../ai/content';
 import { sha256 } from '../utils/text';
+import { allowedSourceUrl } from '../sources/hosts';
 
 export interface ReaderCell { text: string; rowSpan: number; colSpan: number; header: boolean; }
 export type ReaderBlock = { type: 'paragraph' | 'heading'; text: string } | { type: 'table'; rows: ReaderCell[][] };
@@ -10,11 +11,7 @@ export interface ReaderContent {
   notice: string | null; fetchedAt: string;
 }
 const clean = (s: string) => s.replace(/\s+/g, ' ').trim();
-const hosts = ['kap.org.tr', 'foreks.com', 'bloomberght.com', 'investing.com', 'haberturk.com', 'sozcu.com.tr'];
-function allowed(value: string): boolean {
-  try { const u = new URL(value); return u.protocol === 'https:' && !u.username && !u.password && (!u.port || u.port === '443') && hosts.some(h => u.hostname === h || u.hostname.endsWith('.' + h)); }
-  catch { return false; }
-}
+const allowed = allowedSourceUrl;
 
 export function extractReaderContent(html: string, item: FeedItem): Omit<ReaderContent, 'fetchedAt'> | null {
   const { document } = parseHTML(html);
@@ -28,7 +25,7 @@ export function extractReaderContent(html: string, item: FeedItem): Omit<ReaderC
   for (const el of document.querySelectorAll('script[type="application/ld+json"]')) {
     try { visit(JSON.parse(el.textContent || '')); } catch { /* malformed publisher data */ }
   }
-  const selector = item.type === 'kap' ? '.disclosureScrollableArea' : '[itemprop="articleBody"], .article-body, .cms-container, .news-detail-content, .news-content';
+  const selector = '[itemprop="articleBody"], article, main article, .article-body, .news-content, .markdown-body';
   const roots = [...document.querySelectorAll(selector)].filter(el => !el.parentElement?.closest(selector));
   const blocks: ReaderBlock[] = [];
   let pending = '';
@@ -56,7 +53,7 @@ export function extractReaderContent(html: string, item: FeedItem): Omit<ReaderC
   }
   roots.forEach(root => { walk(root); flush(); });
   // JSON-LD is a fallback only: never use the whole page (navigation, recommendations, ads).
-  if (!blocks.length && item.type === 'news') {
+  if (!blocks.length) {
     const body = structured.sort((a,b) => b.length - a.length)[0];
     if (body) {
       const { document: fragment } = parseHTML(`<div>${body}</div>`);
@@ -74,7 +71,7 @@ async function fetchHtml(url: string): Promise<string> {
   try {
     for (let i = 0; i < 4; i++) {
       if (!allowed(url)) throw new Error('unsupported_source');
-      const response = await fetch(url, { redirect: 'manual', signal: controller.signal, headers: { accept: 'text/html', 'user-agent': 'Mozilla/5.0 (compatible; HeranBorsa/1.0)' } });
+      const response = await fetch(url, { redirect: 'manual', signal: controller.signal, headers: { accept: 'text/html', 'user-agent': 'Mozilla/5.0 (compatible; VibeRadar/1.0)' } });
       if ([301,302,303,307,308].includes(response.status)) {
         await response.body?.cancel();
         url = new URL(response.headers.get('location') || '', url).href; continue;
@@ -95,6 +92,7 @@ async function fetchHtml(url: string): Promise<string> {
 }
 
 export async function readerContent(env: Env, item: FeedItem): Promise<ReaderContent | null> {
+  if (item.category === 'resets') return {status:'summary',blocks:item.body?[{type:'paragraph',text:item.body}]:[],attachments:[],notice:'Codex Resets verisi. Ayrıntılar için özgün kaynağı aç.',fetchedAt:new Date().toISOString()};
   const key = await sha256(JSON.stringify(['reader-v2', item.url, item.title, item.body]));
   const now = Date.now();
   const cached = await env.DB.prepare('SELECT payload FROM reader_cache WHERE feed_item_id=? AND cache_key=? AND expires_at>?').bind(item.id, key, now).first<{payload:string}>();
