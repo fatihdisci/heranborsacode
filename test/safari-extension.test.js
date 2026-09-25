@@ -17,7 +17,7 @@ it('extracts the selected tweet ID and canonical URL',()=>{
 it('normalizes reference data and message payload without exposing token',()=>{
  const H=helpers();
  const payload=H.makePayload('quote','  tam da limitim bitmişti ',{text:' Codex limits reset. ',url:'https://x.com/a/status/1234567890123456789',quotedTweet:{text:'Another post'}});
- expect(JSON.parse(JSON.stringify(payload))).toEqual({mode:'quote',userNote:'tam da limitim bitmişti',reference:{text:'Codex limits reset.',id:'1234567890123456789',url:'https://x.com/a/status/1234567890123456789',quotedTweet:{text:'Another post'}}});
+ expect(JSON.parse(JSON.stringify(payload))).toEqual({mode:'quote',language:'auto',userNote:'tam da limitim bitmişti',reference:{text:'Codex limits reset.',id:'1234567890123456789',url:'https://x.com/a/status/1234567890123456789',quotedTweet:{text:'Another post'}}});
  expect(H.makePayload('post','',payload.reference)).toBeNull();
  const manifest=JSON.parse(readFileSync(`${root}/manifest.json`,'utf8'));
  expect(manifest.manifest_version).toBe(3);
@@ -40,4 +40,10 @@ it('reaches the same Worker directly when the public domain is unavailable',asyn
   'https://heranborsa.av-fatihdisci.workers.dev/api/x-draft',
  ]);
  expect(fetchMock.mock.calls[0][1].headers.authorization).toBe('Bearer test-token');
+});
+
+it('passes auto, Turkish and English choices and rejects unknown languages',()=>{
+ const H=helpers();
+ for(const language of ['auto','tr','en']) expect(H.makePayload('reply','',{text:'Hello world'},language).language).toBe(language);
+ expect(H.makePayload('quote','',{text:'Hello world'},'bad')).toBeNull();
 });

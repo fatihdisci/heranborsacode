@@ -62,7 +62,8 @@ describe('Safari extension endpoint',()=>{
    expect(input.userNote).toBe('Haftalık limitimi yeni bitirmiştim');
   }
   expect(X_DRAFT_PROMPT).toContain('Tweetin iddiasını mutlak gerçek diye yükseltme');
-  expect(X_DRAFT_PROMPT).toContain('Yalnız Türkçe nihai taslağı');
+  expect(X_DRAFT_PROMPT).toContain('Yalnız seçilen dilde nihai taslağı');
+  expect(X_DRAFT_PROMPT).not.toContain('HER ZAMAN TÜRKÇE');
  });
  it('rejects invented personal experience and hashtags in model output when no note exists',async()=>{
   const {env}=setup();let output='Ben Codex limitimi bitirmiştim.';
@@ -76,5 +77,32 @@ describe('Safari extension endpoint',()=>{
   for(let n=0;n<15;n++) expect((await api(request({mode:'reply',reference,userNote:''}),env as any))?.status).toBe(200);
   expect((await api(request({mode:'reply',reference,userNote:''}),env as any))?.status).toBe(429);
   expect(fetchMock).toHaveBeenCalledTimes(15);
+ });
+});
+
+describe('extension draft languages',()=>{
+ it.each(['reply','quote'])('passes language choices to the shared model for %s without rejecting English or other languages',async(mode)=>{
+  const {env}=setup();
+  const cases=[['auto','When will the new limits be available for teams?'],['en','When will the new limits be available for teams?'],['tr','Yeni limitler ekiplere ne zaman açılacak?'],['auto','Quand ces limites seront-elles disponibles pour les équipes ?']];
+  for(const [language,output] of cases){
+   vi.stubGlobal('fetch',vi.fn(async(_url,init)=>{
+    const body=JSON.parse(init.body);
+    expect(JSON.parse(body.input[0].content[0].text).language).toBe(language);
+    return new Response(JSON.stringify({status:'completed',output_text:output}));
+   }));
+   const response=await api(request({mode,language,reference,userNote:''}),env as any);
+   expect(response?.status).toBe(200);expect(await response?.json()).toEqual({draft:output});
+  }
+ });
+ it('defaults old clients to auto and rejects unsupported language values',()=>{
+  expect(parseXDraftInput({mode:'reply',reference})?.language).toBe('auto');
+  expect(parseXDraftInput({mode:'quote',reference,language:'fr'})).toBeNull();
+ });
+ it('still rejects English for explicitly Turkish drafts and invented English experience',async()=>{
+  const {env}=setup();
+  for(const [language,output] of [['tr','The new limits are available for users.'],['en',"I have used this for days."]]){
+   vi.stubGlobal('fetch',vi.fn(async()=>new Response(JSON.stringify({status:'completed',output_text:output}))));
+   expect((await api(request({mode:'reply',language,reference}),env as any))?.status).toBe(502);
+  }
  });
 });

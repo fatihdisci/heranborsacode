@@ -49,11 +49,11 @@
     }
     return result;
   }
-  function makePayload(mode,userNote,reference) {
-    if(!['reply','quote'].includes(mode)) return null;
+  function makePayload(mode,userNote,reference,language='auto') {
+    if(!['auto','tr','en'].includes(language)||!['reply','quote'].includes(mode)) return null;
     const normalized=normalizeReference(reference);
     if(!normalized) return null;
-    return {mode,userNote:shorten(userNote??'',500),reference:normalized};
+    return {mode,language,userNote:shorten(userNote??'',500),reference:normalized};
   }
   globalThis.VibeRadarHelpers=Object.freeze({statusInfo,extractTweetId,extractTweetUrl,normalizeReference,makePayload});
 })();

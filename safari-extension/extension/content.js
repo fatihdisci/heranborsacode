@@ -90,7 +90,7 @@
     const host=document.createElement('div');host.className='vr-popover-host';host.style.position='fixed';host.style.zIndex='2147483647';
     const shadow=host.attachShadow({mode:'closed'});stylesheet(shadow);
     const panel=document.createElement('section');panel.className='vr-panel';
-    panel.innerHTML='<div class="vr-head"><strong>AI Taslak</strong><button type="button" class="vr-close" aria-label="Kapat">×</button></div><div class="vr-modes"><button type="button" data-mode="reply" class="active">Yanıt</button><button type="button" data-mode="quote">Alıntı</button></div><label>Benim notum (opsiyonel)<textarea class="vr-note" rows="2" maxlength="500" placeholder="Eklemek istediğiniz düşünce..."></textarea></label><button type="button" class="vr-generate">Oluştur</button><p class="vr-status" role="status"></p><textarea class="vr-draft" rows="5" aria-label="Düzenlenebilir taslak" hidden></textarea><div class="vr-actions" hidden><button type="button" class="vr-again">Yeniden oluştur</button><button type="button" class="vr-copy">Kopyala</button><button type="button" class="vr-intent">X\'te aç / yerleştir</button></div>';
+    panel.innerHTML='<div class="vr-head"><strong>AI Taslak</strong><button type="button" class="vr-close" aria-label="Kapat">×</button></div><div class="vr-modes"><button type="button" data-mode="reply" class="active">Yanıt</button><button type="button" data-mode="quote">Alıntı</button></div><label>Dil<select class="vr-language" aria-label="Taslak dili"><option value="auto">Otomatik · Tweetin dili</option><option value="tr">Türkçe (TR)</option><option value="en">İngilizce (ENG)</option></select></label><label>Benim notum (opsiyonel)<textarea class="vr-note" rows="2" maxlength="500" placeholder="Eklemek istediğiniz düşünce..."></textarea></label><button type="button" class="vr-generate">Oluştur</button><p class="vr-status" role="status"></p><textarea class="vr-draft" rows="5" aria-label="Düzenlenebilir taslak" hidden></textarea><div class="vr-actions" hidden><button type="button" class="vr-again">Yeniden oluştur</button><button type="button" class="vr-copy">Kopyala</button><button type="button" class="vr-intent">X\'te aç / yerleştir</button></div>';
     shadow.append(panel);document.body.append(host);position(host,button);
     const $=selector=>shadow.querySelector(selector);
     const state={host,article,button,mode:'reply',initialId:reference?.id,initialText:reference?.text};current=state;
@@ -100,14 +100,18 @@
       for(const candidate of shadow.querySelectorAll('[data-mode]')) candidate.classList.toggle('active',candidate===modeButton);
       $('.vr-intent').disabled=state.mode==='reply'?!reference?.id:!reference?.url;
     });
+    $('.vr-language').addEventListener('change',()=>{
+      $('.vr-draft').value='';$('.vr-draft').hidden=true;$('.vr-actions').hidden=true;
+      $('.vr-status').textContent='Seçilen dilde yeni taslak oluşturabilirsiniz.';
+    });
     async function generate() {
       if(current!==state||!article.isConnected){close();return;}
       const fresh=referenceFrom(article);
       if(!fresh||!fresh.text){$('.vr-status').textContent='Bu gönderide AI için yeterli metin yok.';return;}
       if((state.initialId&&fresh.id!==state.initialId)||(!state.initialId&&fresh.text!==state.initialText)) {close();return;}
-      const payload=H.makePayload(state.mode,$('.vr-note').value,fresh);
+      const payload=H.makePayload(state.mode,$('.vr-note').value,fresh,$('.vr-language').value);
       if(!payload){$('.vr-status').textContent='Gönderi metni okunamadı.';return;}
-      $('.vr-generate').disabled=true;$('.vr-again').disabled=true;$('.vr-status').textContent='Yazılıyor…';
+      $('.vr-language').disabled=true;for(const control of shadow.querySelectorAll('[data-mode]'))control.disabled=true;$('.vr-generate').disabled=true;$('.vr-again').disabled=true;$('.vr-status').textContent='Yazılıyor…';
       try {
         const response=await ext.runtime.sendMessage({type:'VIBE_RADAR_GENERATE',payload});
         if(current!==state||!article.isConnected||location.href!==lastHref) return;
@@ -117,7 +121,7 @@
         $('.vr-status').textContent='Taslağı düzenleyebilirsiniz. Gönderme işlemi sizde.';
         position(host,button);
       } catch {$('.vr-status').textContent='Sunucuya ulaşılamadı.';}
-      finally {$('.vr-generate').disabled=false;$('.vr-again').disabled=false;}
+      finally {$('.vr-language').disabled=false;for(const control of shadow.querySelectorAll('[data-mode]'))control.disabled=false;$('.vr-generate').disabled=false;$('.vr-again').disabled=false;}
     }
     $('.vr-generate').addEventListener('click',generate);
     $('.vr-again').addEventListener('click',generate);

@@ -1,6 +1,6 @@
 # Vibe Radar X Safari extension
 
-Bu macOS Safari WebExtension, x.com ve twitter.com üzerindeki metin içeren gönderilere ✦ butonu ekler. Yanıt ve alıntı taslaklarını mevcut Cloudflare Worker üzerinden Türkçe üretir. X'te **Gönder** düğmesine dokunmaz.
+Bu macOS Safari WebExtension, x.com ve twitter.com üzerindeki metin içeren gönderilere ✦ butonu ekler. Yanıt ve alıntı taslaklarını mevcut Cloudflare Worker üzerinden varsayılan olarak ana tweetin dilinde üretir. Popover içindeki Dil menüsünden **Otomatik · Tweetin dili**, **Türkçe (TR)** veya **İngilizce (ENG)** seçilebilir. Türkçe kullanıcı notu otomatik dil seçimini değiştirmez. Telegram haber taslakları Türkçe kalır. X'te **Gönder** düğmesine dokunmaz.
 
 ## Kurulum
 
@@ -22,3 +22,7 @@ Bir test gönderisinde ✦ görünmesini kontrol edin. Benim notum boşken Yanı
 - Yalnız x.com/twitter.com içerik erişimi, Worker host erişimi ve `storage` izni istenir. Backend'e `POST /api/x-draft` isteğini yalnız background yapar.
 - Genel alan adına erişilemezse background aynı Worker'ın `workers.dev` adresini dener; `PUBLIC_BASE_URL` ve OpenAI key'i değişmez.
 - X arayüzü değişirse güvenilir gönderi metni veya bağlantısı bulunamayabilir. Bu durumda taslak üretilmez veya composer düğmesi devre dışı kalır; Kopyala kullanılabilir.
+
+## Başka Mac
+
+Mac mini üzerinde Codex ile kurulum için [hazır görev promptunu](MAC_MINI_CODEX_PROMPT.md) kullanın. Mevcut üretim secret’ını değiştirmeyin; iki Mac aynı kişisel token ile çalışabilir.

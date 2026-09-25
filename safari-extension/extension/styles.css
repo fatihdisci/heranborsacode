@@ -16,3 +16,5 @@
 .vr-draft {min-height:100px;}
 .vr-actions {flex-wrap:wrap;margin-top:9px;}
 @media (prefers-color-scheme:dark) {.vr-panel {background:#15202b;color:#f7f9f9;border-color:#536471}.vr-panel textarea {background:#22303c;color:#f7f9f9;border-color:#536471}.vr-panel button:not(.vr-close) {background:#22303c;color:#f7f9f9;border-color:#536471}.vr-status,.vr-close {color:#aebbc5}}
+
+.vr-language {display:block;box-sizing:border-box;width:100%;margin:6px 0 10px;padding:8px;border:1px solid #b8c7d3;border-radius:8px;font:inherit;background:Canvas;color:CanvasText;}
