@@ -31,3 +31,19 @@ chmod +x mac-agent/install-launch-agent.sh
 
 Loglar `~/Library/Logs/HeranBorsaAgent/` altında tutulur ve hiçbir gizli değer
 loga yazılmaz.
+
+Ajan, Telegram bağlantısı koparsa yeniden bağlanır. Telegram erişimi geri gelene
+kadar D1'dan yeni iş almaz; her komut öncesinde oturumu gerçek bir istekle
+kontrol eder. Hata olursa Mini App geçmişine adım ve komut bilgisi kaydedilir.
+Yanıt beklerken başarısız olan komutlar otomatik tekrar gönderilmez; bot komutu
+zaten işlemiş olabilir.
+
+Ajan bağlantı testleri (kurulu sanal ortamla):
+
+```zsh
+"$HOME/Library/Application Support/HeranBorsaAgent/.venv/bin/python" -B -m unittest discover -s mac-agent -p 'test_*.py'
+```
+
+Repository güncellemeleri kurulu ajana kendiliğinden geçmez. Güncellemeden sonra
+kurulum betiğini yeniden çalıştırın; betik servis dosyalarını güncelleyip ajanı
+yeniden başlatır.

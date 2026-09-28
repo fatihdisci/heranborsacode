@@ -1,3 +1,4 @@
+import { setupNotificationPreferences } from './notifications.js';
 import { connectTelegramBack, restoreFeedPosition } from './navigation.js';
 import { createCommandCenter } from './commands.js';
 const telegram = window.Telegram?.WebApp;
@@ -10,7 +11,7 @@ if (telegram?.initData) {
 } else {
   document.body.classList.add('auth-denied');
 }
-const state = { type: "", ticker: "", q: "", source: "", cursor: null, loading: false, seen: new Set(), searchOpen: false, view: 'feed' };
+const state = { type: "", ticker: "", q: "", source: "", scope: "", cursor: null, loading: false, seen: new Set(), searchOpen: false, view: 'feed' };
 
 const $ = selector => document.querySelector(selector);
 const feed = $("#feed");
@@ -31,8 +32,14 @@ const regenerateTweetButton = $('#regenerate-tweet');
 const tweetInstruction = $('#tweet-instruction');
 const readerDialog = $('#reader-dialog');
 const commandResultsDialog = $('#command-results-dialog');
-const navigation = connectTelegramBack(telegram, [readerDialog, commandResultsDialog, tweetDialog]);
+const navigation = connectTelegramBack(telegram, [readerDialog, commandResultsDialog, tweetDialog, $('#notification-settings')]);
 const commandCenter = createCommandCenter(telegram);
+setupNotificationPreferences(telegram,()=>load(),()=>navigation.sync());
+for(const button of document.querySelectorAll('[data-scope]'))button.onclick=()=>{
+  state.scope=button.dataset.scope;
+  document.querySelectorAll('[data-scope]').forEach(b=>b.setAttribute('aria-pressed',String(b===button)));
+  load();
+};
 let readerAbort;
 let readerItem;
 let readerScrollY = 0;
@@ -232,6 +239,14 @@ function render(item) {
   const tweet = node.querySelector(".tweet");
   const symbols = JSON.parse(item.tickers_json || "[]");
 
+  const priority=node.querySelector('.priority-badges');
+  if(item.notification) {
+    const n=item.notification;
+    priority.textContent=[n.tier===30?'⭐ BIST 30':n.tier===100?'🔵 BIST 100':'',n.watched?'🔔 Takip listem':'',item.type==='kap'&&n.action==='digest'?'Günlük özette':item.type==='kap'&&n.action==='off'?'Bildirim kapalı':''].filter(Boolean).join(' · ');
+    if(n.tier)article.dataset.index=String(n.tier);
+    if(n.watched)article.classList.add('watched');
+  }
+  priority.hidden=!priority.textContent;
   article.dataset.type = item.type;
   open.href = item.url;
   icon.textContent = icons[item.type] || "●";
@@ -263,16 +278,17 @@ function render(item) {
 }
 
 async function load(append = false) {
-  if (state.loading) return;
+  if (state.loading) { if(!append)state.reloadRequested=true; return; }
   state.loading = true;
   setStatus(append ? "Eski kayıtlar yükleniyor" : "Akış güncelleniyor");
   const params = new URLSearchParams({ limit: "30" });
-  for (const [key, value] of Object.entries({ type: state.type, ticker: state.ticker, q: state.q, source: state.source })) if (value) params.set(key, value);
+  for (const [key, value] of Object.entries({ type: state.type, ticker: state.ticker, q: state.q, source: state.source, scope:state.scope })) if (value) params.set(key, value);
   if (append && state.cursor) params.set("cursor", state.cursor);
   try {
     const response = await fetch(`/api/feed?${params}`, {headers:telegramHeaders()});
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     const data = await response.json();
+    if(state.reloadRequested)return;
     if (!append) { feed.replaceChildren(); state.seen.clear(); }
     const fresh = data.items.filter(item => !state.seen.has(item.id));
     fresh.forEach(item => { state.seen.add(item.id); feed.append(render(item)); });
@@ -283,11 +299,13 @@ async function load(append = false) {
     setStatus("Akış yüklenemedi", "error");
   } finally {
     state.loading = false;
+    if(state.reloadRequested){state.reloadRequested=false;load();}
   }
 }
 
 function setType(type) {
   state.view = 'feed';
+  $('.focus-filters').hidden=false;
   commandCenter.hide();
   streamHead.hidden = feed.hidden = false;
   state.type = type;
@@ -303,6 +321,7 @@ function setType(type) {
 
 async function showCommands() {
   state.view = 'commands';
+  $('.focus-filters').hidden=true;
   state.searchOpen = false; searchPanel.hidden = true; searchButton.setAttribute('aria-expanded', 'false');
   streamHead.hidden = feed.hidden = more.hidden = true;
   document.querySelectorAll('.bottom-nav button').forEach(button => button.classList.remove('nav-active'));

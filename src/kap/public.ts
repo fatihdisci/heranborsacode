@@ -1,9 +1,12 @@
+import { getIndices } from "../notifications/indices";
 import type { Env } from "../types";
 import { feedStatement } from "../db/feed";
 import { enqueueStatement } from "../telegram/outbox";
 import { fetchWithTimeout } from "../utils/http";
 import { escapeTelegramHtml, sha256 } from "../utils/text";
-import { BIST50 } from "./bist50";
+import { isImportantPublicDisclosure } from "./importance";
+export { isImportantPublicDisclosure } from "./importance";
+import { getPreferences, classify } from "../notifications/rules";
 import { financeNotificationCutoff, publishedSince } from '../db/state';
 
 const PUBLIC_KAP_URL = "https://www.kap.org.tr/tr/Bildirim";
@@ -107,20 +110,6 @@ export function circuitBreakerMessage(items: PublicDisclosure[]): string | null 
   return `${codes.map(code => `#${code}`).join(" ")}\n\nDevre kesici uygulandı. Sürekli işleme ara verildi.`;
 }
 
-export function isImportantPublicDisclosure(item: PublicDisclosure): boolean {
-  const title = `${item.title} ${item.company ?? ""}`.toLocaleUpperCase("tr-TR");
-  const disclosureTitle = item.title.toLocaleUpperCase("tr-TR");
-  if (/PORTFÖY DAĞILIM RAPORU|TEMERRÜT İŞLEMİ|BORSA DIŞI VAAD SÖZLEŞMESİ|BORSA DIŞI REPO\s*-\s*TERS REPO SÖZLEŞMESİ|FONU? SÜREKLİ BİLGİLENDİRME FORMU|KREDİ DERECELENDİRMESİ|YATIRIMCI BİLGİ FORMU/.test(disclosureTitle)) return false;
-  if (disclosureTitle.includes("PAY DIŞINDA SERMAYE PİYASASI ARACI İŞLEMLERİNE İLİŞKİN BİLDİRİM (FAİZ İÇEREN)") ||
-      disclosureTitle.includes("RİSK ÖLÇÜM VE DEĞERLEME ESASLARI")) return false;
-  if (!item.codes.length) return /FON|PORTFÖY|VARLIK YÖNETİM/.test(title);
-  if (/ŞİRKET GENEL BİLGİ FORMU|HAK KULLANIM SÜREÇ DURUMU/.test(title)) return false;
-  // The Mac mini flow applies the BIST 50 restriction to the specific pay
-  // buy/sell notification class, not to normal share-repurchase disclosures.
-  if (/PAY ALIM BİLDİRİMİ|PAY SATIM BİLDİRİMİ/.test(title)) return item.codes.some(code => BIST50.has(code));
-  return true;
-}
-
 export function suppressPublicKapNotification(title: string): boolean {
   const normalized = title.toLocaleUpperCase('tr-TR').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   return /IHRAC BELGESI|FON IHRAC SOZLESMESI|KREDI KULLANIMI/.test(normalized);
@@ -140,7 +129,12 @@ async function getDisclosure(id: number): Promise<PublicDisclosure | null> {
 }
 
 async function store(env: Env, item: PublicDisclosure, silent: boolean): Promise<void> {
-  if (!isImportantPublicDisclosure(item)) return;
+  const preferences=await getPreferences(env);
+  const topics=classify({title:item.title,body:item.company,tickers_json:JSON.stringify(item.codes)}).topics;
+  const explicitlyTracked=preferences.watchlist.some(w=>item.codes.includes(w.ticker)&&(w.mode==='all'||w.mode==='topics'&&w.topics.some(t=>topics.includes(t))));
+  const priorityCodes=[...preferences.watchlist.map(w=>w.ticker),...(preferences.priorityIndices?(await getIndices(env)).bist100:[])];
+  const explicitlySelectedTopic=preferences.otherCompanies==='topics'&&preferences.otherTopics.some(topic=>topics.includes(topic));
+  if (!isImportantPublicDisclosure(item,priorityCodes) && !explicitlyTracked && !explicitlySelectedTopic) return;
   const known = await env.DB.prepare("SELECT disclosure_id FROM kap_disclosures WHERE disclosure_id=?").bind(String(item.id)).first();
   if (known) return;
   const breakerBody = circuitBreakerBody(item);
@@ -179,7 +173,7 @@ async function scan(env: Env, key: string, start: number, ceiling: number | null
     if (ceiling !== null && id > ceiling) return { scanned, reachedEdge: true };
     const item = await getDisclosure(id);
     if (!item) return { scanned, reachedEdge: true }; // Public KAP uses the first missing numeric ID as the live edge.
-    if (!silent || within24Hours(item.publishedAt)) await store(env, item, silent || !publishedSince(item.publishedAt, cutoff) || suppressPublicKapNotification(item.title));
+    if (!silent || within24Hours(item.publishedAt)) await store(env, item, silent || !publishedSince(item.publishedAt, cutoff));
     cursor = id;
     scanned++;
     await setState(env, key, cursor);

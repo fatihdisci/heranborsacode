@@ -95,6 +95,10 @@ async function fetchHtml(url: string): Promise<string> {
 }
 
 export async function readerContent(env: Env, item: FeedItem): Promise<ReaderContent | null> {
+  if (item.source_ref.startsWith('x:')) return {
+    status:'content', blocks:item.body ? [{type:'paragraph',text:item.body}] : [], attachments:[],
+    notice:'Kaynak X hesabının paylaşımıdır; bağımsız doğrulanmış haber değildir. Görsel ve video içeriği dahil değildir.', fetchedAt:new Date().toISOString(),
+  };
   const key = await sha256(JSON.stringify(['reader-v2', item.url, item.title, item.body]));
   const now = Date.now();
   const cached = await env.DB.prepare('SELECT payload FROM reader_cache WHERE feed_item_id=? AND cache_key=? AND expires_at>?').bind(item.id, key, now).first<{payload:string}>();

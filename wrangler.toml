@@ -44,6 +44,8 @@ head_sampling_rate = 1
 
 [vars]
 PUBLIC_BASE_URL = "https://borsa.discilaw.com"
+# Public RSS mirror; no paid X API or account cookie. Remove to disable X polling.
+X_NITTER_BASE_URL = "https://nitter.cf"
 # This is not a secret. Set it only after confirming the MKK endpoint contract.
 MKK_API_BASE_URL = "https://apigwdev.mkk.com.tr/api/vyk"
 

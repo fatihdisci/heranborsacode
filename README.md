@@ -60,7 +60,7 @@ DKB grubunun üyeleri gönderimden önce sabitlenir; sonraki kayıtlar yanlışl
 
 `/health.operations` son kuyruk durumunu ve son 500 teslimatın gecikmesini verir. İmzalı Mini App oturumuyla `/api/delivery?sourceRef=kap:...` kayıt bazında `published_at`, `first_seen_at`, `sent_at` ve Telegram mesaj kimliğini döndürür. İlk görülme RSS'e gerçek eklenme zamanı değildir; gönderim zamanı Telegram API kabulüdür, cihazda okunma zamanı değildir. SPK yayın tarihleri saat içermediği için yayın-ilk görülme farkı yaklaşık kabul edilmelidir.
 
-AI promptu `src/ai/prompt.ts` içinde sürümlenir. `gpt-6-luna` yalnız kullanıcı butona bastığında çalışır; aynı kaydın doğrulanmış taslağı önbellekten sunulur. Model gövdeyi yazar; doğrulanmış hashtagler ve kaynak URL uygulama tarafından eklenir. Tamamlanmamış model cevabı veya boyut sınırını aşan kaynak sessizce kesilerek kullanılmaz. Yeni sürüm ilk taslak isteğinde eski prompt önbelleğini yeniler.
+AI promptu `src/ai/prompt.ts` içinde sürümlenir. `gpt-6-luna` yalnız kullanıcı butona bastığında çalışır; kaynak tekrar okunup içerik özeti (digest) eşleştiğinde önceki taslak önbellekten sunulur. URL içeriği değişebilen ek dosyalı kaynaklar yeniden değerlendirilir. Model gövdeyi yazar; doğrulanmış hashtagler ve kaynak URL uygulama tarafından eklenir. Tamamlanmamış model cevabı veya boyut sınırını aşan kaynak sessizce kesilerek kullanılmaz. Yeni sürüm ilk taslak isteğinde eski prompt önbelleğini yeniler. Ana metin diğer haberlerden ve menülerden ayrılır; finansal tablolar satır, başlık ve birleşik hücre bilgileriyle gönderilir. Ana metin ayrıştırılamazsa yalnız başlıktan taslak üretilmez. Prompt; işlem aşaması, taraf, dönem, para birimi, iddia/gerçek ayrımı ve ek kaynakların ilişkilendirilmesini zorunlu tutar. Modelin değerlendirme düzeyi medium, çıktı bütçesi 2400 tokendir; doğruluk kontrolü insan editörün yerini tutmaz.
 
 ## Komut Merkezi
 
@@ -99,3 +99,76 @@ npm test
 curl https://YOUR_WORKER_URL/health
 curl 'https://YOUR_WORKER_URL/api/feed?limit=10'
 ```
+
+
+## X hesaplarından finans haberleri
+
+`@haskologlu` ve `@ismailsaymaz` hesapları `nitter.cf` herkese açık RSS
+akışlarından hesap başına bağımsız bir PollShard ile 3 dakikada bir kontrol edilir.
+Ücretli X API, X API anahtarı veya tarayıcı oturumu kullanılmaz. Kaynak adresi
+`wrangler.toml` içindeki `X_NITTER_BASE_URL`, hesap listesi
+`src/x/sources.ts` içindedir. Adres değişkenini kaldırmak X kontrolünü kapatır.
+
+İlk başarılı tarama başlangıç kaydı oluşturur; mevcut tweetler Mini App'e veya
+Telegram'a gönderilmez. Sonraki taramalarda yalnız daha yeni, borsa/fon/sermaye
+piyasası filtresine uyan paylaşımlar alınır. Genel siyaset ve günlük haberler
+elenir. Retweetler ve yanıtlar alınmaz. Alıntı paylaşımlarının yazarları metinde
+ayrı belirtilir. Aynı tweet kimliği yeniden alınmaz; veritabanı işlemi başarısız
+olursa ilerleme kaydı da geri alınır. Migration gerekmez.
+
+Kayıtlar Haber/Akış ekranında `X · @hesap` kaynağıyla görünür. Telegram'ın mevcut
+outbox/retry ve taslak düğmeleri kullanılır. Okuyucu ve AI taslak üretimi RSS'ten
+alınmış tam metni kullanır; görsel ve video içeriği okunmaz. X kaynaklı iddiaların
+hesaba atfedilmesi finans editörü promptunda açıkça istenir.
+
+Nitter erişilemezse kaynak başarısız olarak kaydedilir; kontrol aralığı kademeli
+olarak 1 saate kadar uzar ve sunucunun `Retry-After` süresine uyulur. Üç ardışık
+hata mevcut operasyon izleyicisinde uyarı oluşturur. `/health` içindeki
+`x:haskologlu` ve `x:ismailsaymaz` kayıtları son başarılı kontrolü gösterir.
+Herkese açık RSS'in içerik penceresi sınırlıdır; uzun kesintilerde arada kalan
+paylaşımların tamamının alınması garanti edilmez.
+
+## Takip listesi, BIST vurgusu ve bildirim kuralları
+
+Mini App başlığındaki **🔔 Takip** düğmesi mevcut Telegram sohbetinin KAP
+bildirim kurallarını düzenler. Kaydetmek için imzalı ve yetkili Telegram
+Mini App oturumu gerekir. Kurallar sohbet kimliği altında mevcut D1
+`system_state` tablosunda tutulur; bu özellik için migration veya secret değişikliği yoktur.
+
+- **⭐ BIST 30**, **🔵 BIST 100** ve **🔔 Takip listem** hem akışta hem Telegram
+  bildirimlerinde görünür. BIST 30 hisseleri 100 filtresine de dahildir.
+- Akıştaki hızlı düğmeler takip listesi / BIST 30 / BIST 100 filtrelerini
+  sayfalama öncesinde uygular. Bildirim filtresi kayıtları Mini App'ten silmez.
+- Her takip edilen hisse için bütün önemli KAP'lar, rutinler dahil bütün KAP'lar
+  veya seçili konular seçilebilir. Konular: temettü, geri alım, finansal sonuçlar,
+  sermaye, sözleşme/iş ilişkisi, pay alım/satımı, devre kesici ve diğer.
+- Diğer şirketlerde bütün önemli bildirimler, belirli konular veya kapalı seçilir.
+  BIST önceliği varsayılan olarak açıktır; BIST 30/100 önemli bildirimleri bu
+  filtreden etkilenmez. Pay alım/satımında eski BIST 50 sınırı, öncelikli BIST 100
+  veya takip edilen hisseler için genişletilir. Rutin önem dışı başlıklar yalnız
+  açık bir hisse/konu tercihi varsa alınır.
+- Öncelik: hariç başlıklar → fon kuralı → hisseye özel kural → BIST önceliği →
+  diğer şirketler. Birden çok takip edilen hisse eşleşirse izin veren kural yeterlidir.
+- İhraç belgesi, fon ihraç sözleşmesi ve kredi kullanımı başlıkları başlangıçta
+  hariçtir. Liste arayüzden düzenlenebilir. Haber/RSS/X ve SPK gönderimleri
+  bu KAP filtrelerinden etkilenmez.
+- Fon/portföy kayıtları anlık, günlük özet veya kapalı olabilir. Özet varsayılan
+  saati İstanbul 19:00; ayarlanabilir. Seçilen saatten sonra görülen kayıtlar
+  bir sonraki özete girer. Özet AI kullanmaz: şirket/fon, bildirim başlığı ve kaynak
+  bağlantılarını içerir; en fazla sekiz kayıtlık parçalara bölünür.
+- Günlük özetler mevcut `telegram_outbox` içinde `digest` durumunda bekler,
+  daha sonra sabit üyeli bir gönderim grubuna alınır; mevcut retry/429, lease
+  ve gönderim makbuzu sistemi kullanılır. `filtered` kayıtlar saklanır ve
+  kurallar yeniden açıldığında geriye dönük gönderilmez. Gönderim için hazırlanmış
+  gruplar ve halen Telegram'a iletilen istekler önceki kuralla tamamlanabilir.
+- KAP'ın resmi [endeks sayfası](https://www.kap.org.tr/tr/Endeksler) günlük okunur.
+  30/100 üye sayısı, kod biçimi ve alt küme ilişkisi doğrulanmadan liste değiştirilmez.
+  İlk başlangıçta 28.09.2026 tarihinde doğrulanan paketli liste kullanılır.
+  Başarısız güncellemede son doğrulanan liste korunur; ayarlarda doğrulama tarihi
+  ve üç günden eskiyse uyarı görünür. Rozetler geçmiş tarihteki üyeliği değil,
+  son doğrulanan üyeliği gösterir.
+
+`GET/PUT /api/notification-preferences` ayarları yönetir;
+`GET /api/feed?scope=watchlist|bist30|bist100` öncelikli akışı getirir.
+Yayın için tip kontrolü ve testlerden sonra standart `npm run deploy` yeterlidir;
+bu özellik için `db:migrate:remote` çalıştırılmaz.

@@ -19,7 +19,7 @@ describe('persistent delivery',()=>{
     vi.advanceTimersByTime(5000);
     await enqueueStatement(env,'kap:3','dkb',{codes:['VESTL']},null).run();
     await flushCircuitBreakers(env);
-    const fetchMock=vi.fn(async(_url,init)=>{expect(init.body.get('text')).toBe('#THYAO #ASELS\n\nDevre kesici uygulandı. Sürekli işleme ara verildi.');return ok();});
+    const fetchMock=vi.fn(async(_url,init)=>{expect(init.body.get('text')).toBe('⭐ BIST 30\n\n#THYAO #ASELS\n\nDevre kesici uygulandı. Sürekli işleme ara verildi.');return ok();});
     vi.stubGlobal('fetch',fetchMock);
     await deliverOne(env);
     expect(sql.prepare("SELECT status FROM telegram_outbox WHERE id='kap:3'").get().status).toBe('buffered');

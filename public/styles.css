@@ -272,3 +272,18 @@ body.auth-denied .bottom-nav { display: none !important; }
 .access-screen span { display: inline-block; color: #2dd4a8; font-size: 24px; margin-bottom: 14px; }
 .access-screen h1 { margin: 0 0 10px; font-size: 24px; }
 .access-screen p { margin: 0; color: #8d98a8; line-height: 1.55; }
+
+/* Index and watchlist emphasis includes text, so it does not rely on color. */
+#notification-settings-button{white-space:nowrap;border:1px solid #334155;border-radius:12px;background:#172033;color:#f8fafc;padding:9px 11px;font:inherit;font-size:12px;cursor:pointer}
+.focus-filters{display:flex;gap:7px;overflow-x:auto;padding:6px 0 16px}
+.focus-filters button{white-space:nowrap;padding:9px 12px;border-radius:20px;background:#101824;color:#cbd5e1;border:1px solid #28374c;font:inherit;font-size:12px;cursor:pointer}
+.focus-filters button[aria-pressed=true]{background:#243a56;border-color:#75a8e6;color:#fff}
+.priority-badges{display:block;color:#9ecbff;font-size:11px;font-weight:700;line-height:1.7;margin-bottom:5px}
+.feed-item[data-index="30"]{border-left:3px solid #e5bd57}.feed-item[data-index="30"] .priority-badges{color:#f4d47e}
+.feed-item[data-index="100"]{border-left:3px solid #579ee5}.feed-item.watched{box-shadow:inset 0 0 0 1px #3e6584}
+#notification-settings{width:min(600px,calc(100% - 20px));max-height:90dvh;border:1px solid #334155;border-radius:20px;background:#101722;color:#e2e8f0;padding:0;overflow:auto}
+#notification-settings::backdrop{background:#000a}.notification-sheet{padding:20px}.notification-sheet header{display:flex;justify-content:space-between;align-items:center;gap:12px}.notification-sheet h2{font-size:20px}.notification-sheet h3{margin-top:25px;font-size:16px}.notification-sheet p{font-size:12px;color:#a7b5c9;line-height:1.6}.notification-sheet fieldset{border:0;padding:0;margin:0;min-width:0}.notification-sheet label{display:flex;flex-direction:column;gap:7px;font-size:13px;margin:12px 0}.notification-sheet input:not([type=checkbox]),.notification-sheet select,.notification-sheet textarea{width:100%;box-sizing:border-box;background:#0b111c;border:1px solid #3a4a62;border-radius:9px;color:#f1f5f9;padding:10px;font:inherit}.notification-sheet button{background:#22364f;color:#f1f5f9;border:1px solid #3b5778;border-radius:9px;padding:10px;font:inherit;cursor:pointer}.notification-sheet button:disabled{opacity:.5}.notification-sheet .check-label,.topic-choices label{flex-direction:row;align-items:flex-start;gap:8px}.topic-choices{display:flex;flex-wrap:wrap;gap:0 14px}.topic-choices[hidden]{display:none}.topic-choices label{font-size:12px}.watch-add{display:flex;gap:10px;align-items:center}.watch-add label{flex:1}.watch-rule{background:#162131;border-radius:12px;padding:12px;margin:10px 0}.watch-rule>select{margin:8px 0}.notification-actions{display:flex;flex-wrap:wrap;gap:10px}.notification-sheet #notification-save{background:#246b57}.notification-sheet #notification-status{color:#aadcc5;min-height:20px}
+
+.focus-filters[hidden]{display:none}
+
+@media(max-width:480px){.focus-filters{flex-wrap:wrap;overflow:visible}.focus-filters button{flex:1 0 calc(50% - 7px)}}

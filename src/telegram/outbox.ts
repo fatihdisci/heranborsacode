@@ -1,3 +1,5 @@
+import { getPreferences, decide, markers, symbols } from "../notifications/rules";
+import { getIndices } from "../notifications/indices";
 import type { Env } from "../types";
 import { escapeTelegramHtml, sha256 } from "../utils/text";
 import { sendDocument, sendMessage, TelegramError } from "./client";
@@ -20,17 +22,18 @@ function utcTime(value: string): number { return Date.parse(value.includes('T') 
 
 // The AI-era outbox remains in D1. Never deliver its pending source messages,
 // action replies, or operational alerts after the finance runtime returns.
-export const financeOutboxPredicate = `(q.source_ref LIKE 'kap:%' OR q.source_ref LIKE 'spk:%' OR q.source_ref LIKE 'rss:%'
-  OR q.id LIKE 'dkb:%'
+export const financeOutboxPredicate = `(q.source_ref LIKE 'kap:%' OR q.source_ref LIKE 'spk:%' OR q.source_ref LIKE 'rss:%' OR q.source_ref LIKE 'x:%'
+  OR q.id LIKE 'digest:%' OR q.id LIKE 'dkb:%'
   OR (q.id LIKE 'action:%' AND EXISTS (
     SELECT 1 FROM telegram_actions a JOIN feed_items f ON f.id=a.feed_item_id
     WHERE q.id='action:' || a.id AND f.category IS NULL))
+  OR q.id LIKE 'alert:x:%' OR q.id LIKE 'recovery:x:%'
   OR q.id LIKE 'alert:kap:%' OR q.id LIKE 'alert:spk:%' OR q.id LIKE 'alert:rss:%'
   OR q.id LIKE 'alert:telegram:%' OR q.id LIKE 'alert:delivery-queue:%'
   OR q.id LIKE 'recovery:kap:%' OR q.id LIKE 'recovery:spk:%' OR q.id LIKE 'recovery:rss:%'
   OR q.id LIKE 'recovery:telegram:%' OR q.id LIKE 'recovery:delivery-queue:%')
   AND ((SELECT value FROM system_state WHERE key='finance_notification_cutoff_at') IS NULL
-    OR ((q.source_ref LIKE 'kap:%' OR q.source_ref LIKE 'rss:%')
+    OR ((q.source_ref LIKE 'kap:%' OR q.source_ref LIKE 'rss:%' OR q.source_ref LIKE 'x:%')
       AND q.published_at >= (SELECT value FROM system_state WHERE key='finance_notification_cutoff_at'))
     OR (q.source_ref LIKE 'spk:%' AND q.first_seen_at >= (SELECT value FROM system_state WHERE key='finance_notification_cutoff_at')
       AND q.published_at IS NOT NULL AND julianday(q.published_at)+1 > julianday((SELECT value FROM system_state WHERE key='finance_notification_cutoff_at')))
@@ -49,17 +52,30 @@ export function retryDelay(attempt: number, retryAfter = 0): number {
 }
 
 export async function flushCircuitBreakers(env: Env, now = Date.now()): Promise<void> {
-  const rows = (await env.DB.prepare(`SELECT id,payload,first_seen_at FROM telegram_outbox
-    WHERE status='buffered' AND source_ref LIKE 'kap:%'
+  const rows = (await env.DB.prepare(`SELECT q.id,q.payload,q.first_seen_at,
+    CASE WHEN f.id IS NULL THEN NULL ELSE json_object('type',f.type,'title',f.title,'body',f.body,'tickers_json',f.tickers_json) END AS feed_json
+    FROM telegram_outbox q LEFT JOIN feed_items f ON f.source_ref=q.source_ref AND f.category IS NULL
+    WHERE q.status='buffered' AND q.source_ref LIKE 'kap:%'
       AND ((SELECT value FROM system_state WHERE key='finance_notification_cutoff_at') IS NULL
-        OR published_at >= (SELECT value FROM system_state WHERE key='finance_notification_cutoff_at'))
-    ORDER BY first_seen_at,id LIMIT 100`).all<Job>()).results ?? [];
+        OR q.published_at >= (SELECT value FROM system_state WHERE key='finance_notification_cutoff_at'))
+    ORDER BY q.first_seen_at,q.id LIMIT 100`).all<Job & {feed_json:string|null}>()).results ?? [];
   if (!rows.length || now < utcTime(rows[0].first_seen_at) + DKB_WINDOW_MS) return;
   const cutoff = utcTime(rows[0].first_seen_at) + DKB_WINDOW_MS;
-  const group = rows.filter(row => utcTime(row.first_seen_at) <= cutoff);
+  const candidates = rows.filter(row => utcTime(row.first_seen_at) <= cutoff);
+  const preferences=await getPreferences(env),indices=await getIndices(env);
+  const group:Job[]=[],filtered:D1PreparedStatement[]=[];
+  for(const row of candidates) {
+    const item=row.feed_json?JSON.parse(row.feed_json) as FeedItem:null;
+    if(item && decide(item,preferences,indices).action==='off') {
+      filtered.push(env.DB.prepare("UPDATE telegram_outbox SET status='filtered',last_error='Bildirim kuralı' WHERE id=? AND status='buffered'").bind(row.id));
+    } else group.push(row);
+  }
+  if(filtered.length)await env.DB.batch(filtered);
+  if(!group.length)return;
   const codes = [...new Set(group.flatMap(row => (JSON.parse(row.payload) as DeliveryPayload).codes ?? []))];
   const id = `dkb:${await sha256(group.map(row => row.id).join('|'))}`;
-  const text = `${codes.map(code => `#${code}`).join(' ')}\n\nDevre kesici uygulandı. Sürekli işleme ara verildi.`;
+  const label=markers(codes,preferences,indices);
+  const text = `${label ? label+"\n\n" : ""}${codes.map(code => `#${code}`).join(' ')}\n\nDevre kesici uygulandı. Sürekli işleme ara verildi.`;
   // Membership is frozen transactionally. Arrivals during Telegram I/O belong
   // to the next group and can never be marked sent by this group's receipt.
   await env.DB.batch([
@@ -91,9 +107,27 @@ export async function deliverOne(env: Env): Promise<number> {
   const payload = JSON.parse(job.payload) as DeliveryPayload;
   let messageId: number;
   try {
-    if (env.TELEGRAM_WEBHOOK_SECRET && job.kind === 'message' && job.source_ref) {
-      const item = await env.DB.prepare('SELECT * FROM feed_items WHERE source_ref=?').bind(job.source_ref).first<FeedItem>();
-      if (item) payload.keyboard = feedKeyboard(item,payload.button);
+    if (job.kind === 'message' && job.source_ref) {
+      const item = await env.DB.prepare('SELECT * FROM feed_items WHERE source_ref=? AND category IS NULL').bind(job.source_ref).first<FeedItem>();
+      if(item) {
+        const preferences=await getPreferences(env),indices=await getIndices(env);
+        const decision=decide(item,preferences,indices);
+        if(decision.action!=='instant') {
+          await env.DB.prepare("UPDATE telegram_outbox SET status=?,available_at=?,lease_until=0,last_error=? WHERE id=?")
+            .bind(decision.action==='digest'?'digest':'filtered',nextDigestAt(utcTime(job.first_seen_at)||now,preferences.digestHour),decision.reason,job.id).run();
+          return 1100;
+        }
+        const label=markers(symbols(item),preferences,indices);
+        if(label)payload.text=label+'\n\n'+(payload.text??'');
+        if(env.TELEGRAM_WEBHOOK_SECRET)payload.keyboard=feedKeyboard(item,payload.button);
+      }
+    }
+    if(job.kind==='daily_digest') {
+      const preferences=await getPreferences(env);
+      if(preferences.funds==='off') {
+        await env.DB.prepare("UPDATE telegram_outbox SET status='filtered',lease_until=0,last_error='Fon bildirimleri kapalı' WHERE id=? OR group_id=?").bind(job.id,job.id).run();
+        return 1100;
+      }
     }
     messageId = payload.document
       ? await sendDocument(env, payload.document.url, payload.document.filename)
@@ -121,6 +155,37 @@ export async function deliverOne(env: Env): Promise<number> {
 }
 
 export async function pollDelivery(env: Env): Promise<number> {
+  await flushDailyDigest(env);
   await flushCircuitBreakers(env);
   return deliverOne(env);
+}
+
+// Europe/Istanbul is UTC+03:00; this is the next selected local hour.
+export function nextDigestAt(now:number,hour:number):number {
+  const local=new Date(now+3*3600_000);
+  let due=Date.UTC(local.getUTCFullYear(),local.getUTCMonth(),local.getUTCDate(),hour-3);
+  if(due<=now)due+=24*3600_000;
+  return due;
+}
+export async function flushDailyDigest(env:Env,now=Date.now()):Promise<void> {
+  const candidates=(await env.DB.prepare(`SELECT q.id,q.first_seen_at,f.title,f.body,f.url FROM telegram_outbox q
+    JOIN feed_items f ON f.source_ref=q.source_ref WHERE q.status='digest' AND q.available_at<=? AND f.category IS NULL
+    AND ${financeOutboxPredicate} ORDER BY q.available_at,q.id LIMIT 8`).bind(now).all<{id:string;first_seen_at:string;title:string;body:string|null;url:string}>()).results??[];
+  if(!candidates.length)return;
+  const preferences=await getPreferences(env),indices=await getIndices(env);
+  const rows:typeof candidates=[],filtered:D1PreparedStatement[]=[];
+  for(const row of candidates) {
+    const decision=decide({...row,id:0,type:'kap',tickers_json:'[]',source:'KAP',source_ref:row.id,published_at:null,created_at:row.first_seen_at},preferences,indices);
+    if(decision.action==='off')filtered.push(env.DB.prepare("UPDATE telegram_outbox SET status='filtered',last_error=? WHERE id=? AND status='digest'").bind(decision.reason,row.id));
+    else rows.push(row);
+  }
+  if(filtered.length)await env.DB.batch(filtered);
+  if(!rows.length)return;
+  const id='digest:' +await sha256(rows.map(r=>r.id).join('|'));
+  const date=new Intl.DateTimeFormat('tr-TR',{timeZone:'Europe/Istanbul',day:'2-digit',month:'2-digit',year:'numeric'}).format(now);
+  const text=`🏦 <b>Fon bildirimleri · Günlük özet · ${date}</b>\n${rows.length} kayıt (yoğun günlerde bölümler halinde)\n\n`+rows.map(r=>`• <a href="${escapeTelegramHtml(r.url)}">${escapeTelegramHtml(r.title.slice(0,160))}</a>\n${escapeTelegramHtml((r.body??'').slice(0,100))}`).join('\n\n');
+  await env.DB.batch([
+    enqueueStatement(env,id,'daily_digest',{text},null,rows[0].first_seen_at,null),
+    ...rows.map(row=>env.DB.prepare("UPDATE telegram_outbox SET status='grouped',group_id=? WHERE id=? AND status='digest'").bind(id,row.id)),
+  ]);
 }

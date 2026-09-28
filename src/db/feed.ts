@@ -12,7 +12,7 @@ export function feedStatement(env: Env, item: Omit<FeedItem, "id" | "created_at"
 
 export interface FeedCursor { time: string; id: number; }
 
-export async function listFeed(env: Env, filters: { type?: FeedType; ticker?: string; q?: string; source?: string; cursor?: FeedCursor; limit: number }): Promise<{ items: FeedItem[]; nextCursor: string | null }> {
+export async function listFeed(env: Env, filters: { type?: FeedType; ticker?: string; q?: string; source?: string; tickerList?: string[]; cursor?: FeedCursor; limit: number }): Promise<{ items: FeedItem[]; nextCursor: string | null }> {
   const timeline = "COALESCE(published_at, created_at)";
   // Migration 0016 keeps AI Radar rows for history. Only pre-transition
   // finance rows (and new finance inserts, which leave category NULL) belong
@@ -22,6 +22,10 @@ export async function listFeed(env: Env, filters: { type?: FeedType; ticker?: st
   if (filters.cursor) {
     conditions.push(`(${timeline} < ? OR (${timeline} = ? AND id < ?))`);
     values.push(filters.cursor.time, filters.cursor.time, filters.cursor.id);
+  }
+  if (filters.tickerList) {
+    if (!filters.tickerList.length) conditions.push('0=1');
+    else { conditions.push(`EXISTS (SELECT 1 FROM json_each(CASE WHEN json_valid(tickers_json) THEN tickers_json ELSE '[]' END) t WHERE t.value IN (${filters.tickerList.map(()=>'?').join(',')}))`);values.push(...filters.tickerList); }
   }
   if (filters.type) { conditions.push("type = ?"); values.push(filters.type); }
   if (filters.source) { conditions.push("source = ?"); values.push(filters.source); }

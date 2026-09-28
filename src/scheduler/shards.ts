@@ -1,3 +1,5 @@
+import { X_ACCOUNTS, X_POLL_INTERVAL_MS } from "../x/sources";
+import { pollXAccount, XPollError } from "../x/poll";
 import { DurableObject } from "cloudflare:workers";
 import { pollPublicKAPBackfill, pollPublicKAPLive } from "../kap/public";
 import { pollRSSSource } from "../rss/poll";
@@ -9,6 +11,7 @@ import { monitorOperations } from './monitor';
 
 export const POLL_TASKS = [
   ...RSS_SOURCES.map((_, index) => `rss:${index}`),
+  ...X_ACCOUNTS.map(account => `x:${account}`),
   "kap:live",
   "kap:backfill",
   "spk",
@@ -40,6 +43,7 @@ function nextSpkRun(now = Date.now()): number {
 }
 
 export function nextAlarmAt(task: PollTask, now = Date.now()): number {
+  if (task.startsWith('x:')) return now + X_POLL_INTERVAL_MS;
   if (task === 'telegram') return now + 3000;
   if (task === "kap:live") return now + 30_000;
   if (task === "kap:backfill") return now + 10 * 60_000;
@@ -48,6 +52,7 @@ export function nextAlarmAt(task: PollTask, now = Date.now()): number {
 }
 
 async function runTask(env: Env, task: PollTask): Promise<number | null> {
+  if (task.startsWith('x:')) { await pollXAccount(env,task.slice(2)); return null; }
   if (task === 'telegram') return pollDelivery(env);
   if (task === 'monitor') { await monitorOperations(env); return null; }
   if (task.startsWith("rss:")) {
@@ -97,6 +102,7 @@ export class PollShard extends DurableObject<Env> {
       nextDelayMs = await runTask(this.env, task);
     } catch (cause) {
       error = cause instanceof Error ? cause.message : String(cause);
+      if (cause instanceof XPollError) nextDelayMs = cause.retryAfterMs;
       console.error("poll shard failed", { task, error });
     } finally {
       const health = await this.ctx.storage.get<{failures:number;lastSuccessAt:string|null;recordedAt?:number}>('health');
@@ -104,12 +110,13 @@ export class PollShard extends DurableObject<Env> {
       const failures = error ? previousFailures+1 : 0;
       const lastSuccessAt = error ? health?.lastSuccessAt ?? null : new Date().toISOString();
       // Back off failing upstreams, and schedule SPK retries before its next long interval.
-      const next = error ? Date.now()+Math.min(300_000,30_000*2**Math.min(failures-1,4)) : nextDelayMs === null ? nextAlarmAt(task) : Date.now()+nextDelayMs;
-      await this.ctx.storage.setAlarm(next);
+      const next = error ? Date.now()+ (task.startsWith('x:') ? Math.min(3_600_000,X_POLL_INTERVAL_MS*2**Math.min(failures-1,5)) : Math.min(300_000,30_000*2**Math.min(failures-1,4))) : nextDelayMs === null ? nextAlarmAt(task) : Date.now()+nextDelayMs;
+      const scheduledAt = error && nextDelayMs ? Math.max(next,Date.now()+nextDelayMs) : next;
+      await this.ctx.storage.setAlarm(scheduledAt);
       // A hot delivery queue must not write a D1 heartbeat for every message.
       if (task !== 'telegram' || error || previousFailures || Date.now()-Math.max(this.lastHealthWrite,health?.recordedAt ?? 0)>=60_000) {
         await this.ctx.storage.put('health',{failures,lastSuccessAt,recordedAt:Date.now()});
-        await recordResult(this.env,task,startedAt,error,failures,lastSuccessAt,next);
+        await recordResult(this.env,task,startedAt,error,failures,lastSuccessAt,scheduledAt);
         this.lastHealthWrite=Date.now();
       }
     }
@@ -117,12 +124,13 @@ export class PollShard extends DurableObject<Env> {
 }
 
 export async function ensurePollingShards(env: Env): Promise<void> {
-  const outcomes = await Promise.allSettled(POLL_TASKS.map(async task => {
+  const tasks = POLL_TASKS.filter(task => !task.startsWith("x:") || !!env.X_NITTER_BASE_URL);
+  const outcomes = await Promise.allSettled(tasks.map(async task => {
     const id = env.POLL_SHARDS.idFromName(task);
     const response = await env.POLL_SHARDS.get(id).fetch(`https://poll-shard.internal/ensure?task=${encodeURIComponent(task)}`);
     if (!response.ok) throw new Error(`${task} supervisor HTTP ${response.status}`);
   }));
   for (const [index, outcome] of outcomes.entries()) {
-    if (outcome.status === "rejected") console.error("poll shard supervisor failed", { task: POLL_TASKS[index], error: String(outcome.reason) });
+    if (outcome.status === "rejected") console.error("poll shard supervisor failed", { task: tasks[index], error: String(outcome.reason) });
   }
 }

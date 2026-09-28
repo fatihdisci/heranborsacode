@@ -1,3 +1,4 @@
+import { refreshIndices } from "./notifications/indices";
 import { api } from "./api/routes";
 import { ensurePollingShards, PollShard } from "./scheduler/shards";
 import type { Env } from "./types";
@@ -50,6 +51,7 @@ export default {
     return privateResponse(response ?? await env.ASSETS.fetch(request));
   },
   async scheduled(event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    ctx.waitUntil(refreshIndices(env));
     ctx.waitUntil(runScheduled(env));
     ctx.waitUntil(retryUnnotifiedCommandJobs(env));
   }

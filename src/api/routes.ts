@@ -1,3 +1,6 @@
+import { getPreferences, savePreferences, TOPICS, decide } from "../notifications/rules";
+import { getIndices } from "../notifications/indices";
+import { X_ACCOUNTS } from "../x/sources";
 import type { Env, FeedType } from "../types";
 import { listFeed } from "../db/feed";
 import { json } from "../utils/http";
@@ -18,6 +21,15 @@ function extensionCorsHeaders(request:Request):HeadersInit {
 
 export async function api(request: Request, env: Env): Promise<Response | null> {
   const url = new URL(request.url);
+  if(url.pathname==='/api/notification-preferences') {
+    if(!await authorizeTelegramRequest(request,env))return json({error:'unauthorized'},401);
+    if(request.method==='GET')return json({preferences:await getPreferences(env),indices:await getIndices(env),topics:TOPICS},200,{'cache-control':'no-store'});
+    if(request.method!=='PUT')return json({error:'method_not_allowed'},405,{allow:'GET, PUT'});
+    let value:unknown;
+    try {const raw=await request.text();if(raw.length>25000)return json({error:'payload_too_large'},413);value=JSON.parse(raw);}catch{return json({error:'invalid_json'},400);}
+    try {return json({preferences:await savePreferences(env,value)},200,{'cache-control':'no-store'});}
+    catch(error){if(error instanceof Error&&error.message==='Geçersiz bildirim kuralı')return json({error:'invalid_preferences'},400);throw error;}
+  }
   if(url.pathname==='/api/x-draft') {
     const cors=extensionCorsHeaders(request);
     const reply=(data:unknown,status=200,headers:HeadersInit={})=>json(data,status,{...cors,...headers});
@@ -61,6 +73,7 @@ export async function api(request: Request, env: Env): Promise<Response | null> 
       const cronState = Object.fromEntries((cron.results ?? []).map(row => [row.key, row.value]));
       const shards = await env.DB.prepare("SELECT key,value FROM system_state WHERE key LIKE 'poll_shard:%' ORDER BY key").all<{ key: string; value: string }>();
       const activeTasks = new Set<string>([...RSS_SOURCES.map((_, index) => `rss:${index}`), 'kap:live', 'kap:backfill', 'spk', 'telegram', 'monitor']);
+      if (env.X_NITTER_BASE_URL) X_ACCOUNTS.forEach(account => activeTasks.add(`x:${account}`));
       const shardState = Object.fromEntries((shards.results ?? []).filter(row => activeTasks.has(row.key.slice('poll_shard:'.length))).map(row => {
         try { return [row.key.slice("poll_shard:".length), JSON.parse(row.value)]; }
         catch { return [row.key.slice("poll_shard:".length), { error: "invalid_state" }]; }
@@ -126,6 +139,10 @@ export async function api(request: Request, env: Env): Promise<Response | null> 
   const ticker = url.searchParams.get("ticker")?.trim().toUpperCase().replace(/[^A-Z0-9]/g, "") || undefined;
   const q = url.searchParams.get("q")?.trim().slice(0, 120) || undefined;
   const source = url.searchParams.get("source")?.trim().slice(0, 100) || undefined;
-  const result = await listFeed(env, { type: requestedType as FeedType | undefined, ticker, q, source, cursor, limit });
-  return json(result, 200, { "cache-control": "public, max-age=15" });
+  const scope=url.searchParams.get('scope')??'';
+  if(!['','watchlist','bist30','bist100'].includes(scope))return json({error:'invalid_scope'},400);
+  const preferences=await getPreferences(env),indices=await getIndices(env);
+  const tickerList=scope==='watchlist'?preferences.watchlist.map(w=>w.ticker):scope==='bist30'?indices.bist30:scope==='bist100'?indices.bist100:undefined;
+  const result = await listFeed(env, { type: requestedType as FeedType | undefined, ticker, q, source, cursor, limit, tickerList });
+  return json({...result,items:result.items.map(item=>({...item,notification:decide(item,preferences,indices)})),indicesCheckedAt:indices.checkedAt}, 200, { "cache-control": "no-store" });
 }

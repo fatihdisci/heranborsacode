@@ -1,3 +1,4 @@
+import { X_ACCOUNTS } from '../x/sources';
 import type { Env } from '../types';
 import { enqueueStatement, financeOutboxPredicate } from '../telegram/outbox';
 import { RSS_SOURCES } from '../rss/sources';
@@ -15,11 +16,13 @@ export function shardProblem(state: ShardHealth, now: number): string | null {
   return null;
 }
 function label(task: string): string {
+  if (task.startsWith('x:')) return `X · @${task.slice(2)}`;
   return task.startsWith('rss:') ? RSS_SOURCES[Number(task.slice(4))]?.name ?? task : ({'kap:live':'KAP canlı akışı','kap:backfill':'KAP geçmiş taraması',spk:'SPK',telegram:'Telegram gönderimleri'}[task] ?? task);
 }
 function isFinanceIncident(task: string): boolean {
   return task === 'kap:live' || task === 'kap:backfill' || task === 'spk'
     || task === 'telegram' || task === 'delivery-queue'
+    || task.startsWith('x:') && (X_ACCOUNTS as readonly string[]).includes(task.slice(2))
     || /^rss:\d+$/.test(task) && Number(task.slice(4)) < RSS_SOURCES.length;
 }
 
@@ -29,7 +32,7 @@ export async function monitorOperations(env: Env): Promise<void> {
   const problems = new Map<string,string>();
   for (const row of states) {
     const task = row.key.slice('poll_shard:'.length);
-    if (!isFinanceIncident(task) || task === 'monitor') continue;
+    if (!isFinanceIncident(task) || task === 'monitor' || task.startsWith('x:') && !env.X_NITTER_BASE_URL) continue;
     const state = JSON.parse(row.value) as ShardHealth;
     // Old versions did not record the next planned run (notably for SPK).
     // Wait for the first new heartbeat instead of creating a migration alarm.

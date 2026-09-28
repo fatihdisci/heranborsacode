@@ -63,6 +63,30 @@ def telegram_client(config: dict[str, Any]) -> TelegramClient:
     return TelegramClient(StringSession(config["session"]), int(config["api_id"]), config["api_hash"])
 
 
+async def ensure_telegram_connection(client: TelegramClient, *, probe: bool = False) -> None:
+    """Recover after Telethon exhausts its own automatic reconnection attempts."""
+    if client.is_connected() and not probe:
+        return
+    for attempt in range(3):
+        try:
+            reconnecting = not client.is_connected()
+            if reconnecting:
+                await asyncio.wait_for(client.connect(), timeout=30)
+            # is_user_authorized can use cached state. A real request also
+            # detects an expired session or a connection left stale by sleep.
+            if not await asyncio.wait_for(client.get_me(), timeout=30):
+                raise RuntimeError("Telegram oturumu geçersiz; Teleflow oturumunu yeniden doğrulayın.")
+            if reconnecting:
+                log.info("Telegram bağlantısı ve oturumu doğrulandı; komut ajanı hazır.")
+            return
+        except (OSError, asyncio.TimeoutError):
+            await client.disconnect()
+            if attempt == 2:
+                raise ConnectionError("Telegram bağlantısı yeniden kurulamadı.") from None
+            log.warning("Telegram yeniden bağlanıyor (%s/3).", attempt + 2)
+            await asyncio.sleep(2 * (attempt + 1))
+
+
 class CloudQueue:
     def __init__(self) -> None:
         self.client = httpx.AsyncClient(
@@ -164,6 +188,9 @@ async def run_step(client: TelegramClient, queue: CloudQueue, job_id: str, lease
     command = str(step["command"])
     while True:
         try:
+            # Recover before sending. Never blindly replay a command after an
+            # ambiguous send/response failure: the bot may already have run it.
+            await ensure_telegram_connection(client, probe=True)
             slow_response_bot = is_slow_response_bot(bot_username)
             conversation_timeout = 144 if slow_response_bot else 120
             quiet_timeout = 2.4 if slow_response_bot else 2
@@ -203,20 +230,24 @@ async def run_step(client: TelegramClient, queue: CloudQueue, job_id: str, lease
 async def execute_job(client: TelegramClient, queue: CloudQueue, payload: dict[str, Any]) -> None:
     job, lease = payload["job"], payload["leaseToken"]
     results: list[dict[str, Any]] = []
+    stage = "İş başlangıcı"
     try:
         log.info("İş başladı: %s (%s komut)", job["id"], len(job["steps"]))
         for index, step in enumerate(job["steps"]):
+            stage = f"Adım {index + 1}/{len(job['steps'])}: @{step['botUsername']} {step['command']}"
             await queue.renew(job["id"], lease)
             results.extend(await run_step(client, queue, job["id"], lease, step, index))
             if index < len(job["steps"]) - 1:
                 delay_seconds = max(1.0, min(30.0, float(step.get("delaySeconds", 4))))
                 await asyncio.sleep(delay_seconds)
+        stage = "Sonuçları kaydetme"
         await queue.complete(job["id"], lease, results)
         log.info("İş tamamlandı: %s", job["id"])
     except Exception as error:
         log.exception("İş başarısız: %s", job["id"])
         try:
-            await queue.complete(job["id"], lease, results, str(error)[:900])
+            detail = str(error) or ("Bot yanıtı zaman aşımına uğradı." if isinstance(error, asyncio.TimeoutError) else type(error).__name__)
+            await queue.complete(job["id"], lease, results, f"{stage}: {detail}"[:900])
         except Exception:
             log.exception("Hata sonucu Cloudflare'a bildirilemedi")
 
@@ -227,13 +258,12 @@ async def main() -> None:
     client = telegram_client(config)
     queue = CloudQueue()
     backoff = POLL_SECONDS
-    await client.connect()
-    if not await client.is_user_authorized():
-        raise RuntimeError("Telegram kullanıcı oturumu geçersiz; Teleflow oturumunu yeniden doğrulayın.")
-    log.info("Heran Borsa komut ajanı hazır.")
     try:
         while True:
             try:
+                # Do not lease jobs while Telegram is offline. Leave them in
+                # D1 until connectivity recovers instead of marking them failed.
+                await ensure_telegram_connection(client)
                 payload = await queue.claim()
                 backoff = POLL_SECONDS
                 if payload:
@@ -241,7 +271,7 @@ async def main() -> None:
                 else:
                     await asyncio.sleep(POLL_SECONDS)
             except (httpx.HTTPError, OSError) as error:
-                log.warning("Cloudflare bağlantısı bekleniyor: %s", type(error).__name__)
+                log.warning("Telegram/Cloudflare bağlantısı bekleniyor: %s", type(error).__name__)
                 await asyncio.sleep(backoff)
                 backoff = min(60, backoff * 2)
     finally:

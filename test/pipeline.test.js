@@ -49,7 +49,7 @@ it('groups 100 DKBs into one accepted message and preserves all references',asyn
   expect(sql.prepare("SELECT count(*) AS n FROM telegram_outbox WHERE status='sent' AND source_ref IS NOT NULL").get().n).toBe(100);
   expect(mock).toHaveBeenCalledTimes(1);
 });
-it('keeps GPT-5.6 Luna, separates source data, caches validated output and rejects truncation',async()=>{
+it('keeps GPT-6 Luna, separates source data, caches validated output and rejects truncation',async()=>{
   sql.exec("INSERT INTO feed_items(type,source,source_ref,title,body,url,tickers_json) VALUES ('news','Test','rss:ai','Vestel sözleşme','2 milyon avro','https://example.com/news','[\"VESTL\"]')");
   const item=sql.prepare('SELECT * FROM feed_items').get();
   let incomplete=false;
@@ -63,7 +63,7 @@ it('keeps GPT-5.6 Luna, separates source data, caches validated output and rejec
   const result=await generateTweetDraft({...env,OPENAI_API_KEY:'test-fake'},item);
   expect(result.tweet).toContain('#VESTL\n\nVestel');expect(result.tweet).toContain('🔗 '+item.url);
   expect((await generateTweetDraft({...env,OPENAI_API_KEY:'test-fake'},item)).cached).toBe(true);
-  expect(mock).toHaveBeenCalledTimes(2);
+  expect(mock).toHaveBeenCalledTimes(3);
   sql.exec('DELETE FROM ai_tweet_drafts');incomplete=true;
   await expect(generateTweetDraft({...env,OPENAI_API_KEY:'test-fake'},item)).rejects.toThrow('tamamlanmadı');
   expect(sql.prepare('SELECT count(*) AS n FROM ai_tweet_drafts').get().n).toBe(0);
@@ -87,4 +87,37 @@ it('regenerates ordinary drafts and sends extra instructions without overwriting
   expect(instructions[2]).toContain('Heran Borsa');
   expect((await generateTweetDraft(configured,item)).tweet).toContain('taslağı 2');
   expect(calls).toBe(3);
+});
+it('invalidates cached drafts when source facts change and refuses unreadable evidence',async()=>{
+  sql.exec("INSERT INTO feed_items(type,source,source_ref,title,body,url,tickers_json) VALUES ('news','Test','rss:updated','Kredi','Eski özet','https://example.com/updated','[]')");
+  const item=sql.prepare("SELECT * FROM feed_items WHERE source_ref='rss:updated'").get();
+  let html='<article>Şirket kredi limiti için başvurdu.</article>', calls=0;
+  vi.stubGlobal('fetch',vi.fn(async(url,init)=>{
+    if(url===item.url)return new Response(html,{headers:{'content-type':'text/html'}});
+    calls++;const body=JSON.parse(init.body), evidence=JSON.parse(body.input[0].content[0].text);
+    expect(evidence.source.kind).toBe('article');expect(evidence.target.sourceRef).toBe(item.source_ref);
+    expect(body.reasoning.effort).toBe('medium');
+    return new Response(JSON.stringify({status:'completed',output_text:calls===1?'Şirket kredi limiti için başvurdu.':'Şirketin kredi limiti onaylandı.'}));
+  }));
+  const configured={...env,OPENAI_API_KEY:'test-fake'};
+  await generateTweetDraft(configured,item);
+  html='<article>Şirketin kredi limiti onaylandı.</article>';
+  expect((await generateTweetDraft(configured,item)).cached).toBe(false);expect(calls).toBe(2);
+  html='<h1>Şirketin kredi limiti onaylandı.</h1>';
+  await expect(generateTweetDraft(configured,item)).rejects.toThrow('ana metni');expect(calls).toBe(2);
+});
+it('maps PDF attachments to source references and does not reuse URL-only evidence caches',async()=>{
+  sql.exec("INSERT INTO feed_items(type,source,source_ref,title,url,tickers_json) VALUES ('spk','SPK','spk:pdf','Bülten','https://example.com/bulten.pdf','[]')");
+  const item=sql.prepare("SELECT * FROM feed_items WHERE source_ref='spk:pdf'").get();let calls=0;
+  vi.stubGlobal('fetch',vi.fn(async(url,init)=>{
+    if(url===item.url)return new Response('PDF',{headers:{'content-type':'application/pdf'}});
+    calls++;const content=JSON.parse(init.body).input[0].content;
+    const evidence=JSON.parse(content[0].text);
+    expect(evidence.source.kind).toBe('pdf');expect(evidence.attachmentReferences[0].id).toBe('attachment-1');
+    expect(JSON.parse(content[1].text).attachedSource).toBe('attachment-1');
+    expect(content[2]).toEqual({type:'input_file',file_url:item.url,detail:'high'});
+    return new Response(JSON.stringify({status:'completed',output_text:'SPK başvuruyu onayladı.'}));
+  }));
+  const configured={...env,OPENAI_API_KEY:'test-fake'};
+  await generateTweetDraft(configured,item);expect((await generateTweetDraft(configured,item)).cached).toBe(false);expect(calls).toBe(2);
 });
