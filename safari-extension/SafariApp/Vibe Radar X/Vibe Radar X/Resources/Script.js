@@ -1,9 +1,9 @@
 function show(enabled, useSettingsInsteadOfPreferences) {
     if (useSettingsInsteadOfPreferences) {
-        document.getElementsByClassName('state-on')[0].innerText = "Vibe Radar X’s extension is currently on. You can turn it off in the Extensions section of Safari Settings.";
-        document.getElementsByClassName('state-off')[0].innerText = "Vibe Radar X’s extension is currently off. You can turn it on in the Extensions section of Safari Settings.";
-        document.getElementsByClassName('state-unknown')[0].innerText = "You can turn on Vibe Radar X’s extension in the Extensions section of Safari Settings.";
-        document.getElementsByClassName('open-preferences')[0].innerText = "Quit and Open Safari Settings…";
+        document.getElementsByClassName('state-on')[0].innerText = "Heran Borsa X Taslakları Safari'de etkin.";
+        document.getElementsByClassName('state-off')[0].innerText = "Heran Borsa X Taslakları Safari'de kapalı.";
+        document.getElementsByClassName('state-unknown')[0].innerText = "Safari Ayarları > Uzantılar bölümünden Heran Borsa X Taslakları'nı etkinleştirin.";
+        document.getElementsByClassName('open-preferences')[0].innerText = "Safari Uzantı Ayarlarını Aç";
     }
 
     if (typeof enabled === "boolean") {

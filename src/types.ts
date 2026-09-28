@@ -8,6 +8,7 @@ export interface Env {
   TELEGRAM_CHAT_ID?: string;
   TELEGRAM_ALLOWED_USERNAME?: string;
   COMMAND_AGENT_TOKEN?: string;
+  SAFARI_EXTENSION_TOKEN?: string;
   COMMAND_MEDIA: R2Bucket;
   MKK_API_KEY?: string;
   MKK_API_SECRET?: string;

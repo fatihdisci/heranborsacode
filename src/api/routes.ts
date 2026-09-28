@@ -3,13 +3,44 @@ import { listFeed } from "../db/feed";
 import { json } from "../utils/http";
 import { generateTweetDraft } from "../ai/tweet";
 import { authorizeTelegramRequest } from "../security/telegram";
+import { authorizeExtension, takeExtensionRateSlot } from "../security/extension";
 import { readerContent } from '../reader/content';
 import { RSS_SOURCES } from '../rss/sources';
+import { generateXDraft, parseXDraftInput } from '../ai/x-draft';
 
 const TYPES = new Set<FeedType>(["kap", "spk", "news"]);
 
+function extensionCorsHeaders(request:Request):HeadersInit {
+  const origin=request.headers.get('origin')??'';
+  if(!/^safari-web-extension:\/\/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(origin))return {};
+  return {'access-control-allow-origin':origin,'access-control-allow-methods':'POST','access-control-allow-headers':'authorization,content-type','access-control-max-age':'600','vary':'Origin'};
+}
+
 export async function api(request: Request, env: Env): Promise<Response | null> {
   const url = new URL(request.url);
+  if(url.pathname==='/api/x-draft') {
+    const cors=extensionCorsHeaders(request);
+    const reply=(data:unknown,status=200,headers:HeadersInit={})=>json(data,status,{...cors,...headers});
+    if(request.method==='OPTIONS')return Object.keys(cors).length?new Response(null,{status:204,headers:cors}):reply({error:'forbidden_origin'},403);
+    if(request.method!=='POST')return reply({error:'method_not_allowed'},405);
+    if(!env.SAFARI_EXTENSION_TOKEN||env.SAFARI_EXTENSION_TOKEN.length<32)return reply({error:'extension_not_configured'},503);
+    if(!await authorizeExtension(request,env))return reply({error:'unauthorized'},401);
+    if(!env.OPENAI_API_KEY)return reply({error:'openai_not_configured'},503);
+    let body:unknown;
+    try {
+      const raw=await request.text();
+      if(raw.length>15_000)return reply({error:'payload_too_large'},413);
+      body=JSON.parse(raw);
+    } catch {return reply({error:'invalid_json'},400);}
+    const input=parseXDraftInput(body);
+    if(!input)return reply({error:'invalid_input'},400);
+    if(!await takeExtensionRateSlot(env))return reply({error:'rate_limited'},429,{'retry-after':'60'});
+    try {return reply({draft:await generateXDraft(env,input)});}
+    catch(error) {
+      console.error('Heran Borsa X taslağı üretilemedi',{reason:error instanceof Error?error.message.slice(0,200):'unknown'});
+      return reply({error:'draft_generation_failed'},502);
+    }
+  }
   if (url.pathname === '/api/content') {
     if (request.method !== 'GET') return json({error:'method_not_allowed'},405,{allow:'GET'});
     const id = Number(url.searchParams.get('id'));
