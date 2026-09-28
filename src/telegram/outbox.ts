@@ -18,6 +18,26 @@ export interface DeliveryPayload {
 interface Job { id: string; source_ref: string | null; kind: string; payload: string; attempts: number; first_seen_at: string; }
 function utcTime(value: string): number { return Date.parse(value.includes('T') ? value : value.replace(' ', 'T') + 'Z'); }
 
+// The AI-era outbox remains in D1. Never deliver its pending source messages,
+// action replies, or operational alerts after the finance runtime returns.
+export const financeOutboxPredicate = `(q.source_ref LIKE 'kap:%' OR q.source_ref LIKE 'spk:%' OR q.source_ref LIKE 'rss:%'
+  OR q.id LIKE 'dkb:%'
+  OR (q.id LIKE 'action:%' AND EXISTS (
+    SELECT 1 FROM telegram_actions a JOIN feed_items f ON f.id=a.feed_item_id
+    WHERE q.id='action:' || a.id AND f.category IS NULL))
+  OR q.id LIKE 'alert:kap:%' OR q.id LIKE 'alert:spk:%' OR q.id LIKE 'alert:rss:%'
+  OR q.id LIKE 'alert:telegram:%' OR q.id LIKE 'alert:delivery-queue:%'
+  OR q.id LIKE 'recovery:kap:%' OR q.id LIKE 'recovery:spk:%' OR q.id LIKE 'recovery:rss:%'
+  OR q.id LIKE 'recovery:telegram:%' OR q.id LIKE 'recovery:delivery-queue:%')
+  AND ((SELECT value FROM system_state WHERE key='finance_notification_cutoff_at') IS NULL
+    OR ((q.source_ref LIKE 'kap:%' OR q.source_ref LIKE 'rss:%')
+      AND q.published_at >= (SELECT value FROM system_state WHERE key='finance_notification_cutoff_at'))
+    OR (q.source_ref LIKE 'spk:%' AND q.first_seen_at >= (SELECT value FROM system_state WHERE key='finance_notification_cutoff_at')
+      AND q.published_at IS NOT NULL AND julianday(q.published_at)+1 > julianday((SELECT value FROM system_state WHERE key='finance_notification_cutoff_at')))
+    OR (q.id LIKE 'dkb:%' AND EXISTS (SELECT 1 FROM telegram_outbox child
+      WHERE child.group_id=q.id AND child.published_at >= (SELECT value FROM system_state WHERE key='finance_notification_cutoff_at')))
+    OR (q.source_ref IS NULL AND q.id NOT LIKE 'dkb:%'))`;
+
 export function enqueueStatement(env: Env, id: string, kind: string, payload: DeliveryPayload, publishedAt: string | null, firstSeen = new Date().toISOString(), sourceRef: string | null = id): D1PreparedStatement {
   return env.DB.prepare(`INSERT OR IGNORE INTO telegram_outbox
     (id,source_ref,kind,payload,status,first_seen_at,published_at,available_at) VALUES (?,?,?,?,?,?,?,?)`)
@@ -30,7 +50,10 @@ export function retryDelay(attempt: number, retryAfter = 0): number {
 
 export async function flushCircuitBreakers(env: Env, now = Date.now()): Promise<void> {
   const rows = (await env.DB.prepare(`SELECT id,payload,first_seen_at FROM telegram_outbox
-    WHERE status='buffered' ORDER BY first_seen_at,id LIMIT 100`).all<Job>()).results ?? [];
+    WHERE status='buffered' AND source_ref LIKE 'kap:%'
+      AND ((SELECT value FROM system_state WHERE key='finance_notification_cutoff_at') IS NULL
+        OR published_at >= (SELECT value FROM system_state WHERE key='finance_notification_cutoff_at'))
+    ORDER BY first_seen_at,id LIMIT 100`).all<Job>()).results ?? [];
   if (!rows.length || now < utcTime(rows[0].first_seen_at) + DKB_WINDOW_MS) return;
   const cutoff = utcTime(rows[0].first_seen_at) + DKB_WINDOW_MS;
   const group = rows.filter(row => utcTime(row.first_seen_at) <= cutoff);
@@ -50,7 +73,8 @@ export async function deliverOne(env: Env): Promise<number> {
   const cooldown = await env.DB.prepare("SELECT value FROM system_state WHERE key='telegram_cooldown_until'").first<{ value: string }>();
   if (Number(cooldown?.value ?? 0) > now) return Math.min(60_000, Number(cooldown!.value) - now);
   const job = await env.DB.prepare(`UPDATE telegram_outbox SET status='sending',lease_until=?,attempts=attempts+1
-    WHERE id=(SELECT id FROM telegram_outbox WHERE (status='pending' AND available_at<=?) OR (status='sending' AND lease_until<=?)
+    WHERE id=(SELECT q.id FROM telegram_outbox q WHERE ((q.status='pending' AND q.available_at<=?) OR (q.status='sending' AND q.lease_until<=?))
+      AND ${financeOutboxPredicate}
       ORDER BY CASE WHEN kind='dkb_group' THEN 0 WHEN kind='action_reply' THEN 1 ELSE 2 END,first_seen_at,id LIMIT 1) RETURNING *`).bind(now + 90_000, now, now).first<Job>();
   if (!job) return 3_000;
   // During a rolling deployment the old worker may have completed an imported
@@ -61,10 +85,6 @@ export async function deliverOne(env: Env): Promise<number> {
     EXISTS(SELECT 1 FROM spk_bulletins s WHERE q.source_ref LIKE 'spk:%' AND s.bulletin_number=substr(q.source_ref,5) AND s.telegram_status IN ('sent','baseline'))
     ) AS completed FROM telegram_outbox q WHERE (id=? OR group_id=?) AND source_ref IS NOT NULL`).bind(job.id,job.id).first<{total:number;completed:number}>();
   if (originals && originals.total>0 && originals.total===originals.completed) {
-    await env.DB.prepare("UPDATE telegram_outbox SET status='superseded',lease_until=0 WHERE id=? OR group_id=?").bind(job.id,job.id).run();
-    return 1100;
-  }
-  if (job.kind === 'dkb_group' || /^(?:kap|spk|rss):/.test(job.source_ref ?? '')) {
     await env.DB.prepare("UPDATE telegram_outbox SET status='superseded',lease_until=0 WHERE id=? OR group_id=?").bind(job.id,job.id).run();
     return 1100;
   }
@@ -101,5 +121,6 @@ export async function deliverOne(env: Env): Promise<number> {
 }
 
 export async function pollDelivery(env: Env): Promise<number> {
+  await flushCircuitBreakers(env);
   return deliverOne(env);
 }

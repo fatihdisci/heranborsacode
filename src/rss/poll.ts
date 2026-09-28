@@ -7,6 +7,7 @@ import { escapeTelegramHtml, normalizeUrl, nowIso, sha256 } from "../utils/text"
 import { findTickers, isRelevantNews, isTurkishNews } from "./filter";
 import { parseRss } from "./parser";
 import { RSS_SOURCES } from "./sources";
+import { financeNotificationCutoff, publishedSince } from '../db/state';
 
 function publishedWithin24Hours(value: string | null): boolean {
   if (!value) return true;
@@ -17,6 +18,7 @@ function publishedWithin24Hours(value: string | null): boolean {
 async function pollSource(env: Env, source: { name: string; url: string }): Promise<number> {
   const sourceInitialized = await env.DB.prepare("SELECT value FROM system_state WHERE key = ?").bind(`rss_baseline:${source.url}`).first();
   const initialSeed = !sourceInitialized;
+  const cutoff = await financeNotificationCutoff(env);
   const headers = new Headers({ "user-agent": "HeranBorsa/0.1 (+Cloudflare Worker)", accept: "application/rss+xml, application/xml, text/xml", "cache-control": "no-cache", pragma: "no-cache" });
   // Read the full feed every minute, bypassing Worker cache and potentially
   // stale publisher validators. Item IDs provide our deduplication.
@@ -54,12 +56,13 @@ async function pollSource(env: Env, source: { name: string; url: string }): Prom
     const ref = `rss:${hash}`;
     const hashtagLine = tickers.length ? tickers.map(code => `#${code}`).join(" ")+"\n" : "";
     const text = `${hashtagLine}📰 <b>${escapeTelegramHtml(source.name)}</b>\n\n<b>${escapeTelegramHtml(item.title)}</b>${summary && summary !== item.title ? "\n\n"+escapeTelegramHtml(summary) : ""}`;
+    const notify = !initialSeed && publishedSince(item.publishedAt, cutoff);
     const statements = [
       env.DB.prepare(`INSERT OR IGNORE INTO rss_items(source,title,url,normalized_url,published_at,fetched_at,content_hash,tickers_json,telegram_status)
-        VALUES (?,?,?,?,?,?,?,?,?)`).bind(source.name,item.title,item.url,existing ? `${normalizedUrl}#revision=${hash}` : normalizedUrl,item.publishedAt,seen,hash,JSON.stringify(tickers),initialSeed ? "baseline":"pending"),
+        VALUES (?,?,?,?,?,?,?,?,?)`).bind(source.name,item.title,item.url,existing ? `${normalizedUrl}#revision=${hash}` : normalizedUrl,item.publishedAt,seen,hash,JSON.stringify(tickers),notify ? "pending":"baseline"),
       feedStatement(env,{type:"news",source:source.name,source_ref:ref,title:item.title,body:summary || null,url:item.url,tickers_json:JSON.stringify(tickers),published_at:item.publishedAt}),
     ];
-    if (!initialSeed) statements.push(enqueueStatement(env,ref,"message",{text,button:{text:"🔗 Haberi Aç",url:item.url}},item.publishedAt,seen));
+    if (notify) statements.push(enqueueStatement(env,ref,"message",{text,button:{text:"🔗 Haberi Aç",url:item.url}},item.publishedAt,seen));
     await env.DB.batch(statements);
     inserted++;
   }

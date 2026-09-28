@@ -4,6 +4,7 @@ import { enqueueStatement } from "../telegram/outbox";
 import { fetchWithTimeout } from "../utils/http";
 import { escapeTelegramHtml, sha256 } from "../utils/text";
 import { BIST50 } from "./bist50";
+import { financeNotificationCutoff, publishedSince } from '../db/state';
 
 const PUBLIC_KAP_URL = "https://www.kap.org.tr/tr/Bildirim";
 const LIVE_CURSOR_KEY = "public_kap_cursor";
@@ -120,6 +121,11 @@ export function isImportantPublicDisclosure(item: PublicDisclosure): boolean {
   return true;
 }
 
+export function suppressPublicKapNotification(title: string): boolean {
+  const normalized = title.toLocaleUpperCase('tr-TR').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return /IHRAC BELGESI|FON IHRAC SOZLESMESI|KREDI KULLANIMI/.test(normalized);
+}
+
 function within24Hours(value: string | null): boolean {
   return Boolean(value && Date.parse(value) >= Date.now() - 24 * 60 * 60 * 1000);
 }
@@ -159,18 +165,21 @@ async function getState(env: Env, key: string): Promise<number | null> {
 }
 
 async function setState(env: Env, key: string, value: number): Promise<void> {
-  await env.DB.prepare("INSERT INTO system_state(key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=CURRENT_TIMESTAMP").bind(key, String(value)).run();
+  // A live alarm already in flight must not move a manually fast-forwarded
+  // cursor backward after it finishes an older disclosure.
+  await env.DB.prepare("INSERT INTO system_state(key,value) VALUES (?,?) ON CONFLICT(key) DO UPDATE SET value=CASE WHEN CAST(excluded.value AS INTEGER)>CAST(system_state.value AS INTEGER) THEN excluded.value ELSE system_state.value END,updated_at=CURRENT_TIMESTAMP").bind(key, String(value)).run();
 }
 
 async function scan(env: Env, key: string, start: number, ceiling: number | null, silent: boolean, batchSize: number): Promise<PublicKapScanResult> {
   let cursor = (await getState(env, key)) ?? start;
+  const cutoff = silent ? null : await financeNotificationCutoff(env);
   let scanned = 0;
   for (let step = 0; step < batchSize; step++) {
     const id = cursor + 1;
     if (ceiling !== null && id > ceiling) return { scanned, reachedEdge: true };
     const item = await getDisclosure(id);
     if (!item) return { scanned, reachedEdge: true }; // Public KAP uses the first missing numeric ID as the live edge.
-    if (!silent || within24Hours(item.publishedAt)) await store(env, item, silent);
+    if (!silent || within24Hours(item.publishedAt)) await store(env, item, silent || !publishedSince(item.publishedAt, cutoff) || suppressPublicKapNotification(item.title));
     cursor = id;
     scanned++;
     await setState(env, key, cursor);

@@ -3,9 +3,7 @@ import { json } from '../utils/http';
 import { sendMessage, telegramCall } from './client';
 import { feedKeyboard } from './buttons';
 import { wakeActions } from './actions';
-import { BRAND } from '../config';
-import { SOURCES } from '../sources/registry';
-import { escapeTelegramHtml } from '../utils/text';
+import { enqueueTemplateJob, KURUM_TEMPLATE_ID, TERANE_TEMPLATE_ID, SON_HALKA_ARZLAR_TEMPLATE_ID } from '../commands/jobs';
 import { publicBaseUrl } from '../config';
 
 interface Callback {
@@ -17,13 +15,21 @@ interface IncomingMessage {
   text?: string;
   from?: { id: number; username?: string };
   chat: { id: number; type: string };
+  reply_to_message?: { message_id: number };
 }
 
+type TweetAction = 'tweet' | 'tweet_regenerate' | 'tweet_instruction';
+interface TweetDraftRef { id: string; feed_item_id: number; }
+
 const BOT_COMMANDS = [
-  {command:'start',description:'Mini App ve AI radar'},
-  {command:'son',description:'Son önemli AI gelişmeleri'},
-  {command:'resetler',description:'Codex resetleri'},
-  {command:'durum',description:'Kaynak durumu'},
+  {command:'start',description:'Heran Borsa ana menüsü'},
+  {command:'panel',description:'Mini App komut merkezini aç'},
+  {command:'kurum',description:'Kurum analiz şablonunu çalıştır'},
+  {command:'terane',description:'Terane derinlik şablonunu çalıştır'},
+  {command:'sonhalkaarzlar',description:'Son halka arzların derinliğini getir'},
+  {command:'sablonlar',description:'Kayıtlı şablonları göster'},
+  {command:'durum',description:'Son komut işlerinin durumunu göster'},
+  {command:'iptal',description:'Bekleyen son komut işini iptal et'},
 ];
 
 async function setBotCommands(env: Env): Promise<void> {
@@ -34,6 +40,34 @@ async function answer(env: Env, id: string, text: string): Promise<void> {
   catch { /* Old callbacks can expire. Their persisted job is still delivered. */ }
 }
 
+async function findTweetDraft(env: Env, actionId: string, messageId: number): Promise<TweetDraftRef | null> {
+  return env.DB.prepare(`SELECT a.id,a.feed_item_id FROM telegram_actions a
+    JOIN telegram_outbox q ON q.id='action:'||a.id
+    JOIN feed_items f ON f.id=a.feed_item_id
+    WHERE a.id=? AND q.message_id=? AND q.kind='action_reply' AND a.action IN ('tweet','tweet_regenerate','tweet_instruction')
+      AND a.status='done' AND a.result_text IS NOT NULL AND f.category IS NULL AND f.type IN ('kap','news')`)
+    .bind(actionId,messageId).first<TweetDraftRef>();
+}
+
+async function queueTweetAction(env: Env, options: {
+  callbackId: string; action: TweetAction; itemId: number; replyTo: number; parentActionId?: string; instruction?: string;
+}): Promise<boolean> {
+  const now = Date.now();
+  const id = crypto.randomUUID();
+  const parent = options.parentActionId ?? '';
+  const inserted = await env.DB.prepare(`INSERT OR IGNORE INTO telegram_actions
+    (id,callback_id,action,feed_item_id,reply_to,page_ref,page_index,instruction,created_at)
+    SELECT ?,?,?,?,?,?,0,?,? WHERE NOT EXISTS (
+      SELECT 1 FROM telegram_actions WHERE feed_item_id=? AND action=? AND COALESCE(page_ref,'')=? AND page_index=0
+      AND COALESCE(instruction,'')=COALESCE(?, '')
+      AND (status IN ('queued','processing') OR (status='done' AND created_at>?)))
+    AND (SELECT COUNT(*) FROM telegram_actions WHERE created_at>?)<6
+    AND (SELECT COUNT(*) FROM telegram_actions WHERE status IN ('queued','processing'))<8`)
+    .bind(id,options.callbackId,options.action,options.itemId,options.replyTo,options.parentActionId ?? null,
+      options.instruction ?? null,now,options.itemId,options.action,parent,options.instruction ?? null,now-15_000,now-60_000).run();
+  return inserted.meta.changes > 0;
+}
+
 export async function handleCallback(env: Env, value: unknown, ctx: Pick<ExecutionContext,'waitUntil'>): Promise<Response> {
   const cb = (value as {callback_query?:Callback} | null)?.callback_query;
   if (!cb || typeof cb.id !== 'string' || typeof cb.data !== 'string') return json({ok:true});
@@ -41,6 +75,20 @@ export async function handleCallback(env: Env, value: unknown, ctx: Pick<Executi
     && String(cb.from?.id) === env.TELEGRAM_CHAT_ID && Number.isSafeInteger(cb.message.message_id);
   const ack = (text: string) => ctx.waitUntil(answer(env,cb.id,text));
   if (!permitted) { ack('Bu buton yalnızca yetkili özel sohbette kullanılabilir.'); return json({ok:true}); }
+  const tweetFlow = /^(tweetregen|tweetinst):([a-f0-9-]{36})$/.exec(cb.data);
+  if (tweetFlow) {
+    const target = await findTweetDraft(env,tweetFlow[2],cb.message.message_id);
+    if (!target) { ack('Bu tweet taslağı bulunamadı veya artık kullanılamıyor.'); return json({ok:true}); }
+    if (tweetFlow[1] === 'tweetinst') {
+      ack('Ek talimatını bu tweet taslağına yanıt olarak gönder. Örnek: Daha kısa yaz, tutarı öne çıkar.');
+      return json({ok:true});
+    }
+    const queued = await queueTweetAction(env,{callbackId:cb.id,action:'tweet_regenerate',itemId:target.feed_item_id,
+      replyTo:cb.message.message_id,parentActionId:target.id});
+    ack(queued ? 'Yeni taslak hazırlanıyor; bu mesajın altında görünecek.' : 'Bu taslak için istek zaten alındı. Biraz bekleyin.');
+    await wakeActions(env,'tweet');
+    return json({ok:true});
+  }
   const match = /^(read|tweet):([1-9]\d{0,14})$/.exec(cb.data);
   const page = /^page:([a-f0-9-]{36}):([1-9]\d{0,4})$/.exec(cb.data);
   if (!match && !page) { ack('Bu buton artık kullanılamıyor.'); return json({ok:true}); }
@@ -51,8 +99,8 @@ export async function handleCallback(env: Env, value: unknown, ctx: Pick<Executi
     if (!root || !JSON.parse(root.result_text)[Number(page[2])]) { ack('Bu içerik bulunamadı. Yeniden “Oku”ya basın.'); return json({ok:true}); }
     itemId = root.feed_item_id;
   }
-  const item = await env.DB.prepare('SELECT * FROM feed_items WHERE id=?').bind(itemId).first<FeedItem>();
-  if (!item?.category) {
+  const item = await env.DB.prepare('SELECT * FROM feed_items WHERE id=? AND category IS NULL').bind(itemId).first<FeedItem>();
+  if (!item || item.type === 'spk' || (item.type === 'kap' && /devre kesici/i.test(item.title))) {
     ack('Bu kayıt için kaynak bağlantısını kullanın.'); return json({ok:true});
   }
   const now = Date.now();
@@ -74,22 +122,71 @@ export async function handleCallback(env: Env, value: unknown, ctx: Pick<Executi
 }
 
 async function handleMessage(env: Env, message: IncomingMessage): Promise<void> {
-  const permitted=message.chat?.type==='private' && String(message.chat.id)===env.TELEGRAM_CHAT_ID && String(message.from?.id??'')===env.TELEGRAM_CHAT_ID;
-  if (!permitted || !message.text?.startsWith('/')) return;
-  const command=message.text.split(/\s|@/)[0].toLowerCase();
-  if (command==='/start') {
-    const panel={keyboard:[[{text:`${BRAND.name} aç`,web_app:{url:publicBaseUrl(env)}}]]};
-    await sendMessage(env,`<b>${BRAND.name}</b>\n\nAI gelişmelerini tarar ve önemli olanları burada gösterir. Tweet yalnız sen istediğinde hazırlanır; X'e otomatik gönderilmez.`,undefined,panel);
-  } else if (command==='/son' || command==='/resetler') {
-    const where=command==='/resetler' ? "category='resets'" : "priority='high'";
-    const rows=await env.DB.prepare(`SELECT title,url,source FROM feed_items WHERE category IS NOT NULL AND ${where} ORDER BY COALESCE(published_at,created_at) DESC,id DESC LIMIT 6`).all<{title:string;url:string;source:string}>();
-    const lines=(rows.results??[]).map(row=>`• <a href="${escapeTelegramHtml(new URL(row.url).toString()).replace(/"/g,'&quot;')}">${escapeTelegramHtml(row.title)}</a> · ${escapeTelegramHtml(row.source)}`);
-    await sendMessage(env,lines.length?`<b>${command==='/resetler'?'Codex resetleri':'Son AI gelişmeleri'}</b>\n\n${lines.join('\n')}${command==='/resetler'?'\n\n<a href="https://codex-resets.com/">Veri: Codex Resets</a>':''}`:'Henüz kayıt yok.');
-  } else if (command==='/durum') {
-    const rows=await env.DB.prepare("SELECT key,value FROM system_state WHERE key LIKE 'poll_shard:source:%'").all<{key:string;value:string}>();
-    const states=new Map((rows.results??[]).map(row=>[row.key,JSON.parse(row.value) as {lastSuccessAt?:string;error?:string;failures?:number}]));
-    const lines=SOURCES.map(source=>{const state=states.get(`poll_shard:source:${source.id}`);return `${state?.error?'⚠️':state?.lastSuccessAt?'✅':'◌'} ${escapeTelegramHtml(source.name)}${state?.lastSuccessAt?` · ${escapeTelegramHtml(state.lastSuccessAt)}`:''}`;});
-    await sendMessage(env,`<b>Kaynak durumu</b>\n\n${lines.join('\n')}`);
+  const permitted = message.chat?.type === 'private' && String(message.chat.id) === env.TELEGRAM_CHAT_ID
+    && String(message.from?.id ?? '') === env.TELEGRAM_CHAT_ID;
+  if (!permitted || !message.text) return;
+  const text = message.text.trim();
+  if (!text.startsWith('/')) {
+    if (!message.reply_to_message || !text) return;
+    const target = await env.DB.prepare(`SELECT a.id,a.feed_item_id FROM telegram_outbox q
+      JOIN telegram_actions a ON q.id='action:'||a.id JOIN feed_items f ON f.id=a.feed_item_id
+      WHERE q.message_id=? AND q.kind='action_reply' AND a.action IN ('tweet','tweet_regenerate','tweet_instruction')
+        AND a.status='done' AND a.result_text IS NOT NULL AND f.category IS NULL AND f.type IN ('kap','news')`)
+      .bind(message.reply_to_message.message_id).first<TweetDraftRef>();
+    if (!target) return;
+    if (text.length > 500) {
+      await sendMessage(env,'Ek talimat en fazla 500 karakter olabilir.',undefined,{replyTo:message.message_id});
+      return;
+    }
+    const queued = await queueTweetAction(env,{callbackId:`reply:${message.chat.id}:${message.message_id}`,
+      action:'tweet_instruction',itemId:target.feed_item_id,replyTo:message.reply_to_message.message_id,
+      parentActionId:target.id,instruction:text});
+    await sendMessage(env,queued ? '✅ Ek talimat alındı. Yeni taslak hazırlanıyor.' : 'Bu taslak için istek zaten alındı. Biraz bekleyin.',
+      undefined,{replyTo:message.message_id});
+    await wakeActions(env,'tweet');
+    return;
+  }
+  const command = message.text.split(/\s|@/)[0].toLowerCase();
+  const panel = { keyboard: [[{ text: '🎛 Komut Merkezini Aç', web_app: { url: publicBaseUrl(env) } }]] };
+  if (['/start','/panel','/komut','/komutlar'].includes(command)) {
+    await sendMessage(env, '<b>Heran Borsa Komut Merkezi</b>\n\nBot, komut ve hisseleri seçebilir; kendi şablonlarını oluşturup sonuçları bu sohbetten alabilirsin.', undefined, panel);
+    return;
+  }
+  const templateIds: Record<string, string> = {
+    '/kurum': KURUM_TEMPLATE_ID,
+    '/terane': TERANE_TEMPLATE_ID,
+    '/sonhalkaarzlar': SON_HALKA_ARZLAR_TEMPLATE_ID,
+  };
+  if (command in templateIds) {
+    const templateId = templateIds[command];
+    try {
+      const job = await enqueueTemplateJob(env,templateId,`telegram:${message.chat.id}:${message.message_id}:${command}`);
+      if (!job.created) return;
+      await sendMessage(env,`⏳ <b>${job.name}</b> kuyruğa alındı. ${job.steps.length} komut tamamlanınca birleşik sonuç bu sohbete gelecek.`);
+    } catch (error) {
+      const code = error instanceof Error ? error.message : '';
+      await sendMessage(env,code === 'queue_full' ? 'Komut kuyruğu dolu. Devam eden işler tamamlandıktan sonra yeniden deneyin.' : 'Şablon başlatılamadı. Mini App üzerinden durumunu kontrol edin.');
+    }
+    return;
+  }
+  if (command === '/sablonlar') {
+    const rows = await env.DB.prepare('SELECT name,steps_json FROM command_templates ORDER BY updated_at DESC LIMIT 15').all<{name:string;steps_json:string}>();
+    const lines = (rows.results ?? []).map(row => `• <b>${row.name.replace(/[<&>]/g, '')}</b> · ${JSON.parse(row.steps_json).length} komut`);
+    await sendMessage(env, lines.length ? `<b>Kayıtlı şablonlar</b>\n\n${lines.join('\n')}` : 'Henüz kayıtlı şablon yok.', undefined, panel);
+    return;
+  }
+  if (command === '/durum') {
+    const rows = await env.DB.prepare("SELECT name,status,created_at FROM command_jobs ORDER BY created_at DESC LIMIT 8").all<{name:string;status:string;created_at:string}>();
+    const labels: Record<string,string> = {queued:'Bekliyor',leased:'Çalışıyor',completed:'Tamamlandı',failed:'Hata',cancelled:'İptal'};
+    const lines = (rows.results ?? []).map(row => `• ${row.name.replace(/[<&>]/g, '')}: <b>${labels[row.status] ?? row.status}</b>`);
+    await sendMessage(env, lines.length ? `<b>Son işler</b>\n\n${lines.join('\n')}` : 'Henüz komut işi yok.', undefined, panel);
+    return;
+  }
+  if (command === '/iptal') {
+    const job = await env.DB.prepare("SELECT id,name FROM command_jobs WHERE status='queued' ORDER BY created_at DESC LIMIT 1").first<{id:string;name:string}>();
+    if (!job) { await sendMessage(env, 'İptal edilebilecek bekleyen iş yok.'); return; }
+    await env.DB.prepare("UPDATE command_jobs SET status='cancelled',finished_at=CURRENT_TIMESTAMP WHERE id=? AND status='queued'").bind(job.id).run();
+    await sendMessage(env, `“${job.name.replace(/[<&>]/g, '')}” iptal edildi.`);
   }
 }
 
@@ -123,10 +220,11 @@ export async function telegramRoutes(request: Request, env: Env, ctx: Pick<Execu
   await telegramCall(env,'setWebhook',new URLSearchParams({url:webhookUrl,secret_token:env.TELEGRAM_WEBHOOK_SECRET,allowed_updates:JSON.stringify(['callback_query','message']),max_connections:'2',drop_pending_updates:'false'}));
   await setBotCommands(env);
   const recent = await env.DB.prepare(`SELECT f.*,q.message_id FROM telegram_outbox q JOIN feed_items f ON f.source_ref=q.source_ref
-    WHERE q.status='sent' AND q.kind='message' AND q.message_id IS NOT NULL AND f.category IS NOT NULL
+    WHERE q.status='sent' AND q.kind='message' AND q.message_id IS NOT NULL AND f.category IS NULL AND f.type IN ('news','kap')
     ORDER BY q.sent_at DESC LIMIT 10`).all<FeedItem & {message_id:number}>();
   let updated = 0, skipped = 0;
   for (const item of recent.results) {
+    if (/devre kesici/i.test(item.title)) continue;
     try {
       await telegramCall(env,'editMessageReplyMarkup',new URLSearchParams({chat_id:env.TELEGRAM_CHAT_ID!,message_id:String(item.message_id),reply_markup:JSON.stringify({inline_keyboard:feedKeyboard(item)})}));
       updated++;
@@ -138,11 +236,11 @@ export async function telegramRoutes(request: Request, env: Env, ctx: Pick<Execu
 export async function ensureTelegramWebhook(env: Env): Promise<void> {
   if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_WEBHOOK_SECRET) return;
   const version = await env.DB.prepare("SELECT value FROM system_state WHERE key='telegram_webhook_version'").first<{value:string}>();
-  if (version?.value === 'vibe-radar-v1') return;
+  if (version?.value === 'heranborsa-restore-v1') return;
   const miniAppUrl = publicBaseUrl(env);
   await telegramCall(env,'setWebhook',new URLSearchParams({url:`${miniAppUrl}/api/telegram/webhook`,secret_token:env.TELEGRAM_WEBHOOK_SECRET,
     allowed_updates:JSON.stringify(['callback_query','message']),max_connections:'2',drop_pending_updates:'false'}));
-  await telegramCall(env,'setChatMenuButton',new URLSearchParams({menu_button:JSON.stringify({type:'web_app',text:BRAND.name,web_app:{url:miniAppUrl}})}));
+  await telegramCall(env,'setChatMenuButton',new URLSearchParams({menu_button:JSON.stringify({type:'web_app',text:'Heran Borsa',web_app:{url:miniAppUrl}})}));
   await setBotCommands(env);
-  await env.DB.prepare("INSERT INTO system_state(key,value) VALUES ('telegram_webhook_version','vibe-radar-v1') ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=CURRENT_TIMESTAMP").run();
+  await env.DB.prepare("INSERT INTO system_state(key,value) VALUES ('telegram_webhook_version','heranborsa-restore-v1') ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=CURRENT_TIMESTAMP").run();
 }

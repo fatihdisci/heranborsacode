@@ -2,14 +2,16 @@ import type { Env, FeedItem } from '../types';
 import { readerContent, type ReaderContent } from '../reader/content';
 import { generateTweetDraft } from '../ai/tweet';
 import { enqueueStatement, type DeliveryPayload } from './outbox';
-import { feedKeyboard } from './buttons';
+import { feedKeyboard, tweetDraftKeyboard } from './buttons';
 
 export interface ActionJob {
-  id: string; callback_id: string; action: 'read' | 'tweet' | 'page'; feed_item_id: number;
+  id: string; callback_id: string; action: 'read' | 'tweet' | 'tweet_regenerate' | 'tweet_instruction' | 'page'; feed_item_id: number;
   reply_to: number; page_ref: string | null; page_index: number; created_at: number;
-  lease_until: number; result_text: string | null;
+  lease_until: number; result_text: string | null; instruction: string | null;
 }
 export type ActionLane = 'read' | 'tweet';
+
+const TWEET_ACTIONS = "'tweet','tweet_regenerate','tweet_instruction'";
 
 // Leave room for the title, source and page counter under Telegram's 4096 limit.
 export function splitText(text: string, limit = 3200): string[] {
@@ -48,7 +50,8 @@ async function finish(env: Env, job: ActionJob, payload: DeliveryPayload, result
 
 export async function processAction(env: Env, lane: ActionLane): Promise<number | null> {
   const now = Date.now();
-  const condition = lane === 'tweet' ? "action='tweet'" : "action IN ('read','page')";
+  const condition = (lane === 'tweet' ? `action IN (${TWEET_ACTIONS})` : "action IN ('read','page')")
+    + " AND feed_item_id IN (SELECT id FROM feed_items WHERE category IS NULL)";
   // A process interrupted during an API request must not blindly incur another AI charge.
   const expired = await env.DB.prepare(`SELECT * FROM telegram_actions WHERE status='processing' AND lease_until<=? AND ${condition} ORDER BY created_at LIMIT 1`).bind(now).first<ActionJob>();
   if (expired) {
@@ -61,13 +64,16 @@ export async function processAction(env: Env, lane: ActionLane): Promise<number 
     SELECT id FROM telegram_actions WHERE status='queued' AND ${condition} ORDER BY created_at,id LIMIT 1) RETURNING *`).bind(now+180_000).first<ActionJob>();
   if (!job) return null;
   try {
-    const item = await env.DB.prepare('SELECT * FROM feed_items WHERE id=?').bind(job.feed_item_id).first<FeedItem>();
-    if (!item?.category) throw new Error('item_missing');
+    const item = await env.DB.prepare('SELECT * FROM feed_items WHERE id=? AND category IS NULL').bind(job.feed_item_id).first<FeedItem>();
+    if (!item) throw new Error('item_missing');
     let payload: DeliveryPayload;
     let result: string | null = null;
-    if (job.action === 'tweet') {
-      const draft = await generateTweetDraft(env,item);
-      payload = {text:draft.tweet,plain:true,replyTo:job.reply_to};
+    if (job.action === 'tweet' || job.action === 'tweet_regenerate' || job.action === 'tweet_instruction') {
+      const draft = await generateTweetDraft(env,item,{
+        regenerate: job.action !== 'tweet',
+        instruction: job.action === 'tweet_instruction' ? job.instruction ?? '' : '',
+      });
+      payload = {text:draft.tweet,plain:true,replyTo:job.reply_to,keyboard:tweetDraftKeyboard(job.id)};
       result = draft.tweet;
     } else if (job.action === 'read') {
       const content = await readerContent(env,item);
@@ -87,10 +93,9 @@ export async function processAction(env: Env, lane: ActionLane): Promise<number 
       payload = pagePayload(item,job,job.page_ref!,pages,job.page_index);
     }
     await finish(env,job,payload,result);
-  } catch (error) {
-    console.error('Telegram action failed',{action:job.action,feedItemId:job.feed_item_id,reason:error instanceof Error?error.message.slice(0,200):'unknown'});
-    await finish(env,job,{text:job.action === 'tweet'
-      ? 'Tweet oluşturulamadı; eksik bir taslak gönderilmedi. İlgili mesajdaki “Tweet oluştur” butonuyla yeniden deneyebilirsiniz.'
+  } catch {
+    await finish(env,job,{text:job.action === 'tweet' || job.action === 'tweet_regenerate' || job.action === 'tweet_instruction'
+      ? 'Tweet oluşturulamadı; eksik bir taslak gönderilmedi. Kaynak mesajındaki “Tweet oluştur” butonuyla yeniden deneyebilirsiniz.'
       : 'İçerik şu anda okunamadı. Kaynak bağlantısını açabilir veya “Oku” butonuyla yeniden deneyebilirsiniz.',plain:true,replyTo:job.reply_to},null,'failed');
   }
   return 1000;
@@ -103,6 +108,6 @@ export async function wakeActions(env: Env, lane: ActionLane): Promise<void> {
 
 export async function ensureTelegramActions(env: Env): Promise<void> {
   if (!env.TELEGRAM_WEBHOOK_SECRET) return;
-  const rows = await env.DB.prepare("SELECT DISTINCT CASE WHEN action='tweet' THEN 'tweet' ELSE 'read' END AS lane FROM telegram_actions WHERE status IN ('queued','processing')").all<{lane:ActionLane}>();
+  const rows = await env.DB.prepare(`SELECT DISTINCT CASE WHEN action IN (${TWEET_ACTIONS}) THEN 'tweet' ELSE 'read' END AS lane FROM telegram_actions WHERE status IN ('queued','processing') AND feed_item_id IN (SELECT id FROM feed_items WHERE category IS NULL)`).all<{lane:ActionLane}>();
   await Promise.all(rows.results.map(row => wakeActions(env,row.lane)));
 }

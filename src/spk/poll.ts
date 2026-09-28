@@ -3,7 +3,7 @@ import { feedStatement, insertFeed } from "../db/feed";
 import { enqueueStatement } from "../telegram/outbox";
 import { fetchWithTimeout } from "../utils/http";
 import { decodeEntities, escapeTelegramHtml } from "../utils/text";
-import { getState, setState } from "../db/state";
+import { financeNotificationCutoff, getState, setState } from "../db/state";
 
 const SPK_URL = "https://spk.gov.tr/spk-bultenleri/2026-yili-spk-bultenleri";
 interface Bulletin { number: string; date: string | null; pdfUrl: string; }
@@ -50,6 +50,7 @@ export function parseBulletins(html: string, baseUrl = SPK_URL): Bulletin[] {
 }
 
 export async function pollSPK(env: Env): Promise<void> {
+  const cutoff = await financeNotificationCutoff(env);
   const response = await fetchWithTimeout(SPK_URL, { headers: { "user-agent": "HeranBorsa/0.1 (+Cloudflare Worker)" } });
   if (!response.ok) throw new Error(`SPK HTTP ${response.status}`);
   const bulletins = parseBulletins(await response.text());
@@ -81,10 +82,14 @@ export async function pollSPK(env: Env): Promise<void> {
     const ref = `spk:${bulletin.number}`;
     const publishedAt = bulletinPublishedAt(bulletin.date);
     const seen = new Date().toISOString();
-    await env.DB.batch([
-      env.DB.prepare("INSERT OR IGNORE INTO spk_bulletins(bulletin_number,bulletin_date,pdf_url,telegram_status,first_seen_at) VALUES (?,?,?,'pending',?)").bind(bulletin.number,bulletin.date,bulletin.pdfUrl,seen),
+    // SPK exposes only a calendar date. A bulletin first seen after the cutoff
+    // can notify only if its publication date is the cutoff's Istanbul day or later.
+    const notify = cutoff === null || Boolean(publishedAt && Date.parse(publishedAt) + 24 * 60 * 60 * 1000 > cutoff);
+    const statements = [
+      env.DB.prepare("INSERT OR IGNORE INTO spk_bulletins(bulletin_number,bulletin_date,pdf_url,telegram_status,first_seen_at) VALUES (?,?,?,?,?)").bind(bulletin.number,bulletin.date,bulletin.pdfUrl,notify ? 'pending' : 'baseline',seen),
       feedStatement(env,{type:"spk",source:"SPK",source_ref:ref,title:`SPK Bülteni: ${bulletin.number}`,body:bulletin.date ? `Tarih: ${bulletin.date}` : null,url:bulletin.pdfUrl,tickers_json:"[]",published_at:publishedAt}),
-      enqueueStatement(env,ref,"document",{document:{url:bulletin.pdfUrl,filename:`Yeni SPK Bülteni: ${bulletin.number}${bulletin.date ? " · "+bulletin.date : ""}`}},publishedAt,seen),
-    ]);
+    ];
+    if (notify) statements.push(enqueueStatement(env,ref,"document",{document:{url:bulletin.pdfUrl,filename:`Yeni SPK Bülteni: ${bulletin.number}${bulletin.date ? " · "+bulletin.date : ""}`}},publishedAt,seen));
+    await env.DB.batch(statements);
   }
 }
