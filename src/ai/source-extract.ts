@@ -67,8 +67,26 @@ export function extractArticleSource(html: string, target?: Target): ArticleSour
     try { articleRecords(JSON.parse(raw),records); }
     catch { try { articleRecords(JSON.parse(decodeEntities(raw)),records); } catch { /* invalid structured data */ } }
   }
+  // KAP streams its disclosure inside React's temporary hidden S:n wrapper.
+  // Select the known disclosure root first; removing hidden ancestors would
+  // discard the actual source before the browser reveals the streamed HTML.
+  if (target?.type === 'kap') {
+    const roots=[...document.querySelectorAll('.disclosureScrollableArea')];
+    if(roots.length===1) {
+      const root=roots[0].cloneNode(true) as Element;
+      root.querySelectorAll(NOISE).forEach(el=>el.remove());
+      // KAP includes hidden English duplicates and taxonomy placeholders.
+      // Only remove explicitly hidden descendants, never the stream wrapper.
+      root.querySelectorAll('[style]').forEach(el=>{
+        if(/(?:^|;)\s*display\s*:\s*none\s*(?:!important)?\s*(?:;|$)/i.test(el.getAttribute('style')??''))el.remove();
+      });
+      const text=readable(root);
+      if(text.length>=20)return {text,html:root.outerHTML};
+    }
+    throw new Error('Kaynağın ana metni güvenle ayrıştırılamadı; yalnız başlıktan taslak üretilmedi');
+  }
   document.querySelectorAll(NOISE).forEach(el=>el.remove());
-  const selectors = target?.type === 'kap' ? ['.disclosureScrollableArea'] : [
+  const selectors = [
     '[itemprop="articleBody"], .article-body, .cms-container, .news-detail-content, .news-content, [data-test="article-body"]', 'article',
   ];
   for (const selector of selectors) {
@@ -82,7 +100,7 @@ export function extractArticleSource(html: string, target?: Target): ArticleSour
     const text=readable(root);
     if (text.length >= 20) return {text,html:root.outerHTML};
   }
-  if (target?.type !== 'kap') {
+  {
     const matched=target ? records.filter(record=>matchesTarget(record,target)) : records;
     const unique=[...new Map(matched.map(record=>[String(record.articleBody),record])).values()];
     if (unique.length===1) {

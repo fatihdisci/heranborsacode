@@ -38,3 +38,15 @@ it('preserves financial table headings and merged cells and excludes unrelated d
   expect(source.text).toContain('bin TL');expect(source.text).toContain('"colSpan":2');expect(source.text).toContain('2026 ilk yarı');
   expect(extractAttachments(source.html,'https://example.com/target').map(a=>a.url)).toEqual(['https://example.com/target.pdf']);
 });
+it('reads KAP disclosure inside a temporary hidden streaming wrapper without including hidden translations',()=>{
+  const html=`<nav>Başka haberler</nav><div hidden id="S:3"><div class="disclosureScrollableArea"><table><tr style="display:none"><td>[CONSOLIDATION_METHOD]</td></tr></table><p class="content-tr">Şirket, faaliyetlerini etkileyecek bir karar tebliğ edilmediğini açıkladı.</p><p class="content-en" style="display: none;">Hidden English duplicate</p><div hidden>Hidden unrelated data</div><a href="/ek.pdf">Ek.pdf</a></div></div>`;
+  const source=extractArticleSource(html,{type:'kap',title:'Haber ve Söylentilere İlişkin Açıklama',url:'https://www.kap.org.tr/tr/Bildirim/1669000'});
+  expect(source.text).toContain('tebliğ edilmediğini');expect(source.text).not.toMatch(/CONSOLIDATION|Hidden|Başka haberler/);
+  expect(extractAttachments(source.html,'https://www.kap.org.tr/tr/Bildirim/1669000')).toHaveLength(1);
+});
+it('continues rejecting empty or ambiguous KAP roots and hidden ordinary news',()=>{
+  const target={type:'kap' as const,title:'Bildirim',url:'https://www.kap.org.tr/tr/Bildirim/1'};
+  expect(()=>extractArticleSource('<div hidden id="S:3"><div class="disclosureScrollableArea"><span hidden>Metin bulunamadı</span></div></div>',target)).toThrow('ana metni');
+  expect(()=>extractArticleSource('<div class="disclosureScrollableArea">Birinci şirket kredi aldı.</div><div class="disclosureScrollableArea">İkinci şirket kredi aldı.</div>',target)).toThrow('ana metni');
+  expect(()=>extractReadableContent('<div hidden><article>Şirket kredi limiti başvurusu yaptı.</article></div>')).toThrow('ana metni');
+});
