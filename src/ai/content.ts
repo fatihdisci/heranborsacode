@@ -1,3 +1,4 @@
+import { kapAttachments } from "./kap-attachments";
 import { extractArticleSource } from "./source-extract";
 import type { FeedItem } from "../types";
 import { fetchWithTimeout } from "../utils/http";
@@ -54,7 +55,9 @@ export async function fetchSourceBundle(item: FeedItem): Promise<SourceBundle> {
   const html = await response.text();
   if (html.length>3_000_000) throw new Error('Kaynak sayfa güvenli boyutu aşıyor');
   const source=extractArticleSource(html,item);
-  const attachments=extractAttachments(source.html,item.url);
+  // KAP keeps its official attachments beside (not inside) the disclosure.
+  // Match the page's disclosure ID and attachment count before using them.
+  const attachments=(item.type==='kap'?kapAttachments(html,item.url):null)??extractAttachments(source.html,item.url);
   if (attachments.length>20) throw new Error('Kaynakta çok fazla ek var; eksik dosyalarla taslak üretilmedi');
   return { text: `${metadata}\n\nHEDEF KAYNAĞIN ANA METNİ:\n${source.text}`, attachments, kind:item.type==='kap' ? 'disclosure' : 'article', retrievedAt:new Date().toISOString() };
 }
