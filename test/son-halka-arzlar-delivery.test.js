@@ -2,16 +2,16 @@ import {afterEach,expect,it,vi} from 'vitest';
 import {PDFDocument} from 'pdf-lib';
 import {database} from './db-harness';
 import {retryUnnotifiedCommandJobs} from '../src/commands/routes';
-import {SON_HALKA_ARZLAR_TEMPLATE_ID} from '../src/commands/jobs';
+import {AKDTERANE_TEMPLATE_ID,SON_HALKA_ARZLAR_TEMPLATE_ID} from '../src/commands/jobs';
 
 afterEach(()=>vi.unstubAllGlobals());
 
-it('sends one PDF containing photo and image-document results, then does not resend it',async()=>{
+it.each([SON_HALKA_ARZLAR_TEMPLATE_ID,AKDTERANE_TEMPLATE_ID])('sends one PDF containing photo and image-document results for template %s, then does not resend it',async(templateId)=>{
   const {sql,env}=database();
   try {
     const id='c9fca71b-01de-4380-9745-7d78ee35e8e6';
     sql.prepare("INSERT INTO command_jobs(id,template_id,name,steps_json,status,finished_at) VALUES (?,?,?,'[]','completed',CURRENT_TIMESTAMP)")
-      .run(id,SON_HALKA_ARZLAR_TEMPLATE_ID,'Son halka arzlar');
+      .run(id,templateId,'Komut sonuçları');
     const add=sql.prepare("INSERT INTO command_results(job_id,step_index,bot_username,command,response_text,response_kind,media_key,file_name) VALUES (?,?,?,?,?,?,?,?)");
     add.run(id,0,'ucretsizderinlikbot','/derinlik NETGL','', 'image',`commands/${id}/a.png`,'a.png');
     add.run(id,1,'ucretsizderinlikbot','/derinlik BKRGY','', 'file',`commands/${id}/b.png`,'b.png');

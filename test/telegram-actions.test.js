@@ -140,12 +140,12 @@ it('queues all built-in templates once per Telegram message',async()=>{
     const response=await telegramRoutes(new Request('https://worker/api/telegram/webhook',{method:'POST',headers:{'x-telegram-bot-api-secret-token':'test-secret'},body:JSON.stringify({message:{message_id:messageId,text,from:{id:123},chat:{id:123,type:'private'}}})}),env,ctx);
     expect(response.status).toBe(200);await Promise.all(pending.splice(0));
   };
-  await send(201,'/kurum');await send(202,'/terane');await send(203,'/sonhalkaarzlar');await send(203,'/sonhalkaarzlar');
+  await send(201,'/kurum');await send(202,'/terane');await send(203,'/sonhalkaarzlar');await send(204,'/akdterane');await send(204,'/akdterane');
   const jobs=sql.prepare('SELECT name,template_id,request_key FROM command_jobs ORDER BY created_at,id').all();
-  expect(jobs).toHaveLength(3);
-  expect(jobs.map(job=>job.name).sort()).toEqual(['Kurum','Son halka arzlar','Terane']);
+  expect(jobs).toHaveLength(4);
+  expect(jobs.map(job=>job.name).sort()).toEqual(['Kurum','Son halka arzlar','Terane','akdterane'].sort());
   expect(jobs.every(job=>job.request_key.startsWith('telegram:123:'))).toBe(true);
-  expect(vi.mocked(fetch).mock.calls.filter(([url])=>url.endsWith('/sendMessage'))).toHaveLength(3);
+  expect(vi.mocked(fetch).mock.calls.filter(([url])=>url.endsWith('/sendMessage'))).toHaveLength(4);
 });
 
 it('uploads long combined text as a real Telegram document',async()=>{

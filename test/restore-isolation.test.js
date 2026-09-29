@@ -41,8 +41,9 @@ it('reconfigures the existing Telegram bot when the stored version is Vibe Radar
   expect(JSON.parse(calls[1].body.get('menu_button')).text).toBe('Heran Borsa');
   const commands=JSON.parse(calls[2].body.get('commands')).map(command=>command.command);
   expect(commands).toContain('terane');
+  expect(commands).toContain('akdterane');
   expect(commands).not.toContain('resetler');
-  expect(sql.prepare("SELECT value FROM system_state WHERE key='telegram_webhook_version'").get().value).toBe('heranborsa-restore-v1');
+  expect(sql.prepare("SELECT value FROM system_state WHERE key='telegram_webhook_version'").get().value).toBe('heranborsa-restore-v2');
   await ensureTelegramWebhook(env);
   expect(calls).toHaveLength(3);
 });

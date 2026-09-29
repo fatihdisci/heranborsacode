@@ -7,7 +7,7 @@ import { PDFDocument } from "pdf-lib";
 import { COMMAND_BOTS, validateSteps, type CommandStep } from "./catalog";
 import { listBistSymbols } from "./symbols";
 import { commandMediaUrl, finalCommandResults, type CommandResultRow } from "./results";
-import { enqueueTemplateJob, KURUM_TEMPLATE_ID, TERANE_TEMPLATE_ID, SON_HALKA_ARZLAR_TEMPLATE_ID } from "./jobs";
+import { enqueueTemplateJob, KURUM_TEMPLATE_ID, TERANE_TEMPLATE_ID, AKDTERANE_TEMPLATE_ID, SON_HALKA_ARZLAR_TEMPLATE_ID } from "./jobs";
 
 interface CommandJob {
   id: string; name: string; steps_json: string; status: string; lease_token: string | null; template_id?: string | null;
@@ -219,7 +219,7 @@ async function notifyResults(env: Env, origin: string, jobId: string): Promise<v
   if (!job) return;
   const resultRows = await env.DB.prepare("SELECT step_index,bot_username,command,response_text,response_kind,media_key,file_name,created_at FROM command_results WHERE job_id=? ORDER BY step_index,id").bind(jobId).all<CommandResultRow>();
   const rows = finalCommandResults(resultRows.results ?? []);
-  if (job.template_id === KURUM_TEMPLATE_ID || job.template_id === TERANE_TEMPLATE_ID || job.template_id === SON_HALKA_ARZLAR_TEMPLATE_ID) {
+  if (job.template_id === KURUM_TEMPLATE_ID || job.template_id === TERANE_TEMPLATE_ID || job.template_id === AKDTERANE_TEMPLATE_ID || job.template_id === SON_HALKA_ARZLAR_TEMPLATE_ID) {
     if (await notifyBundledTemplate(env,origin,job,rows))
       await env.DB.prepare("UPDATE command_jobs SET notified_at=CURRENT_TIMESTAMP WHERE id=?").bind(jobId).run();
     return;
@@ -241,8 +241,8 @@ async function notifyResults(env: Env, origin: string, jobId: string): Promise<v
 
 export async function retryUnnotifiedCommandJobs(env: Env, origin = (env.PUBLIC_BASE_URL?.trim() || 'https://borsa.discilaw.com').replace(/\/+$/, '')): Promise<void> {
   const jobs = await env.DB.prepare(`SELECT id FROM command_jobs WHERE status='completed' AND notified_at IS NULL
-    AND template_id IN (?,?,?) AND finished_at>datetime('now','-24 hours') ORDER BY finished_at LIMIT 3`)
-    .bind(KURUM_TEMPLATE_ID,TERANE_TEMPLATE_ID,SON_HALKA_ARZLAR_TEMPLATE_ID).all<{id:string}>();
+    AND template_id IN (?,?,?,?) AND finished_at>datetime('now','-24 hours') ORDER BY finished_at LIMIT 3`)
+    .bind(KURUM_TEMPLATE_ID,TERANE_TEMPLATE_ID,AKDTERANE_TEMPLATE_ID,SON_HALKA_ARZLAR_TEMPLATE_ID).all<{id:string}>();
   for (const job of jobs.results ?? []) {
     try { await notifyResults(env,origin,job.id); }
     catch { /* Delivery parts retain a retryable error; the next cron tries again. */ }
