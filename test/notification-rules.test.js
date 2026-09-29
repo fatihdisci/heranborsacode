@@ -1,7 +1,7 @@
 import {beforeEach,afterEach,it,expect,vi} from 'vitest';
 import {database} from './db-harness';
 import {DEFAULTS,parsePreferences,decide,getPreferences,savePreferences,classify} from '../src/notifications/rules';
-import {parseIndices,refreshIndices,getIndices} from '../src/notifications/indices';
+import {parseIndices,refreshIndices,getIndices,effectiveIndices} from '../src/notifications/indices';
 import snapshot from '../src/notifications/index-snapshot.json';
 import {enqueueStatement,deliverOne,flushDailyDigest,flushCircuitBreakers,nextDigestAt} from '../src/telegram/outbox';
 import {listFeed} from '../src/db/feed';
@@ -52,6 +52,16 @@ it('uses exact validated official index membership and retains last good snapsho
   const good=await getIndices(env);vi.advanceTimersByTime(86400_001);vi.stubGlobal('fetch',vi.fn(async()=>new Response('challenge')));await refreshIndices(env);
   expect(await getIndices(env)).toEqual(good);
 });
+it('applies the published fourth-quarter index changes only when they take effect',()=>{
+  const before=effectiveIndices(snapshot,Date.parse('2026-09-30T20:59:59Z'));
+  const after=effectiveIndices(snapshot,Date.parse('2026-09-30T21:00:00Z'));
+  expect(before).toEqual(snapshot);
+  expect(after.bist30).toHaveLength(30);expect(after.bist100).toHaveLength(100);
+  expect(after.bist30).toContain('TRMET');expect(after.bist30).not.toContain('DSTKF');
+  expect(after.bist100).toContain('AGHOL');expect(after.bist100).not.toContain('BALSU');
+  expect(after.bist30.every(code=>after.bist100.includes(code))).toBe(true);
+  expect(effectiveIndices(after,Date.parse('2026-10-01T00:00:00Z'))).toEqual(after);
+});
 it('highlights BIST30 and applies changed rules before sending while preserving the feed',async()=>{
   const f=item();await queue(f);const sent=[];vi.stubGlobal('fetch',vi.fn(async(_,init)=>{sent.push(init.body.get('text'));return ok();}));
   const p=prefs();p.watchlist=[{ticker:'THYAO',mode:'important',topics:[]}];await savePreferences(env,p);await deliverOne(env);
@@ -91,6 +101,24 @@ it('filters by watchlist before pagination and protects settings API with signed
   const saved=await (await api(new Request(url,{headers}),env)).json();expect(saved.preferences.watchlist[0].ticker).toBe('THYAO');
   const feed=await api(new Request('https://example.test/api/feed?scope=watchlist',{headers}),env);expect(feed.headers.get('cache-control')).toBe('no-store');const data=await feed.json();expect(data.items).toHaveLength(2);expect(data.items[0].notification).toMatchObject({watched:true,tier:30});
   expect((await api(new Request(url,{method:'PUT',headers,body:JSON.stringify({...p,digestHour:27})}),env)).status).toBe(400);
+});
+it('filters KAP by the disclosure subject, not unrelated shares listed on the same notice',async()=>{
+  const insert=(id,codes,subjectCodes)=>{
+    const ref=`kap:${id}`;
+    sql.prepare('INSERT INTO kap_disclosures(disclosure_id,title,url,content_hash,metadata_json) VALUES (?,?,?,?,?)').run(String(id),'Dönemsel endeks değişikliği',`https://example.com/${id}`,String(id),subjectCodes===null?JSON.stringify({codes}):JSON.stringify({codes,subjectCodes}));
+    sql.prepare('INSERT INTO feed_items(type,source,source_ref,title,body,url,tickers_json) VALUES (?,?,?,?,?,?,?)').run('kap','KAP',ref,'Dönemsel endeks değişikliği','BORSA İSTANBUL',`https://example.com/${id}`,JSON.stringify(codes));
+  };
+  insert(1,['ZZZZ','THYAO','ASELS'],null); // historical broad notice
+  insert(2,['ZZZZ','THYAO'],['ZZZZ']); // related BIST 30 share, other issuer
+  insert(3,['ZZZZ','THYAO'],['THYAO']); // real BIST 30 issuer
+  const filtered=await listFeed(env,{limit:10,tickerList:snapshot.bist30});
+  expect(filtered.items.map(x=>x.source_ref)).toEqual(['kap:3']);
+  expect(decide(filtered.items[0],prefs(),snapshot).tier).toBe(30);
+  const all=await listFeed(env,{limit:10});
+  expect(all.items.find(x=>x.source_ref==='kap:1').notification).toBeUndefined();
+  expect(decide(all.items.find(x=>x.source_ref==='kap:1'),prefs(),snapshot).tier).toBeNull();
+  expect(decide(all.items.find(x=>x.source_ref==='kap:1'),prefs(),snapshot).action).toBe('instant');
+  expect(decide(all.items.find(x=>x.source_ref==='kap:2'),prefs(),snapshot).tier).toBeNull();
 });
 it('rechecks excluded titles at digest assembly and rolls back a failed group write',async()=>{
   const p=prefs();p.funds='digest';await savePreferences(env,p);

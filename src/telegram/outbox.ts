@@ -6,6 +6,7 @@ import { sendDocument, sendMessage, TelegramError } from "./client";
 import type { InlineButton } from './client';
 import type { FeedItem } from '../types';
 import { feedKeyboard } from './buttons';
+import { feedJoinSql, subjectTickersSql } from '../db/feed';
 
 export const DKB_WINDOW_MS = 12_000;
 export interface DeliveryPayload {
@@ -53,8 +54,8 @@ export function retryDelay(attempt: number, retryAfter = 0): number {
 
 export async function flushCircuitBreakers(env: Env, now = Date.now()): Promise<void> {
   const rows = (await env.DB.prepare(`SELECT q.id,q.payload,q.first_seen_at,
-    CASE WHEN f.id IS NULL THEN NULL ELSE json_object('type',f.type,'title',f.title,'body',f.body,'tickers_json',f.tickers_json) END AS feed_json
-    FROM telegram_outbox q LEFT JOIN feed_items f ON f.source_ref=q.source_ref AND f.category IS NULL
+    CASE WHEN f.id IS NULL THEN NULL ELSE json_object('type',f.type,'title',f.title,'body',f.body,'tickers_json',f.tickers_json,'subject_tickers_json',${subjectTickersSql}) END AS feed_json
+    FROM telegram_outbox q LEFT JOIN feed_items f ON f.source_ref=q.source_ref AND f.category IS NULL ${feedJoinSql}
     WHERE q.status='buffered' AND q.source_ref LIKE 'kap:%'
       AND ((SELECT value FROM system_state WHERE key='finance_notification_cutoff_at') IS NULL
         OR q.published_at >= (SELECT value FROM system_state WHERE key='finance_notification_cutoff_at'))
@@ -108,7 +109,7 @@ export async function deliverOne(env: Env): Promise<number> {
   let messageId: number;
   try {
     if (job.kind === 'message' && job.source_ref) {
-      const item = await env.DB.prepare('SELECT * FROM feed_items WHERE source_ref=? AND category IS NULL').bind(job.source_ref).first<FeedItem>();
+      const item = await env.DB.prepare(`SELECT f.*,${subjectTickersSql} AS subject_tickers_json FROM feed_items f ${feedJoinSql} WHERE f.source_ref=? AND f.category IS NULL`).bind(job.source_ref).first<FeedItem>();
       if(item) {
         const preferences=await getPreferences(env),indices=await getIndices(env);
         const decision=decide(item,preferences,indices);

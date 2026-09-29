@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { circuitBreakerBody, circuitBreakerMessage, isImportantPublicDisclosure, parsePublicKapPage, suppressPublicKapNotification } from "../src/kap/public";
+import { circuitBreakerBody, circuitBreakerMessage, disclosureSubjectCodes, isImportantPublicDisclosure, parsePublicKapPage, suppressPublicKapNotification } from "../src/kap/public";
 
 it('keeps issuance documents and credit use out of Telegram notifications', () => {
   for (const title of ['İhraç Belgesi', 'Tertip İhraç Belgesi', 'Fon İhraç Sözleşmesi', 'Kredi Kullanımı']) {
@@ -14,17 +14,25 @@ describe("parsePublicKapPage", () => {
     expect(parsePublicKapPage(html, 1665625)).toMatchObject({
       id: 1665625,
       codes: ["TST2", "TEST"],
+      issuerCode: "TEST",
       summary: null,
       resumeAt: null,
       publishedAt: "2026-09-20T07:00:00.000Z",
     });
+    expect(disclosureSubjectCodes(parsePublicKapPage(html, 1665625)!)).toEqual(["TEST"]);
   });
 
   it("parses DKB string symbols and formats deterministic copy-ready text", () => {
     const html = String.raw`<script>"disclosureBasic":{\"title\":\"Pay Bazında Devre Kesici Bildirimi\",\"companyTitle\":\"BORSA İSTANBUL BISTECH DEVRE KESİCİ UYGULAMASI\",\"stockCode\":null,\"relatedStocks\":\"EKIM\",\"disclosureClass\":\"DUY\",\"disclosureType\":\"DUY\",\"publishDate\":\"2026.09.18 12:33:00\",\"disclosureIndex\":1665207,\"summary\":\"EKIM.E işlem sırasında Pay Bazında Devre Kesici Uygulaması devreye girmiştir\"},"disclosureDetail"</script><p>Emir toplama bölümünü takiben yapılacak eşleştirme sonrasında işlemlere 12:44:59 itibarıyla devam edilecektir.</p>`;
     const item = parsePublicKapPage(html, 1665207);
     expect(item).toMatchObject({ codes: ["EKIM"], resumeAt: "12:44:59" });
+    expect(item && disclosureSubjectCodes(item)).toEqual(["EKIM"]);
     expect(item && circuitBreakerBody(item)).toBe("Devre kesici uygulandı. Sürekli işleme ara verildi.");
+  });
+
+  it('does not assign an index to every share in a broad KAP relatedStocks list', () => {
+    const html = String.raw`<script>"disclosureBasic":{"title":"BIST Pay Endeksleri Dönemsel Değişiklikleri","companyTitle":"BORSA İSTANBUL A.Ş.","stockCode":null,"relatedStocks":"THYAO,ASELS,ZZZZ","disclosureIndex":1665628},"disclosureDetail"</script>`;
+    expect(disclosureSubjectCodes(parsePublicKapPage(html,1665628)!)).toEqual([]);
   });
 
   it("combines every DKB symbol from the same catch-up cycle", () => {

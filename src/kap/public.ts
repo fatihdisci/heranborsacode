@@ -43,12 +43,21 @@ export interface PublicDisclosure {
   title: string;
   company: string | null;
   codes: string[];
+  issuerCode?: string | null;
   disclosureClass: string;
   disclosureType: string;
   summary: string | null;
   resumeAt: string | null;
   publishedAt: string | null;
   url: string;
+}
+
+export function disclosureSubjectCodes(item: PublicDisclosure): string[] {
+  if (isCircuitBreaker(item)) return item.codes;
+  if (item.issuerCode && /^[A-Z][A-Z0-9]{3,4}$/.test(item.issuerCode)) return [item.issuerCode];
+  // KAP's relatedStocks can list an entire index. With no listed issuer, a
+  // single related share is unambiguous; a longer list is not.
+  return item.codes.length === 1 ? item.codes : [];
 }
 
 function parseDate(value: string | undefined): string | null {
@@ -86,6 +95,7 @@ export function parsePublicKapPage(html: string, requestedId: number): PublicDis
     title: basic.title,
     company: basic.companyTitle ?? null,
     codes: codes(basic.relatedStocks, basic.stockCode, basic.companyTitle),
+    issuerCode: codes(null, basic.stockCode, basic.companyTitle)[0] ?? null,
     disclosureClass: basic.disclosureClass ?? "",
     disclosureType: basic.disclosureType ?? "",
     summary: basic.summary ?? null,
@@ -130,21 +140,27 @@ async function getDisclosure(id: number): Promise<PublicDisclosure | null> {
 
 async function store(env: Env, item: PublicDisclosure, silent: boolean): Promise<void> {
   const preferences=await getPreferences(env);
-  const topics=classify({title:item.title,body:item.company,tickers_json:JSON.stringify(item.codes)}).topics;
-  const explicitlyTracked=preferences.watchlist.some(w=>item.codes.includes(w.ticker)&&(w.mode==='all'||w.mode==='topics'&&w.topics.some(t=>topics.includes(t))));
+  const subjectCodes=disclosureSubjectCodes(item);
+  const topics=classify({title:item.title,body:item.company,tickers_json:JSON.stringify(subjectCodes)}).topics;
+  const explicitlyTracked=preferences.watchlist.some(w=>subjectCodes.includes(w.ticker)&&(w.mode==='all'||w.mode==='topics'&&w.topics.some(t=>topics.includes(t))));
   const priorityCodes=[...preferences.watchlist.map(w=>w.ticker),...(preferences.priorityIndices?(await getIndices(env)).bist100:[])];
   const explicitlySelectedTopic=preferences.otherCompanies==='topics'&&preferences.otherTopics.some(topic=>topics.includes(topic));
-  if (!isImportantPublicDisclosure(item,priorityCodes) && !explicitlyTracked && !explicitlySelectedTopic) return;
+  // Keep broad market announcements in the main KAP flow, without pretending
+  // that every related share is the issuer or qualifies for an index alert.
+  const marketwide=subjectCodes.length===0&&item.codes.length>0&&!/PAY ALIM BİLDİRİMİ|PAY SATIM BİLDİRİMİ/i.test(item.title);
+  const important=isImportantPublicDisclosure({...item,codes:subjectCodes},priorityCodes)||
+    marketwide&&isImportantPublicDisclosure(item,[]);
+  if (!important && !explicitlyTracked && !explicitlySelectedTopic) return;
   const known = await env.DB.prepare("SELECT disclosure_id FROM kap_disclosures WHERE disclosure_id=?").bind(String(item.id)).first();
   if (known) return;
   const breakerBody = circuitBreakerBody(item);
   const firstSeen = new Date().toISOString();
   const ref = `kap:${item.id}`;
-  const heading = item.codes[0] ? `#${escapeTelegramHtml(item.codes[0])}` : "🏦 <b>KAP · Fon/Portföy</b>";
+  const heading = subjectCodes[0] ? `#${escapeTelegramHtml(subjectCodes[0])}` : marketwide ? "🏦 <b>KAP</b>" : "🏦 <b>KAP · Fon/Portföy</b>";
   const message = `${heading}\nKAP bildirimi\n\n${escapeTelegramHtml(item.title)}${item.company ? `\n${escapeTelegramHtml(item.company)}` : ""}`;
   const statements = [
     env.DB.prepare("INSERT OR IGNORE INTO kap_disclosures(disclosure_id,company,ticker,title,disclosure_type,published_at,url,metadata_json,content_hash,telegram_status,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)")
-      .bind(String(item.id), item.company, item.codes[0] ?? null, item.title, item.disclosureType || item.disclosureClass, item.publishedAt, item.url, JSON.stringify(item), await sha256(ref), silent ? "baseline" : "pending", firstSeen),
+      .bind(String(item.id), item.company, subjectCodes[0] ?? null, item.title, item.disclosureType || item.disclosureClass, item.publishedAt, item.url, JSON.stringify({...item,subjectCodes}), await sha256(ref), silent ? "baseline" : "pending", firstSeen),
     feedStatement(env, { type: "kap", source: "KAP", source_ref: ref, title: item.title, body: breakerBody ?? item.company, url: item.url, tickers_json: JSON.stringify(item.codes), published_at: item.publishedAt }),
   ];
   if (!silent) statements.push(enqueueStatement(env, ref, breakerBody && item.codes.length ? 'dkb' : 'message',

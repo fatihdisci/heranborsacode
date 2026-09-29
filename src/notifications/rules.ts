@@ -7,7 +7,7 @@ export interface WatchRule {ticker:string; mode:'important'|'all'|'topics'; topi
 export interface Preferences {version:1;watchlist:WatchRule[];otherCompanies:'all'|'topics'|'off';otherTopics:Topic[];funds:'instant'|'digest'|'off';digestHour:number;priorityIndices:boolean;excludedTitles:string[];}
 export const DEFAULTS:Preferences={version:1,watchlist:[],otherCompanies:'all',otherTopics:['dividend','buyback'],funds:'instant',digestHour:19,priorityIndices:true,excludedTitles:['İhraç belgesi','Fon ihraç sözleşmesi','Kredi kullanımı']};
 export const normalize=(text:string)=>text.toLocaleUpperCase('tr-TR').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/ı/g,'I');
-export function symbols(item:Pick<FeedItem,'tickers_json'>):string[] {try {const data=JSON.parse(item.tickers_json??'[]');return Array.isArray(data)?data.filter(x=>typeof x==='string'&&/^[A-Z][A-Z0-9]{3,4}$/.test(x)):[];}catch{return [];}}
+export function symbols(item:Pick<FeedItem,'tickers_json'> & {subject_tickers_json?:string|null}):string[] {try {const data=JSON.parse(item.subject_tickers_json??item.tickers_json??'[]');return Array.isArray(data)?data.filter(x=>typeof x==='string'&&/^[A-Z][A-Z0-9]{3,4}$/.test(x)):[];}catch{return [];}}
 export function classify(item:Pick<FeedItem,'title'|'body'|'tickers_json'>):{fund:boolean;topics:Topic[]} {
   const title=normalize(item.title), text=normalize(`${item.title} ${item.body??''}`);
   const topics:Topic[]=[];
@@ -59,7 +59,10 @@ export function decide(item:FeedItem,p:Preferences,indices:IndexMembership):{act
   const {fund,topics}=classify(item);
   if(fund)return result(p.funds,'Fon / portföy kuralı');
   if(watched)return result(rules.some(w=>w.mode==='all'||w.mode==='important'&&isImportantPublicDisclosure({title:item.title,company:item.body,codes},p.watchlist.map(w=>w.ticker))||w.mode==='topics'&&w.topics.some(t=>topics.includes(t)))?'instant':'off','Takip listesi');
-  const important=isImportantPublicDisclosure({title:item.title,company:item.body,codes},p.priorityIndices?indices.bist100:[]);
+  const relatedCodes=symbols({tickers_json:item.tickers_json});
+  const marketwide=!codes.length&&relatedCodes.length>1&&!/PAY ALIM BİLDİRİMİ|PAY SATIM BİLDİRİMİ/i.test(item.title);
+  const important=isImportantPublicDisclosure({title:item.title,company:item.body,codes},p.priorityIndices?indices.bist100:[])||
+    marketwide&&isImportantPublicDisclosure({title:item.title,company:item.body,codes:relatedCodes},[]);
   if(tier&&p.priorityIndices&&important)return result('instant','BIST önceliği');
   return result(p.otherCompanies==='all'&&important||(p.otherCompanies==='topics'&&p.otherTopics.some(t=>topics.includes(t)))?'instant':'off','Diğer şirketler');
 }

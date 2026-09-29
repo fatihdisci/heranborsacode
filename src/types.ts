@@ -29,6 +29,7 @@ export interface FeedItem {
   body: string | null;
   url: string;
   tickers_json: string | null;
+  subject_tickers_json?: string | null;
   published_at: string | null;
   created_at: string;
 }
