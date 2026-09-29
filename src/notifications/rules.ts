@@ -5,8 +5,9 @@ export const TOPICS={dividend:'Temettü',buyback:'Geri alım',financials:'Finans
 export type Topic=keyof typeof TOPICS;
 export interface WatchRule {ticker:string; mode:'important'|'all'|'topics'; topics:Topic[];}
 export interface Preferences {version:1;watchlist:WatchRule[];otherCompanies:'all'|'topics'|'off';otherTopics:Topic[];funds:'instant'|'digest'|'off';digestHour:number;priorityIndices:boolean;excludedTitles:string[];}
-export const DEFAULTS:Preferences={version:1,watchlist:[],otherCompanies:'all',otherTopics:['dividend','buyback'],funds:'instant',digestHour:19,priorityIndices:true,excludedTitles:['İhraç belgesi','Fon ihraç sözleşmesi','Kredi kullanımı']};
+export const DEFAULTS:Preferences={version:1,watchlist:[],otherCompanies:'all',otherTopics:['dividend','buyback'],funds:'instant',digestHour:19,priorityIndices:true,excludedTitles:['İhraç belgesi','Fon ihraç sözleşmesi','Kredi kullanımı','İç Tüzük']};
 export const normalize=(text:string)=>text.toLocaleUpperCase('tr-TR').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/ı/g,'I');
+export const isMutedKapTitle=(title:string):boolean=>/ICTUZU[KG]/.test(normalize(title).replace(/[^A-Z0-9]/g,''));
 export function symbols(item:Pick<FeedItem,'tickers_json'> & {subject_tickers_json?:string|null}):string[] {try {const data=JSON.parse(item.subject_tickers_json??item.tickers_json??'[]');return Array.isArray(data)?data.filter(x=>typeof x==='string'&&/^[A-Z][A-Z0-9]{3,4}$/.test(x)):[];}catch{return [];}}
 export function classify(item:Pick<FeedItem,'title'|'body'|'tickers_json'>):{fund:boolean;topics:Topic[]} {
   const title=normalize(item.title), text=normalize(`${item.title} ${item.body??''}`);
@@ -55,6 +56,7 @@ export function decide(item:FeedItem,p:Preferences,indices:IndexMembership):{act
   const codes=symbols(item),tier=indexTier(codes,indices),rules=p.watchlist.filter(w=>codes.includes(w.ticker)),watched=rules.length>0;
   const result=(action:'instant'|'digest'|'off',reason:string)=>({action,reason,tier,watched});
   if(item.type!=='kap')return result('instant','Haber / SPK');
+  if(isMutedKapTitle(item.title))return result('off','İç Tüzük bildirimi kapalı');
   if(p.excludedTitles.some(term=>normalize(item.title).includes(normalize(term))))return result('off','Hariç tutulan başlık');
   const {fund,topics}=classify(item);
   if(fund)return result(p.funds,'Fon / portföy kuralı');

@@ -33,6 +33,18 @@ it('applies exclusions, explicit watch rules, index priority and other-company t
   expect(decide(item('Payların Geri Alınmasına İlişkin Bildirim',['ZZZZ']),p,snapshot).action).toBe('instant');
   p.priorityIndices=false;expect(decide(item('Yeni İş İlişkisi',['ASELS']),p,snapshot).action).toBe('off');
 });
+it('never sends an İç Tüzük KAP notice even when all company alerts are enabled',async()=>{
+  const p=prefs();p.excludedTitles=[];p.watchlist=[{ticker:'THYAO',mode:'all',topics:[]}];
+  await savePreferences(env,p);
+  for(const title of ['İç Tüzük','İçtüzük Değişikliği','FON İÇ TÜZÜĞÜ'])
+    expect(decide(item(title),p,snapshot)).toMatchObject({action:'off',reason:'İç Tüzük bildirimi kapalı'});
+  await queue(item('İç Tüzük'));
+  const sent=vi.fn();vi.stubGlobal('fetch',sent);
+  await deliverOne(env);
+  expect(sent).not.toHaveBeenCalled();
+  expect(sql.prepare("SELECT status FROM telegram_outbox WHERE id='kap:1'").get().status).toBe('filtered');
+  expect(sql.prepare('SELECT COUNT(*) n FROM feed_items').get().n).toBe(1);
+});
 it('distinguishes all versus important watched KAP and does not mistake fund investments for issuers',()=>{
   const p=prefs();p.watchlist=[{ticker:'THYAO',mode:'important',topics:[]}];p.funds='digest';
   expect(decide(item('Şirket Genel Bilgi Formu'),p,snapshot).action).toBe('off');p.watchlist[0].mode='all';expect(decide(item('Şirket Genel Bilgi Formu'),p,snapshot).action).toBe('instant');

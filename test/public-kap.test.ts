@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { circuitBreakerBody, circuitBreakerMessage, disclosureSubjectCodes, isImportantPublicDisclosure, parsePublicKapPage, suppressPublicKapNotification } from "../src/kap/public";
 
 it('keeps issuance documents and credit use out of Telegram notifications', () => {
-  for (const title of ['İhraç Belgesi', 'Tertip İhraç Belgesi', 'Fon İhraç Sözleşmesi', 'Kredi Kullanımı']) {
+  for (const title of ['İhraç Belgesi', 'Tertip İhraç Belgesi', 'Fon İhraç Sözleşmesi', 'Kredi Kullanımı', 'İç Tüzük', 'FON İÇTÜZÜĞÜ DEĞİŞİKLİĞİ']) {
     expect(suppressPublicKapNotification(title)).toBe(true);
   }
   expect(suppressPublicKapNotification('Yeni kredi sözleşmesi imzalandı')).toBe(false);

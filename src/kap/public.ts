@@ -6,7 +6,7 @@ import { fetchWithTimeout } from "../utils/http";
 import { escapeTelegramHtml, sha256 } from "../utils/text";
 import { isImportantPublicDisclosure } from "./importance";
 export { isImportantPublicDisclosure } from "./importance";
-import { getPreferences, classify } from "../notifications/rules";
+import { getPreferences, classify, isMutedKapTitle } from "../notifications/rules";
 import { financeNotificationCutoff, publishedSince } from '../db/state';
 
 const PUBLIC_KAP_URL = "https://www.kap.org.tr/tr/Bildirim";
@@ -122,7 +122,7 @@ export function circuitBreakerMessage(items: PublicDisclosure[]): string | null 
 
 export function suppressPublicKapNotification(title: string): boolean {
   const normalized = title.toLocaleUpperCase('tr-TR').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  return /IHRAC BELGESI|FON IHRAC SOZLESMESI|KREDI KULLANIMI/.test(normalized);
+  return isMutedKapTitle(title) || /IHRAC BELGESI|FON IHRAC SOZLESMESI|KREDI KULLANIMI/.test(normalized);
 }
 
 function within24Hours(value: string | null): boolean {
