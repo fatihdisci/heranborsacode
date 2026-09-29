@@ -20,3 +20,11 @@ export function publishedSince(value: string | null, cutoff: number | null): boo
   const time = value ? Date.parse(value) : Number.NaN;
   return Number.isFinite(time) && time >= cutoff;
 }
+
+// RSS mirrors and X scrapers can surface an old post as a new item. Keep it in
+// the Mini App history, but do not wake the user long after publication.
+export const NEWS_ALERT_MAX_AGE_MS = 30 * 60_000;
+export function recentNewsForTelegram(value: string | null, now = Date.now()): boolean {
+  const published = value ? Date.parse(value) : Number.NaN;
+  return Number.isFinite(published) && published >= now - NEWS_ALERT_MAX_AGE_MS && published <= now + 60_000;
+}

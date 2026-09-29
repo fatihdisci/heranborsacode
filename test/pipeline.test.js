@@ -8,7 +8,7 @@ let sql,env;
 beforeEach(()=>{({sql,env}=database());});
 afterEach(()=>{sql.close();vi.unstubAllGlobals();});
 const source={name:'Test Ekonomi',url:'https://example.com/rss'};
-function rss(amount) {return `<rss><channel><item><title>Vestel yeni sözleşme imzaladı</title><link>https://example.com/news/1</link><description>Vestel, ${amount} milyon TL tutarında yeni sözleşme imzaladı.</description><pubDate>${new Date().toUTCString()}</pubDate></item></channel></rss>`;}
+function rss(amount,date=new Date()) {return `<rss><channel><item><title>Vestel yeni sözleşme imzaladı</title><link>https://example.com/news/1</link><description>Vestel, ${amount} milyon TL tutarında yeni sözleşme imzaladı.</description><pubDate>${date.toUTCString()}</pubDate></item></channel></rss>`;}
 it('handles RSS revisions and repeated polls without sending Telegram during ingestion',async()=>{
   sql.prepare("INSERT INTO system_state(key,value) VALUES (?,'1')").run('rss_baseline:'+source.url);
   let amount=10;
@@ -19,6 +19,14 @@ it('handles RSS revisions and repeated polls without sending Telegram during ing
   amount=20;await pollRSSSource(env,source);await pollRSSSource(env,source);
   expect(sql.prepare('SELECT count(*) AS n FROM telegram_outbox').get().n).toBe(2);
   expect(sql.prepare('SELECT count(*) AS n FROM feed_items').get().n).toBe(2);
+});
+it('keeps late RSS items in the Mini App without sending old news to Telegram',async()=>{
+  sql.prepare("INSERT INTO system_state(key,value) VALUES (?,'1')").run('rss_baseline:'+source.url);
+  vi.stubGlobal('fetch',vi.fn(async()=>new Response(rss(10,new Date(Date.now()-2*60*60_000)))));
+  await pollRSSSource(env,source);
+  expect(sql.prepare('SELECT count(*) AS n FROM feed_items').get().n).toBe(1);
+  expect(sql.prepare('SELECT count(*) AS n FROM telegram_outbox').get().n).toBe(0);
+  expect(sql.prepare('SELECT telegram_status FROM rss_items').get().telegram_status).toBe('baseline');
 });
 it('rolls back source and feed when delivery persistence fails',async()=>{
   sql.prepare("INSERT INTO system_state(key,value) VALUES (?,'1')").run('rss_baseline:'+source.url);

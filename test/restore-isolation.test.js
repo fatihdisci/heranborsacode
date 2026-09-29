@@ -18,7 +18,7 @@ it('shows historical finance records while retaining AI rows outside the feed',a
 it('leaves AI-era pending deliveries untouched and sends the next finance item',async()=>{
   const {sql,env}=setup();
   await enqueueStatement(env,'ai:news','message',{text:'AI haberi'},null).run();
-  await enqueueStatement(env,'rss:finance','message',{text:'BIST haberi'},null).run();
+  await enqueueStatement(env,'rss:finance','message',{text:'BIST haberi'},new Date().toISOString()).run();
   const fetchMock=vi.fn(async()=>new Response(JSON.stringify({ok:true,result:{message_id:42}})));
   vi.stubGlobal('fetch',fetchMock);
   await deliverOne(env);

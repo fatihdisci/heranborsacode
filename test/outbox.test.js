@@ -10,6 +10,13 @@ beforeEach(()=>{({sql,env}=database());vi.useFakeTimers();vi.setSystemTime(new D
 afterEach(()=>{sql.close();vi.useRealTimers();vi.unstubAllGlobals();});
 const ok=()=>new Response(JSON.stringify({ok:true,result:{message_id:42}}));
 describe('persistent delivery',()=>{
+  it('drops a news alert that aged in the retry queue',async()=>{
+    await enqueueStatement(env,'rss:stale','message',{text:'Eski haber'},new Date(Date.now()-31*60_000).toISOString()).run();
+    const fetchMock=vi.fn();vi.stubGlobal('fetch',fetchMock);
+    await deliverOne(env);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(sql.prepare("SELECT status FROM telegram_outbox WHERE id='rss:stale'").get().status).toBe('filtered');
+  });
   it('flushes a DKB window while intake continues and never marks later arrivals sent',async()=>{
     await enqueueStatement(env,'kap:1','dkb',{codes:['THYAO']},null).run();
     vi.advanceTimersByTime(8000);
@@ -28,7 +35,7 @@ describe('persistent delivery',()=>{
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
   it('honors Telegram retry_after globally, survives retries and records API acceptance',async()=>{
-    await enqueueStatement(env,'rss:1','message',{text:'Test'},null).run();
+    await enqueueStatement(env,'rss:1','message',{text:'Test'},new Date().toISOString()).run();
     const fetchMock=vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ok:false,error_code:429,parameters:{retry_after:40}}),{status:429})).mockImplementation(ok);
     vi.stubGlobal('fetch',fetchMock);
     expect(await deliverOne(env)).toBe(40000);
@@ -38,15 +45,15 @@ describe('persistent delivery',()=>{
     expect(sql.prepare("SELECT status,attempts,message_id,sent_at FROM telegram_outbox WHERE id='rss:1'").get()).toMatchObject({status:'sent',attempts:2,message_id:42,sent_at:'2026-09-20T20:00:40.001Z'});
   });
   it('keeps permanent errors visible and lets other messages progress',async()=>{
-    await enqueueStatement(env,'rss:1','message',{text:'Bad'},null).run();
-    await enqueueStatement(env,'rss:2','message',{text:'Good'},null).run();
+    await enqueueStatement(env,'rss:1','message',{text:'Bad'},new Date().toISOString()).run();
+    await enqueueStatement(env,'rss:2','message',{text:'Good'},new Date().toISOString()).run();
     vi.stubGlobal('fetch',vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ok:false,error_code:400}),{status:400})).mockImplementation(ok));
     await deliverOne(env);await deliverOne(env);
     expect(sql.prepare("SELECT status FROM telegram_outbox WHERE id='rss:1'").get().status).toBe('blocked');
     expect(sql.prepare("SELECT status FROM telegram_outbox WHERE id='rss:2'").get().status).toBe('sent');
   });
   it('claims jobs atomically so concurrent invocations cannot send the same job',async()=>{
-    await enqueueStatement(env,'rss:1','message',{text:'Only once'},null).run();
+    await enqueueStatement(env,'rss:1','message',{text:'Only once'},new Date().toISOString()).run();
     const fetchMock=vi.fn(ok);vi.stubGlobal('fetch',fetchMock);
     await Promise.all([deliverOne(env),deliverOne(env)]);
     expect(fetchMock).toHaveBeenCalledTimes(1);

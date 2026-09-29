@@ -7,6 +7,7 @@ import type { InlineButton } from './client';
 import type { FeedItem } from '../types';
 import { feedKeyboard } from './buttons';
 import { feedJoinSql, subjectTickersSql } from '../db/feed';
+import { recentNewsForTelegram } from '../db/state';
 
 export const DKB_WINDOW_MS = 12_000;
 export interface DeliveryPayload {
@@ -18,7 +19,7 @@ export interface DeliveryPayload {
   keyboard?: InlineButton[][];
   replyTo?: number;
 }
-interface Job { id: string; source_ref: string | null; kind: string; payload: string; attempts: number; first_seen_at: string; }
+interface Job { id: string; source_ref: string | null; kind: string; payload: string; attempts: number; first_seen_at: string; published_at:string|null; }
 function utcTime(value: string): number { return Date.parse(value.includes('T') ? value : value.replace(' ', 'T') + 'Z'); }
 
 // The AI-era outbox remains in D1. Never deliver its pending source messages,
@@ -103,6 +104,10 @@ export async function deliverOne(env: Env): Promise<number> {
     ) AS completed FROM telegram_outbox q WHERE (id=? OR group_id=?) AND source_ref IS NOT NULL`).bind(job.id,job.id).first<{total:number;completed:number}>();
   if (originals && originals.total>0 && originals.total===originals.completed) {
     await env.DB.prepare("UPDATE telegram_outbox SET status='superseded',lease_until=0 WHERE id=? OR group_id=?").bind(job.id,job.id).run();
+    return 1100;
+  }
+  if(job.source_ref && /^(rss|x):/.test(job.source_ref) && !recentNewsForTelegram(job.published_at,now)) {
+    await env.DB.prepare("UPDATE telegram_outbox SET status='filtered',lease_until=0,last_error='Yayın zamanı eski haber' WHERE id=?").bind(job.id).run();
     return 1100;
   }
   const payload = JSON.parse(job.payload) as DeliveryPayload;

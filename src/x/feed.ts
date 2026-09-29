@@ -1,6 +1,6 @@
 import type { Env } from '../types';
 import { feedStatement } from '../db/feed';
-import { getState, financeNotificationCutoff } from '../db/state';
+import { getState, financeNotificationCutoff, recentNewsForTelegram } from '../db/state';
 import { enqueueStatement } from '../telegram/outbox';
 import { escapeTelegramHtml } from '../utils/text';
 import { findTickers, isFundCrisisNews } from '../rss/filter';
@@ -52,7 +52,7 @@ export async function ingestPosts(env: Env, account: string, input: unknown): Pr
     const crisis=isFundCrisisNews(post.text);
     statements.push(feedStatement(env, { type:'news', source, source_ref:ref, title, body:post.text, url, tickers_json:tickers, published_at:post.publishedAt }));
     const excerpt = post.text.length > 900 ? post.text.slice(0,897) + '…' : post.text;
-    statements.push(enqueueStatement(env, ref, crisis?'priority_message':'message', {
+    if(recentNewsForTelegram(post.publishedAt,Date.parse(now)))statements.push(enqueueStatement(env, ref, crisis?'priority_message':'message', {
       text:`${crisis?'⚠️ <b>Fon gelişmesi · X sinyali</b>\nResmî açıklama ayrıca doğrulanmalı.\n\n':''}📰 <b>${escapeTelegramHtml(source)}</b>\n\n${escapeTelegramHtml(excerpt)}\n\n<i>X paylaşımı · Kaynak hesabın aktarımıdır.</i>`,
       button:{text:'🔗 Paylaşımı aç',url},
     }, post.publishedAt));

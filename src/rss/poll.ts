@@ -7,7 +7,7 @@ import { escapeTelegramHtml, normalizeUrl, nowIso, sha256 } from "../utils/text"
 import { findTickers, isFundCrisisNews, isRelevantNews, isTurkishNews } from "./filter";
 import { parseRss } from "./parser";
 import { RSS_SOURCES } from "./sources";
-import { financeNotificationCutoff, publishedSince } from '../db/state';
+import { financeNotificationCutoff, publishedSince, recentNewsForTelegram } from '../db/state';
 
 function publishedWithin24Hours(value: string | null): boolean {
   if (!value) return true;
@@ -57,7 +57,7 @@ async function pollSource(env: Env, source: { name: string; url: string }): Prom
     const hashtagLine = tickers.length ? tickers.map(code => `#${code}`).join(" ")+"\n" : "";
     const crisis=isFundCrisisNews(item.title,summary);
     const text = `${crisis?'⚠️ <b>Fon gelişmesi · Haber kaynağı</b>\nResmî açıklama ayrıca doğrulanmalı.\n\n':''}${hashtagLine}📰 <b>${escapeTelegramHtml(source.name)}</b>\n\n<b>${escapeTelegramHtml(item.title)}</b>${summary && summary !== item.title ? "\n\n"+escapeTelegramHtml(summary) : ""}`;
-    const notify = !initialSeed && publishedSince(item.publishedAt, cutoff);
+    const notify = !initialSeed && publishedSince(item.publishedAt, cutoff) && recentNewsForTelegram(item.publishedAt,Date.parse(seen));
     const statements = [
       env.DB.prepare(`INSERT OR IGNORE INTO rss_items(source,title,url,normalized_url,published_at,fetched_at,content_hash,tickers_json,telegram_status)
         VALUES (?,?,?,?,?,?,?,?,?)`).bind(source.name,item.title,item.url,existing ? `${normalizedUrl}#revision=${hash}` : normalizedUrl,item.publishedAt,seen,hash,JSON.stringify(tickers),notify ? "pending":"baseline"),

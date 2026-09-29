@@ -50,6 +50,8 @@ KAP akışı şirket, fon/portföy yönetimi ve piyasa açısından anlamlı bil
 
 Fon/portföy temerrüdü ve tasfiye gibi kritik KAP gelişmeleri fon özeti seçili olsa da anında bildirilir. Fon kriziyle ilgili RSS haberleri doğrulanması gereken medya sinyali olarak işaretlenir; SPK basın duyurusu doğrudan resmî kaynaktan ayrı ve öncelikli gönderilir. Yeni SPK basın duyurusu izleyicisi ilk taramada mevcut kayıtları sessizce tanır ve geçmiş duyuruları Telegram'a yeniden yollamaz. Yeni basın duyurularının ana metni Mini App'te okunabilir ve tweet taslağına kaynak olur.
 
+RSS ve X kayıtları 24 saatlik akış geçmişinde tutulabilir, ancak Telegram'a yalnız kaynak yayın saatinden sonraki ilk 30 dakika içinde görülenler gönderilir. Gönderim kuyruğunda 30 dakikayı aşan haberler de elenir. Böylece sağlayıcının geç eklediği dünkü haber yeni alarm gibi gelmez; yayın zamanı olmayan haberler Telegram'a gönderilmez. Resmî KAP ve SPK akışlarının ayrı bildirim kuralları korunur.
+
 ## Telegram ve Mini App
 
 Botun **Menu Button / Web App URL** adresi `https://borsa.discilaw.com` olarak Worker tarafından korunur. Alt alan adı arama motorlarına kapalıdır; akış ve içerik API'leri yalnız Telegram Mini App'in imzalı `initData` verisi doğrulandıktan sonra çalışır. AI tweet endpoint'i ayrıca kullanıcı adı allowlist'ini denetler.

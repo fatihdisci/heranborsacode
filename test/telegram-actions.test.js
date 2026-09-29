@@ -123,7 +123,7 @@ it('limits rapid distinct actions and leaves DKB messages unchanged',async()=>{
   expect(feedKeyboard({...item,type:'kap',title:'Pay Bazında Devre Kesici'})).toHaveLength(1);
 });
 it('adds buttons during news delivery but action replies are not suppressed by original delivery receipts',async()=>{
-  await enqueueStatement(env,'rss:test','message',{text:'Title'},null).run();await deliverOne(env);
+  await enqueueStatement(env,'rss:test','message',{text:'Title'},new Date().toISOString()).run();await deliverOne(env);
   const send=vi.mocked(fetch).mock.calls.find(([url])=>url.endsWith('/sendMessage'))[1].body;
   expect(JSON.parse(send.get('reply_markup')).inline_keyboard[1].map(b=>b.callback_data)).toEqual(['read:1','tweet:1']);
   await handleCallback(env,cb(),ctx);await processAction(env,'read');await deliverOne(env);

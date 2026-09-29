@@ -24,6 +24,13 @@ it('baselines without importing old posts, ingests only new relevant IDs once',a
   expect(sql.prepare('SELECT kind,payload FROM telegram_outbox').get().kind).toBe('priority_message');
   expect(sql.prepare('SELECT source,url,type,category FROM feed_items').get()).toMatchObject({source:'X · @haskologlu',type:'news',category:null,url:`https://x.com/haskologlu/status/${make(4).id}`});
 });
+it('keeps a delayed X post in the feed without a stale Telegram alert',async()=>{
+  await seed();
+  vi.setSystemTime(new Date('2026-09-28T12:00:00.000Z'));
+  await ingestPosts(env,'haskologlu',[make(2)]);
+  expect(sql.prepare('SELECT count(*) AS n FROM feed_items').get().n).toBe(1);
+  expect(sql.prepare('SELECT count(*) AS n FROM telegram_outbox').get().n).toBe(0);
+});
 it('rolls back the cursor when queue persistence fails',async()=>{
   await seed();
   sql.exec("CREATE TRIGGER fail_x BEFORE INSERT ON telegram_outbox BEGIN SELECT RAISE(ABORT,'failure'); END");
