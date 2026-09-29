@@ -91,6 +91,14 @@ it('filters individual circuit breakers before grouping and keeps allowed stock 
   await queue(item('Pay Bazında Devre Kesici Bildirimi',['THYAO']),'kap:1','dkb');await queue(item('Pay Bazında Devre Kesici Bildirimi',['ASELS']),'kap:2','dkb');vi.advanceTimersByTime(13000);await flushCircuitBreakers(env);
   const parent=sql.prepare("SELECT payload FROM telegram_outbox WHERE kind='dkb_group'").get();expect(parent.payload).toContain('#THYAO');expect(parent.payload).not.toContain('#ASELS');expect(sql.prepare("SELECT status FROM telegram_outbox WHERE id='kap:2'").get().status).toBe('filtered');
 });
+it('keeps live DKB codes as text when KAP metadata contains JSON subject codes',async()=>{
+  await queue(item('Pay Bazında Devre Kesici Bildirimi',['KUYAS'],'Devre kesici uygulandı.'),'kap:1','dkb');
+  sql.prepare("INSERT INTO kap_disclosures(disclosure_id,title,url,content_hash,metadata_json) VALUES (?,?,?,?,?)")
+    .run('1','Pay Bazında Devre Kesici Bildirimi','https://example.com/1','one',JSON.stringify({subjectCodes:['KUYAS']}));
+  vi.advanceTimersByTime(13000);await flushCircuitBreakers(env);
+  expect(sql.prepare("SELECT status FROM telegram_outbox WHERE id='kap:1'").get().status).toBe('grouped');
+  expect(sql.prepare("SELECT payload FROM telegram_outbox WHERE kind='dkb_group'").get().payload).toContain('#KUYAS');
+});
 it('filters by watchlist before pagination and protects settings API with signed Telegram auth',async()=>{
   for(let i=0;i<4;i++)await queue(item('Gelişme',[i%2?'THYAO':'ASELS']),'kap:'+i);
   const page=await listFeed(env,{limit:1,tickerList:['THYAO']});expect(page.items).toHaveLength(1);expect(JSON.parse(page.items[0].tickers_json)).toEqual(['THYAO']);expect(page.nextCursor).not.toBeNull();

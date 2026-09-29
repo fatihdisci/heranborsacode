@@ -54,7 +54,7 @@ export function retryDelay(attempt: number, retryAfter = 0): number {
 
 export async function flushCircuitBreakers(env: Env, now = Date.now()): Promise<void> {
   const rows = (await env.DB.prepare(`SELECT q.id,q.payload,q.first_seen_at,
-    CASE WHEN f.id IS NULL THEN NULL ELSE json_object('type',f.type,'title',f.title,'body',f.body,'tickers_json',f.tickers_json,'subject_tickers_json',${subjectTickersSql}) END AS feed_json
+    CASE WHEN f.id IS NULL THEN NULL ELSE json_object('type',f.type,'title',f.title,'body',f.body,'tickers_json',f.tickers_json,'subject_tickers_json',''||(${subjectTickersSql})) END AS feed_json
     FROM telegram_outbox q LEFT JOIN feed_items f ON f.source_ref=q.source_ref AND f.category IS NULL ${feedJoinSql}
     WHERE q.status='buffered' AND q.source_ref LIKE 'kap:%'
       AND ((SELECT value FROM system_state WHERE key='finance_notification_cutoff_at') IS NULL
