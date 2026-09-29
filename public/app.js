@@ -107,8 +107,8 @@ async function loadReader(item) {
 function openReader(item) {
   readerItem = item;
   $('#reader-title').textContent = item.title;
-  $('#reader-kind').textContent = item.type === 'kap' ? 'KAP bildirimi' : 'Haber';
-  $('#reader-meta').textContent = `${item.source} · ${formatTime(item.published_at || item.created_at)}`;
+  $('#reader-kind').textContent = item.type === 'kap' ? 'KAP bildirimi' : item.type === 'spk' ? 'SPK duyurusu' : 'Haber';
+  $('#reader-meta').textContent = `${item.source} · ${formatTime(itemTime(item))}`;
   $('#reader-symbols').textContent = JSON.parse(item.tickers_json || '[]').map(s => `#${s}`).join(' ');
   $('#reader-source').href = item.url;
   readerScrollY = window.scrollY;
@@ -126,7 +126,7 @@ readerDialog.addEventListener('close', () => {
   restoreFeedPosition(window, document, readerScrollY);
 });
 
-const labels = { "": "Tüm gelişmeler", kap: "KAP bildirimleri", spk: "SPK bültenleri", news: "Piyasa haberleri" };
+const labels = { "": "Tüm gelişmeler", kap: "KAP bildirimleri", spk: "SPK bültenleri ve duyuruları", news: "Piyasa haberleri" };
 const badges = { kap: "KAP", spk: "SPK", news: "Haber" };
 const icons = { kap: "K", spk: "S", news: "●" };
 
@@ -141,6 +141,11 @@ function formatTime(value) {
   const sameDay = date.toDateString() === new Date().toDateString();
   const options = sameDay ? { hour: "2-digit", minute: "2-digit" } : { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" };
   return new Intl.DateTimeFormat("tr-TR", options).format(date);
+}
+
+function itemTime(item) {
+  if(item.source_ref?.startsWith('spk:press:'))return item.created_at.includes('T')?item.created_at:item.created_at.replace(' ','T')+'Z';
+  return item.published_at || item.created_at;
 }
 
 function updateClock() {
@@ -242,7 +247,7 @@ function render(item) {
   const priority=node.querySelector('.priority-badges');
   if(item.notification) {
     const n=item.notification;
-    priority.textContent=[n.tier===30?'⭐ BIST 30':n.tier===100?'🔵 BIST 100':'',n.watched?'🔔 Takip listem':'',item.type==='kap'&&n.action==='digest'?'Günlük özette':item.type==='kap'&&n.action==='off'?'Bildirim kapalı':''].filter(Boolean).join(' · ');
+    priority.textContent=[item.source_ref?.startsWith('spk:press:')?'🔴 Resmî fon duyurusu':'',n.tier===30?'⭐ BIST 30':n.tier===100?'🔵 BIST 100':'',n.watched?'🔔 Takip listem':'',item.type==='kap'&&n.action==='digest'?'Günlük özette':item.type==='kap'&&n.action==='off'?'Bildirim kapalı':''].filter(Boolean).join(' · ');
     if(n.tier)article.dataset.index=String(n.tier);
     if(n.watched)article.classList.add('watched');
   }
@@ -253,13 +258,14 @@ function render(item) {
   icon.classList.add(item.type);
   badge.textContent = `${badges[item.type] || item.type} · ${item.source}`;
   badge.classList.add(item.type);
-  time.textContent = formatTime(item.published_at || item.created_at);
+  time.textContent = formatTime(itemTime(item));
+  if(item.source_ref?.startsWith('spk:press:'))time.title='Sistemin ilk gördüğü saat; SPK yalnız yayın tarihini bildiriyor.';
   title.textContent = item.title;
   summary.textContent = item.body || "";
   tickers.textContent = symbols.map(symbol => `#${symbol}`).join("  ");
 
   const isBreaker = item.type === "kap" && /devre kesici/i.test(item.title) && item.body;
-  if (item.type === 'news' || (item.type === 'kap' && !isBreaker)) {
+  if (item.type === 'news' || (item.type === 'kap' && !isBreaker) || item.source_ref?.startsWith('spk:press:')) {
     open.removeAttribute('target');
     open.setAttribute('aria-haspopup', 'dialog');
     open.onclick = event => {

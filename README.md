@@ -1,6 +1,6 @@
 # Heran Borsa
 
-Cloudflare Workers + D1 üzerinde çalışan finans akışı: MKK/KAP bildirimleri, SPK bültenleri ve doğrulanmış RSS kaynaklarını normalize eder, tekilleştirir, Telegram'a iletir ve akıcı bir Telegram Mini App'te sunar. Kullanıcı istediğinde, kaynak metni ve ek dosyalar OpenAI Responses API ile okunarak yayıma hazır tweet taslağı oluşturulur.
+Cloudflare Workers + D1 üzerinde çalışan finans akışı: MKK/KAP bildirimleri, SPK bültenleri ve basın duyuruları ile doğrulanmış RSS kaynaklarını normalize eder, tekilleştirir, Telegram'a iletir ve akıcı bir Telegram Mini App'te sunar. Kullanıcı istediğinde, kaynak metni ve ek dosyalar OpenAI Responses API ile okunarak yayıma hazır tweet taslağı oluşturulur.
 
 ## Mimari
 
@@ -10,7 +10,7 @@ Komut Merkezi ayrı bir kalıcı hat kullanır:
 
 `Mini App → D1 komut kuyruğu → Mac mini ajanı → harici Telegram botları → R2/D1 sonuçları → Heran Borsa bot sohbeti`
 
-Dakikalık cron yalnız görev parçalarının alarmını denetler. Her RSS kaynağı kendi CPU bütçesiyle dakikada bir, canlı KAP taraması normalde 30 saniyede bir, geçmiş KAP doldurma işi 10 dakikada bir; SPK ise İstanbul saatine göre planlı aralıklarda çalışır. Canlı KAP taraması art arda geçerli bildirimler bulduğunda, alarm başına sabit küçük iş yükünü koruyarak geçici olarak 5 saniyelik yakalama moduna geçer ve güncel sınıra ulaştığında yeniden 30 saniyeye döner. Böylece yavaş veya hatalı bir kaynak diğer akışları geciktirmez. İlk kurulumdaki geçmiş kayıtlar Mini App için sessizce doldurulur, Telegram'a eski bildirim olarak yeniden gönderilmez. Sonraki yeni kayıtlar benzersiz kaynak kimlikleriyle tekilleştirilerek iletilir.
+Dakikalık cron yalnız görev parçalarının alarmını denetler. Her RSS kaynağı ve SPK basın duyuruları kendi CPU bütçeleriyle dakikada bir, canlı KAP taraması normalde 30 saniyede bir, geçmiş KAP doldurma işi 10 dakikada bir; SPK bültenleri ise İstanbul saatine göre planlı aralıklarda çalışır. Canlı KAP taraması art arda geçerli bildirimler bulduğunda, alarm başına sabit küçük iş yükünü koruyarak geçici olarak 5 saniyelik yakalama moduna geçer ve güncel sınıra ulaştığında yeniden 30 saniyeye döner. Böylece yavaş veya hatalı bir kaynak diğer akışları geciktirmez. İlk kurulumdaki geçmiş kayıtlar Mini App için sessizce doldurulur, Telegram'a eski bildirim olarak yeniden gönderilmez. Sonraki yeni kayıtlar benzersiz kaynak kimlikleriyle tekilleştirilerek iletilir.
 
 ## Kurulum
 
@@ -47,6 +47,8 @@ tarafından üretilir ve değeri ekrana yazılmadan hem Worker secret'ına hem i
 RSS kaynak listesi `src/rss/sources.ts` içindedir; erişilebilirliği doğrulanmadan yeni feed eklemeyin. Akış filtresi ve ticker sözlüğü deterministiktir; AI yalnız kullanıcı tweet taslağı istediğinde devreye girer.
 
 KAP akışı şirket, fon/portföy yönetimi ve piyasa açısından anlamlı bildirimleri kapsar. Pay alım/satım bildirimleri `src/kap/bist50.ts` içindeki güncellenebilir BIST 50 setiyle sınırlandırılır. DKB grubu ilk kaydın görülmesinden 12 saniye sonra kapanır; taramanın güncel sınıra ulaşmasını beklemez. Gruplar Telegram boyut sınırı için en fazla 100 kayıt içerir. Metin `#KOD #KOD2` ardından `Devre kesici uygulandı. Sürekli işleme ara verildi.` biçimindedir; AI kullanılmaz. Haberlerde başlık benzerliği tek başına eleme nedeni değildir; aynı başlık ve özet tekilleştirilirken yeni sayı/karar/özet veya aynı URL'deki revizyon ayrı kayıt olarak korunur.
+
+Fon/portföy temerrüdü ve tasfiye gibi kritik KAP gelişmeleri fon özeti seçili olsa da anında bildirilir. Fon kriziyle ilgili RSS haberleri doğrulanması gereken medya sinyali olarak işaretlenir; SPK basın duyurusu doğrudan resmî kaynaktan ayrı ve öncelikli gönderilir. Yeni SPK basın duyurusu izleyicisi ilk taramada mevcut kayıtları sessizce tanır ve geçmiş duyuruları Telegram'a yeniden yollamaz. Yeni basın duyurularının ana metni Mini App'te okunabilir ve tweet taslağına kaynak olur.
 
 ## Telegram ve Mini App
 
@@ -147,10 +149,9 @@ Mini App oturumu gerekir. Kurallar sohbet kimliği altında mevcut D1
   filtreden etkilenmez. Pay alım/satımında eski BIST 50 sınırı, öncelikli BIST 100
   veya takip edilen hisseler için genişletilir. Rutin önem dışı başlıklar yalnız
   açık bir hisse/konu tercihi varsa alınır.
-- Öncelik: hariç başlıklar → fon kuralı → hisseye özel kural → BIST önceliği →
+- Öncelik: hariç başlıklar → kritik fon gelişmesi → fon kuralı → hisseye özel kural → BIST önceliği →
   diğer şirketler. Birden çok takip edilen hisse eşleşirse izin veren kural yeterlidir.
-- İhraç belgesi, fon ihraç sözleşmesi ve kredi kullanımı başlıkları başlangıçta
-  hariçtir. Liste arayüzden düzenlenebilir. Haber/RSS/X ve SPK gönderimleri
+- İhraç belgesi, fon ihraç sözleşmesi ve kredi kullanımı varsayılan olarak hariçtir. İç Tüzük, faizsiz pay dışı sermaye piyasası aracı işlemleri ve Kurumsal Yönetim Bilgi Formu Yönetim Kurulu-2 başlıkları kayıtlı tercihlerden bağımsız sessize alınır. Ek başlıklar arayüzden düzenlenebilir. Haber/RSS/X ve SPK gönderimleri
   bu KAP filtrelerinden etkilenmez.
 - Fon/portföy kayıtları anlık, günlük özet veya kapalı olabilir. Özet varsayılan
   saati İstanbul 19:00; ayarlanabilir. Seçilen saatten sonra görülen kayıtlar

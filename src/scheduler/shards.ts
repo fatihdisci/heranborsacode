@@ -5,6 +5,7 @@ import { pollPublicKAPBackfill, pollPublicKAPLive } from "../kap/public";
 import { pollRSSSource } from "../rss/poll";
 import { RSS_SOURCES } from "../rss/sources";
 import { pollSPK } from "../spk/poll";
+import { pollSPKPress } from "../spk/press";
 import type { Env } from "../types";
 import { pollDelivery } from '../telegram/outbox';
 import { monitorOperations } from './monitor';
@@ -15,6 +16,7 @@ export const POLL_TASKS = [
   "kap:live",
   "kap:backfill",
   "spk",
+  "spk:press",
   "telegram",
   "monitor",
 ] as const;
@@ -48,6 +50,7 @@ export function nextAlarmAt(task: PollTask, now = Date.now()): number {
   if (task === "kap:live") return now + 30_000;
   if (task === "kap:backfill") return now + 10 * 60_000;
   if (task === "spk") return nextSpkRun(now);
+  if (task === "spk:press") return nextMinuteBoundary(now);
   return nextMinuteBoundary(now);
 }
 
@@ -71,6 +74,7 @@ async function runTask(env: Env, task: PollTask): Promise<number | null> {
     await pollPublicKAPBackfill(env);
     return null;
   }
+  if (task === 'spk:press') { await pollSPKPress(env); return null; }
   await pollSPK(env);
   return null;
 }

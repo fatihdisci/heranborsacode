@@ -6,7 +6,7 @@ import { fetchWithTimeout } from "../utils/http";
 import { escapeTelegramHtml, sha256 } from "../utils/text";
 import { isImportantPublicDisclosure } from "./importance";
 export { isImportantPublicDisclosure } from "./importance";
-import { getPreferences, classify, isMutedKapTitle } from "../notifications/rules";
+import { getPreferences, classify, isMutedKapTitle, isCriticalFundDisclosure } from "../notifications/rules";
 import { financeNotificationCutoff, publishedSince } from '../db/state';
 
 const PUBLIC_KAP_URL = "https://www.kap.org.tr/tr/Bildirim";
@@ -157,13 +157,14 @@ async function store(env: Env, item: PublicDisclosure, silent: boolean): Promise
   const firstSeen = new Date().toISOString();
   const ref = `kap:${item.id}`;
   const heading = subjectCodes[0] ? `#${escapeTelegramHtml(subjectCodes[0])}` : marketwide ? "🏦 <b>KAP</b>" : "🏦 <b>KAP · Fon/Portföy</b>";
-  const message = `${heading}\nKAP bildirimi\n\n${escapeTelegramHtml(item.title)}${item.company ? `\n${escapeTelegramHtml(item.company)}` : ""}`;
+  const urgent=isCriticalFundDisclosure({title:item.title,body:item.company});
+  const message = `${urgent?'🔴 <b>Kritik fon gelişmesi</b>\n\n':''}${heading}\nKAP bildirimi\n\n${escapeTelegramHtml(item.title)}${item.company ? `\n${escapeTelegramHtml(item.company)}` : ""}`;
   const statements = [
     env.DB.prepare("INSERT OR IGNORE INTO kap_disclosures(disclosure_id,company,ticker,title,disclosure_type,published_at,url,metadata_json,content_hash,telegram_status,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)")
       .bind(String(item.id), item.company, subjectCodes[0] ?? null, item.title, item.disclosureType || item.disclosureClass, item.publishedAt, item.url, JSON.stringify({...item,subjectCodes}), await sha256(ref), silent ? "baseline" : "pending", firstSeen),
     feedStatement(env, { type: "kap", source: "KAP", source_ref: ref, title: item.title, body: breakerBody ?? item.company, url: item.url, tickers_json: JSON.stringify(item.codes), published_at: item.publishedAt }),
   ];
-  if (!silent) statements.push(enqueueStatement(env, ref, breakerBody && item.codes.length ? 'dkb' : 'message',
+  if (!silent) statements.push(enqueueStatement(env, ref, breakerBody && item.codes.length ? 'dkb' : urgent ? 'priority_message' : 'message',
     breakerBody && item.codes.length ? { codes: item.codes } : { text: message, button: { text: "🔗 KAP'ta Aç", url: item.url } }, item.publishedAt, firstSeen));
   // Atomically persist source, feed and delivery before advancing the cursor.
   await env.DB.batch(statements);

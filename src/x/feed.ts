@@ -3,7 +3,7 @@ import { feedStatement } from '../db/feed';
 import { getState, financeNotificationCutoff } from '../db/state';
 import { enqueueStatement } from '../telegram/outbox';
 import { escapeTelegramHtml } from '../utils/text';
-import { findTickers } from '../rss/filter';
+import { findTickers, isFundCrisisNews } from '../rss/filter';
 import { isTrackedAccount } from './sources';
 
 export interface XPost { id: string; text: string; publishedAt: string; }
@@ -49,10 +49,11 @@ export async function ingestPosts(env: Env, account: string, input: unknown): Pr
     const source = `X · @${account}`;
     const title = post.text.length > 160 ? post.text.slice(0,157) + '…' : post.text;
     const tickers = JSON.stringify(findTickers(post.text));
+    const crisis=isFundCrisisNews(post.text);
     statements.push(feedStatement(env, { type:'news', source, source_ref:ref, title, body:post.text, url, tickers_json:tickers, published_at:post.publishedAt }));
     const excerpt = post.text.length > 900 ? post.text.slice(0,897) + '…' : post.text;
-    statements.push(enqueueStatement(env, ref, 'message', {
-      text:`📰 <b>${escapeTelegramHtml(source)}</b>\n\n${escapeTelegramHtml(excerpt)}\n\n<i>X paylaşımı · Kaynak hesabın aktarımıdır.</i>`,
+    statements.push(enqueueStatement(env, ref, crisis?'priority_message':'message', {
+      text:`${crisis?'⚠️ <b>Fon gelişmesi · X sinyali</b>\nResmî açıklama ayrıca doğrulanmalı.\n\n':''}📰 <b>${escapeTelegramHtml(source)}</b>\n\n${escapeTelegramHtml(excerpt)}\n\n<i>X paylaşımı · Kaynak hesabın aktarımıdır.</i>`,
       button:{text:'🔗 Paylaşımı aç',url},
     }, post.publishedAt));
     inserted++;

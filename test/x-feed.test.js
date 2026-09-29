@@ -21,6 +21,7 @@ it('baselines without importing old posts, ingests only new relevant IDs once',a
   await ingestPosts(env,'haskologlu',[make(4)]);
   expect(sql.prepare('SELECT count(*) n FROM feed_items').get().n).toBe(1);
   expect(sql.prepare('SELECT count(*) n FROM telegram_outbox').get().n).toBe(1);
+  expect(sql.prepare('SELECT kind,payload FROM telegram_outbox').get().kind).toBe('priority_message');
   expect(sql.prepare('SELECT source,url,type,category FROM feed_items').get()).toMatchObject({source:'X · @haskologlu',type:'news',category:null,url:`https://x.com/haskologlu/status/${make(4).id}`});
 });
 it('rolls back the cursor when queue persistence fails',async()=>{

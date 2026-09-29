@@ -56,6 +56,12 @@ const WATCHED_INSTITUTIONS = [
 
 const NON_TICKER_ACRONYMS = new Set(["TEFAS", "MASAK", "TCMB", "BDDK", "BIST", "TÜİK", "OPEC"]);
 
+export function isFundCrisisNews(title:string,summary=''):boolean {
+  const text=`${title} ${summary}`.toLocaleLowerCase('tr-TR');
+  return /(?:^|[^\p{L}\p{N}])(?:fon(?:u|un|lar[\p{L}]{0,6}|da|dan)?|portföy|tefas)(?=$|[^\p{L}\p{N}])/u.test(text)&&
+    /tasfiye|temerrüt|işlemlere kapat|işlemleri durdur|alım satım.*durdur|katılma payı.*iade|yatırımcı.*ödeme|fon.*soruşturma/.test(text);
+}
+
 export function isRelevantNews(title: string, summary = ""): boolean {
   const combined = `${title} ${summary}`;
   const normalized = combined.toLocaleLowerCase("tr-TR");
@@ -64,6 +70,7 @@ export function isRelevantNews(title: string, summary = ""): boolean {
   const explicitTicker = [...combined.matchAll(/(?:#|\()([A-ZÇĞİÖŞÜ]{4,6})(?=\)|\b)/g)]
     .some(([,ticker]) => !NON_TICKER_ACRONYMS.has(ticker));
   if (companyMatch || institutionMatch || explicitTicker) return true;
+  if (isFundCrisisNews(title,summary)) return true;
   if (DIRECT_BIST_SIGNALS.some(signal => containsKeyword(normalized, signal))) return true;
   const localMarketContext = TURKEY_MARKET_ANCHORS.some(anchor => containsKeyword(normalized, anchor));
   if (localMarketContext && CAPITAL_MARKET_SIGNALS.some(signal => containsKeyword(normalized, signal))) return true;

@@ -28,16 +28,32 @@ it('applies exclusions, explicit watch rules, index priority and other-company t
   expect(decide(item(),p,snapshot).action).toBe('off');
   expect(decide(item('Kar Payı Dağıtım İşlemlerine İlişkin Bildirim'),p,snapshot).action).toBe('instant');
   expect(decide(item('Kredi Kullanımı'),p,snapshot).action).toBe('off');
+  expect(decide(item('Pay Dışında Sermaye Piyasası Aracı İşlemlerine İlişkin Bildirim (Faizsiz)'),p,snapshot).action).toBe('off');
+  expect(decide(item('Kurumsal Yönetim Bilgi Formu (Güncelleme) - Yönetim Kurulu-2'),p,snapshot).action).toBe('off');
   expect(decide(item('Yeni İş İlişkisi',['ASELS']),p,snapshot)).toMatchObject({action:'instant',tier:30});
   expect(decide(item('Yeni İş İlişkisi',['ZZZZ']),p,snapshot).action).toBe('off');
   expect(decide(item('Payların Geri Alınmasına İlişkin Bildirim',['ZZZZ']),p,snapshot).action).toBe('instant');
   p.priorityIndices=false;expect(decide(item('Yeni İş İlişkisi',['ASELS']),p,snapshot).action).toBe('off');
 });
+it('sends portfolio fund defaults instantly even when ordinary funds are summarized',()=>{
+  const p=prefs();p.funds='digest';
+  expect(decide(item('Temerrüt İşlemi',[],'TERA PORTFÖY YÖNETİMİ A.Ş.'),p,snapshot)).toMatchObject({action:'instant',reason:'Kritik fon gelişmesi'});
+  expect(decide(item('Fon Sürekli Bilgilendirme Formu',[],'TERA PORTFÖY YÖNETİMİ A.Ş.'),p,snapshot).action).toBe('digest');
+});
+it('filters the newly muted KAP titles at delivery even when saved preferences predate the change',async()=>{
+  const p=prefs();p.excludedTitles=[];await savePreferences(env,p);
+  await queue(item('Pay Dışında Sermaye Piyasası Aracı İşlemlerine İlişkin Bildirim (Faizsiz)'),'kap:1');
+  await queue(item('Kurumsal Yönetim Bilgi Formu (Güncelleme) - Yönetim Kurulu-2'),'kap:2');
+  const sent=vi.fn();vi.stubGlobal('fetch',sent);
+  await deliverOne(env);await deliverOne(env);
+  expect(sent).not.toHaveBeenCalled();
+  expect(sql.prepare("SELECT count(*) AS n FROM telegram_outbox WHERE status='filtered'").get().n).toBe(2);
+});
 it('never sends an İç Tüzük KAP notice even when all company alerts are enabled',async()=>{
   const p=prefs();p.excludedTitles=[];p.watchlist=[{ticker:'THYAO',mode:'all',topics:[]}];
   await savePreferences(env,p);
   for(const title of ['İç Tüzük','İçtüzük Değişikliği','FON İÇ TÜZÜĞÜ'])
-    expect(decide(item(title),p,snapshot)).toMatchObject({action:'off',reason:'İç Tüzük bildirimi kapalı'});
+    expect(decide(item(title),p,snapshot)).toMatchObject({action:'off',reason:'Susturulan KAP başlığı'});
   await queue(item('İç Tüzük'));
   const sent=vi.fn();vi.stubGlobal('fetch',sent);
   await deliverOne(env);
@@ -83,7 +99,7 @@ it('highlights BIST30 and applies changed rules before sending while preserving 
 });
 it('holds funds until Istanbul summary time, retries one frozen summary and sends every receipt',async()=>{
   const p=prefs();p.funds='digest';await savePreferences(env,p);
-  await queue(item('Fon birleşmesi',[],'Fon A'),'kap:1');await queue(item('Fon tasfiyesi',[],'Fon B'),'kap:2');
+  await queue(item('Fon birleşmesi',[],'Fon A'),'kap:1');await queue(item('Fon portföy değişikliği',[],'Fon B'),'kap:2');
   const send=vi.fn().mockResolvedValueOnce(new Response(JSON.stringify({ok:false,error_code:429,parameters:{retry_after:30}}),{status:429})).mockImplementation(ok);vi.stubGlobal('fetch',send);
   await deliverOne(env);await deliverOne(env);await flushDailyDigest(env);expect(send).not.toHaveBeenCalled();
   expect(nextDigestAt(Date.now(),19)).toBe(Date.parse('2026-09-28T16:00:00Z'));expect(nextDigestAt(Date.parse('2026-09-28T16:00:01Z'),19)).toBe(Date.parse('2026-09-29T16:00:00Z'));
@@ -142,7 +158,7 @@ it('filters KAP by the disclosure subject, not unrelated shares listed on the sa
 });
 it('rechecks excluded titles at digest assembly and rolls back a failed group write',async()=>{
   const p=prefs();p.funds='digest';await savePreferences(env,p);
-  await queue(item('Fon birleşmesi',[],'Fon A'),'kap:1');await queue(item('Fon tasfiyesi',[],'Fon B'),'kap:2');await deliverOne(env);await deliverOne(env);
+  await queue(item('Fon birleşmesi',[],'Fon A'),'kap:1');await queue(item('Fon portföy değişikliği',[],'Fon B'),'kap:2');await deliverOne(env);await deliverOne(env);
   p.excludedTitles.push('birleşmesi');await savePreferences(env,p);vi.setSystemTime(new Date('2026-09-28T16:00:01Z'));
   sql.exec("CREATE TRIGGER fail_digest BEFORE INSERT ON telegram_outbox WHEN NEW.kind='daily_digest' BEGIN SELECT RAISE(ABORT,'storage failure'); END");
   await expect(flushDailyDigest(env)).rejects.toThrow('storage failure');

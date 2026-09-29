@@ -46,7 +46,7 @@ async function findTweetDraft(env: Env, actionId: string, messageId: number): Pr
     JOIN telegram_outbox q ON q.id='action:'||a.id
     JOIN feed_items f ON f.id=a.feed_item_id
     WHERE a.id=? AND q.message_id=? AND q.kind='action_reply' AND a.action IN ('tweet','tweet_regenerate','tweet_instruction')
-      AND a.status='done' AND a.result_text IS NOT NULL AND f.category IS NULL AND f.type IN ('kap','news')`)
+      AND a.status='done' AND a.result_text IS NOT NULL AND f.category IS NULL AND (f.type IN ('kap','news') OR f.source_ref LIKE 'spk:press:%')`)
     .bind(actionId,messageId).first<TweetDraftRef>();
 }
 
@@ -101,7 +101,7 @@ export async function handleCallback(env: Env, value: unknown, ctx: Pick<Executi
     itemId = root.feed_item_id;
   }
   const item = await env.DB.prepare('SELECT * FROM feed_items WHERE id=? AND category IS NULL').bind(itemId).first<FeedItem>();
-  if (!item || item.type === 'spk' || (item.type === 'kap' && /devre kesici/i.test(item.title))) {
+  if (!item || (item.type === 'spk' && !item.source_ref.startsWith('spk:press:')) || (item.type === 'kap' && /devre kesici/i.test(item.title))) {
     ack('Bu kayıt için kaynak bağlantısını kullanın.'); return json({ok:true});
   }
   const now = Date.now();
@@ -132,7 +132,7 @@ async function handleMessage(env: Env, message: IncomingMessage): Promise<void> 
     const target = await env.DB.prepare(`SELECT a.id,a.feed_item_id FROM telegram_outbox q
       JOIN telegram_actions a ON q.id='action:'||a.id JOIN feed_items f ON f.id=a.feed_item_id
       WHERE q.message_id=? AND q.kind='action_reply' AND a.action IN ('tweet','tweet_regenerate','tweet_instruction')
-        AND a.status='done' AND a.result_text IS NOT NULL AND f.category IS NULL AND f.type IN ('kap','news')`)
+        AND a.status='done' AND a.result_text IS NOT NULL AND f.category IS NULL AND (f.type IN ('kap','news') OR f.source_ref LIKE 'spk:press:%')`)
       .bind(message.reply_to_message.message_id).first<TweetDraftRef>();
     if (!target) return;
     if (text.length > 500) {
@@ -222,7 +222,7 @@ export async function telegramRoutes(request: Request, env: Env, ctx: Pick<Execu
   await telegramCall(env,'setWebhook',new URLSearchParams({url:webhookUrl,secret_token:env.TELEGRAM_WEBHOOK_SECRET,allowed_updates:JSON.stringify(['callback_query','message']),max_connections:'2',drop_pending_updates:'false'}));
   await setBotCommands(env);
   const recent = await env.DB.prepare(`SELECT f.*,q.message_id FROM telegram_outbox q JOIN feed_items f ON f.source_ref=q.source_ref
-    WHERE q.status='sent' AND q.kind='message' AND q.message_id IS NOT NULL AND f.category IS NULL AND f.type IN ('news','kap')
+    WHERE q.status='sent' AND q.kind IN ('message','priority_message') AND q.message_id IS NOT NULL AND f.category IS NULL AND (f.type IN ('news','kap') OR f.source_ref LIKE 'spk:press:%')
     ORDER BY q.sent_at DESC LIMIT 10`).all<FeedItem & {message_id:number}>();
   let updated = 0, skipped = 0;
   for (const item of recent.results) {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { findTickers, isRelevantNews, isTurkishNews } from "../src/rss/filter";
+import { findTickers, isFundCrisisNews, isRelevantNews, isTurkishNews } from "../src/rss/filter";
 
 describe("RSS news filters", () => {
   it("keeps Turkish market news", () => {
@@ -22,6 +22,10 @@ describe("RSS news filters", () => {
 
   it("keeps fund investigation headlines from the proven filter set", () => {
     expect(isRelevantNews("Fon soruşturmasında MASAK'a yeni inceleme talebi")).toBe(true);
+    expect(isFundCrisisNews('Fon tasfiyesinde yatırımcılara ödeme takvimi açıklandı')).toBe(true);
+    expect(isRelevantNews('Fon tasfiyesinde yatırımcılara ödeme takvimi açıklandı')).toBe(true);
+    expect(isFundCrisisNews('Fonun tasfiyesine ilişkin yeni açıklama')).toBe(true);
+    expect(isFundCrisisNews('Fon yöneticisi yeni stratejisini açıkladı')).toBe(false);
   });
 
   it("keeps portfolio-management and watched institution news", () => {

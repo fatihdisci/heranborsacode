@@ -92,7 +92,7 @@ export async function deliverOne(env: Env): Promise<number> {
   const job = await env.DB.prepare(`UPDATE telegram_outbox SET status='sending',lease_until=?,attempts=attempts+1
     WHERE id=(SELECT q.id FROM telegram_outbox q WHERE ((q.status='pending' AND q.available_at<=?) OR (q.status='sending' AND q.lease_until<=?))
       AND ${financeOutboxPredicate}
-      ORDER BY CASE WHEN kind='dkb_group' THEN 0 WHEN kind='action_reply' THEN 1 ELSE 2 END,first_seen_at,id LIMIT 1) RETURNING *`).bind(now + 90_000, now, now).first<Job>();
+      ORDER BY CASE WHEN kind='dkb_group' THEN 0 WHEN kind='action_reply' THEN 1 WHEN kind='priority_message' THEN 2 ELSE 3 END,first_seen_at,id LIMIT 1) RETURNING *`).bind(now + 90_000, now, now).first<Job>();
   if (!job) return 3_000;
   // During a rolling deployment the old worker may have completed an imported
   // pending record. Respect that receipt rather than replaying the message.
@@ -108,7 +108,7 @@ export async function deliverOne(env: Env): Promise<number> {
   const payload = JSON.parse(job.payload) as DeliveryPayload;
   let messageId: number;
   try {
-    if (job.kind === 'message' && job.source_ref) {
+    if ((job.kind === 'message' || job.kind === 'priority_message') && job.source_ref) {
       const item = await env.DB.prepare(`SELECT f.*,${subjectTickersSql} AS subject_tickers_json FROM feed_items f ${feedJoinSql} WHERE f.source_ref=? AND f.category IS NULL`).bind(job.source_ref).first<FeedItem>();
       if(item) {
         const preferences=await getPreferences(env),indices=await getIndices(env);

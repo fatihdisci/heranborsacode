@@ -87,6 +87,7 @@ export function extractArticleSource(html: string, target?: Target): ArticleSour
   }
   document.querySelectorAll(NOISE).forEach(el=>el.remove());
   const selectors = [
+    '.page-content.print-container .icerik.styled-content',
     '[itemprop="articleBody"], .article-body, .cms-container, .news-detail-content, .news-content, [data-test="article-body"]', 'article',
   ];
   for (const selector of selectors) {

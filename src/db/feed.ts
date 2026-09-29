@@ -24,7 +24,9 @@ export const subjectTickersSql = `CASE
 export const feedJoinSql = "LEFT JOIN kap_disclosures k ON f.type='kap' AND k.disclosure_id=substr(f.source_ref,5)";
 
 export async function listFeed(env: Env, filters: { type?: FeedType; ticker?: string; q?: string; source?: string; tickerList?: string[]; cursor?: FeedCursor; limit: number }): Promise<{ items: FeedItem[]; nextCursor: string | null }> {
-  const timeline = "COALESCE(f.published_at, f.created_at)";
+  // Press releases expose only a calendar date. Show a newly detected release
+  // at its first-seen position instead of burying it at midnight.
+  const timeline = "CASE WHEN f.source_ref LIKE 'spk:press:%' THEN strftime('%Y-%m-%dT%H:%M:%fZ',f.created_at) ELSE COALESCE(f.published_at, f.created_at) END";
   // Migration 0016 keeps AI Radar rows for history. Only pre-transition
   // finance rows (and new finance inserts, which leave category NULL) belong
   // in the Heran Borsa feed.
@@ -49,5 +51,6 @@ export async function listFeed(env: Env, filters: { type?: FeedType; ticker?: st
   const hasMore = rows.length > filters.limit;
   const items = rows.slice(0, filters.limit);
   const last = items.at(-1);
-  return { items, nextCursor: hasMore && last ? `${last.published_at ?? last.created_at}|${last.id}` : null };
+  const lastTime=last?.source_ref.startsWith('spk:press:') ? new Date(last.created_at.replace(' ','T')+'Z').toISOString() : last?.published_at ?? last?.created_at;
+  return { items, nextCursor: hasMore && last && lastTime ? `${lastTime}|${last.id}` : null };
 }

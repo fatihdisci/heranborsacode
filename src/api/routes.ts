@@ -59,7 +59,7 @@ export async function api(request: Request, env: Env): Promise<Response | null> 
     if (!Number.isSafeInteger(id) || id < 1) return json({error:'invalid_feed_item'},400);
     const item = await env.DB.prepare('SELECT * FROM feed_items WHERE id=? AND category IS NULL').bind(id).first<import('../types').FeedItem>();
     if (!item) return json({error:'not_found'},404);
-    if (item.type === 'spk' || (item.type === 'kap' && /devre kesici/i.test(item.title))) return json({error:'source_only'},422);
+    if ((item.type === 'spk' && !item.source_ref.startsWith('spk:press:')) || (item.type === 'kap' && /devre kesici/i.test(item.title))) return json({error:'source_only'},422);
     if (!await authorizeTelegramRequest(request,env)) return json({error:'unauthorized'},401);
     try {
       const content = await readerContent(env,item);
@@ -72,7 +72,7 @@ export async function api(request: Request, env: Env): Promise<Response | null> 
       const cron = await env.DB.prepare("SELECT key,value FROM system_state WHERE key IN ('cron_last_started_at','cron_last_finished_at')").all<{ key: string; value: string }>();
       const cronState = Object.fromEntries((cron.results ?? []).map(row => [row.key, row.value]));
       const shards = await env.DB.prepare("SELECT key,value FROM system_state WHERE key LIKE 'poll_shard:%' ORDER BY key").all<{ key: string; value: string }>();
-      const activeTasks = new Set<string>([...RSS_SOURCES.map((_, index) => `rss:${index}`), 'kap:live', 'kap:backfill', 'spk', 'telegram', 'monitor']);
+      const activeTasks = new Set<string>([...RSS_SOURCES.map((_, index) => `rss:${index}`), 'kap:live', 'kap:backfill', 'spk', 'spk:press', 'telegram', 'monitor']);
       if (env.X_NITTER_BASE_URL) X_ACCOUNTS.forEach(account => activeTasks.add(`x:${account}`));
       const shardState = Object.fromEntries((shards.results ?? []).filter(row => activeTasks.has(row.key.slice('poll_shard:'.length))).map(row => {
         try { return [row.key.slice("poll_shard:".length), JSON.parse(row.value)]; }

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { circuitBreakerBody, circuitBreakerMessage, disclosureSubjectCodes, isImportantPublicDisclosure, parsePublicKapPage, suppressPublicKapNotification } from "../src/kap/public";
 
 it('keeps issuance documents and credit use out of Telegram notifications', () => {
-  for (const title of ['İhraç Belgesi', 'Tertip İhraç Belgesi', 'Fon İhraç Sözleşmesi', 'Kredi Kullanımı', 'İç Tüzük', 'FON İÇTÜZÜĞÜ DEĞİŞİKLİĞİ']) {
+  for (const title of ['İhraç Belgesi', 'Tertip İhraç Belgesi', 'Fon İhraç Sözleşmesi', 'Kredi Kullanımı', 'İç Tüzük', 'FON İÇTÜZÜĞÜ DEĞİŞİKLİĞİ', 'Pay Dışında Sermaye Piyasası Aracı İşlemlerine İlişkin Bildirim (Faizsiz)', 'Kurumsal Yönetim Bilgi Formu (Güncelleme) - Yönetim Kurulu-2']) {
     expect(suppressPublicKapNotification(title)).toBe(true);
   }
   expect(suppressPublicKapNotification('Yeni kredi sözleşmesi imzalandı')).toBe(false);
@@ -60,6 +60,13 @@ describe("parsePublicKapPage", () => {
       publishedAt: "2026-09-20T10:00:00.000Z",
       url: "https://www.kap.org.tr/tr/Bildirim/1",
     })).toBe(true);
+  });
+
+  it('keeps portfolio fund defaults as critical while excluding unrelated defaults and muted titles',()=>{
+    expect(isImportantPublicDisclosure({title:'Temerrüt İşlemi',company:'TERA PORTFÖY YÖNETİMİ A.Ş.',codes:[]})).toBe(true);
+    expect(isImportantPublicDisclosure({title:'Temerrüt İşlemi',company:'Örnek Banka A.Ş.',codes:['THYAO']})).toBe(false);
+    expect(isImportantPublicDisclosure({title:'Pay Dışında Sermaye Piyasası Aracı İşlemlerine İlişkin Bildirim (Faizsiz)',company:'Örnek A.Ş.',codes:['THYAO']})).toBe(false);
+    expect(isImportantPublicDisclosure({title:'Kurumsal Yönetim Bilgi Formu (Güncelleme) - Yönetim Kurulu-2',company:'Örnek A.Ş.',codes:['THYAO']})).toBe(false);
   });
 
   it.each([
