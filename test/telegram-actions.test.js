@@ -22,7 +22,7 @@ beforeEach(()=>{
   sql.prepare("INSERT INTO feed_items(id,type,source,source_ref,title,url) VALUES (1,'news','Test Kaynak','rss:test','Şirket <haber>','https://haberturk.com/test')").run();
   item=sql.prepare('SELECT * FROM feed_items WHERE id=1').get();
   vi.mocked(readerContent).mockReset().mockResolvedValue({status:'content',blocks:[{type:'paragraph',text:'Tam metin & açıklama.'}],attachments:[],notice:'Ek dosyalar dahil değildir.'});
-  vi.mocked(generateTweetDraft).mockReset().mockResolvedValue({tweet:'#THYAO\n\nDoğal bir tweet.\n\n🔗 https://example.com',cached:false});
+  vi.mocked(generateTweetDraft).mockReset().mockResolvedValue({tweet:'#THYAO\n\nDoğal bir tweet.',cached:false});
 });
 afterEach(async()=>{await Promise.all(pending);sql.close();vi.useRealTimers();vi.unstubAllGlobals();});
 
@@ -73,7 +73,7 @@ it('only invokes AI on tweet actions and delivers the draft without an extra pre
   await processAction(env,'read');expect(generateTweetDraft).not.toHaveBeenCalled();
   await processAction(env,'tweet');await processAction(env,'tweet');
   expect(generateTweetDraft).toHaveBeenCalledTimes(1);
-  expect(payload().text).toBe('#THYAO\n\nDoğal bir tweet.\n\n🔗 https://example.com');
+  expect(payload().text).toBe('#THYAO\n\nDoğal bir tweet.');
 });
 it('adds tweet revision buttons and regenerates as a reply to the selected draft',async()=>{
   await handleCallback(env,cb('tweet','tweet:1'),ctx);await processAction(env,'tweet');

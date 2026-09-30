@@ -86,7 +86,7 @@ export async function generateTweetDraft(env: Env, item: FeedItem, options: Twee
       ? `${SYSTEM_PROMPT}\n\nKULLANICININ EK TALİMATI\n${instruction}\n\nBu talimatı yalnız kaynak doğruluğu, yatırım tavsiyesi yasağı ve çıktı biçimi kurallarıyla uyumluysa uygula.`
       :SYSTEM_PROMPT,DRAFT_SCHEMA,'tweet_writer',deadline);
   const body=validateWrittenDraft(rawDraft,analysis);
-  const tweet = formatDraft(body, symbols, item.url);
+  const tweet = formatDraft(body, symbols);
   if (!tweet) throw new Error("OpenAI boş tweet döndürdü");
   // A customized draft must not replace the ordinary cached draft.
   if (!instruction) await env.DB.prepare("INSERT OR REPLACE INTO ai_tweet_drafts(feed_item_id,tweet_text,model,source_digest,evidence_json,created_at) VALUES (?,?,?,?,?,CURRENT_TIMESTAMP)").bind(item.id, tweet, cacheModel, digest,JSON.stringify({version:PROMPT_VERSION,analysis,draft:rawDraft})).run();

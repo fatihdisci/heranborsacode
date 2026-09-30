@@ -1,6 +1,6 @@
 # Tweet kaynak çözümleme
 
-Telegram ve Mini App aynı `generateTweetDraft` akışını kullanır. Taslak oluşturmak X'te yayınlama yapmaz.
+Telegram ve Mini App aynı `generateTweetDraft` akışını kullanır. Çıktı yalnız hashtagler ve tweet gövdesidir; kaynak etiketi veya bağlantı eklenmez. Kaynaklar doğrulama için içeride tutulur. Taslak oluşturmak X'te yayınlama yapmaz.
 
 ## Kaynak hazırlama
 
@@ -25,4 +25,4 @@ KAP yayıncı adı, sayfanın resmi JSON verisindeki bildirim kimliği URL ile e
 
 HTML alıntıları uygulama tarafından birebir karşılaştırılır. PDF/dosya alıntıları için bağımsız yerel metin çıkarımı yapılmaz; ikinci çağrı özgün eki yeniden okur. Şema yalnız çıktı yapısını sınırlar, doğru yorumu garanti etmez. Metinsel iddialar, kısaltılmış şirket isimleri ve karmaşık tablolardaki anlamsal ilişkiler hâlâ model yorumuna bağlıdır. Yayın öncesi editör incelemesi gereklidir.
 
-Dağıtımda `0024_ai_tweet_evidence.sql` D1 migration'ı Worker'dan önce uygulanmalıdır. `editor-v7-evidence`, önceki sürümlerin taslaklarını yeniden kullanmaz.
+Dağıtımda `0024_ai_tweet_evidence.sql` D1 migration'ı Worker'dan önce uygulanmalıdır. `editor-v8-no-source`, önceki sürümlerin taslaklarını yeniden kullanmaz.

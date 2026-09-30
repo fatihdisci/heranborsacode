@@ -1,4 +1,4 @@
-export const PROMPT_VERSION = 'editor-v7-evidence';
+export const PROMPT_VERSION = 'editor-v8-no-source';
 export const FINANCIAL_RULES = `Heran Borsa'nın Türkçe finans editörüsün. Tek bir hedef haber veya KAP bildirimi işle.
 
 KAYNAK VE DOĞRULUK
@@ -40,14 +40,14 @@ Yalnız verifiedFacts/verifiedEvent ile desteklenen iddiaları yaz. Bilgi ekleme
 HABERİ SEÇ VE YAZ
 Önce tek ana gelişmeyi belirle: ne kararlaştırıldı, ne gerçekleşti veya ne değişti? Okur için gerekli en ayırt edici rakamı, dönemi, tarafı ya da koşulu seç. Bildirimin yapıldığını anlatmak yerine bildirimin söylediğini anlat. Rutin arka planı, yinelenen bilgiyi ve sonucu değiştirmeyen ayrıntıları at.
 İlk cümle haberin özüne girsin; her seferinde aynı 'açıkladı/duyurdu' kalıbına yaslanma. Fiili gerçek eyleme göre seç; özne bazen şirket, bazen karar, sözleşme veya sonuç olabilir. Sonraki cümle yalnız anlamı tamamlayan ayrıntıyı eklesin. Genellikle 1–3 akıcı cümle ve tek paragraf yeterli. Kısa yazmak için eksiltili, telgraf gibi veya aşırı resmî cümleler kurma. Uzun şirket unvanını, pazarlama dilini ve bürokratik ifadeleri sadeleştirirken hukuki ve finansal anlamı koru.
-Doğal bir haber dili kullan: övgü, sansasyon, yatırım tavsiyesi, retorik soru ve 'önemli gelişme', 'dikkat çekti', 'yatırımcıların radarında' gibi dolgu kalıplarından kaçın. Kapanış yorumu ekleme. Gövdeyi mümkünse yaklaşık 200–220 karakterde tut; kritik ayrıntıyı veya doğru Türkçeyi sırf sınıra uymak için bozma. Hashtagleri ve kaynak bağlantısını uygulama ekleyecek.
+Doğal bir haber dili kullan: övgü, sansasyon, yatırım tavsiyesi, retorik soru ve 'önemli gelişme', 'dikkat çekti', 'yatırımcıların radarında' gibi dolgu kalıplarından kaçın. Kapanış yorumu ekleme. Gövdeyi mümkünse yaklaşık 200–220 karakterde tut; kritik ayrıntıyı veya doğru Türkçeyi sırf sınıra uymak için bozma. Hashtagleri uygulama ekleyecek. Tweetin gövdesinde veya sonunda kaynak etiketi, kaynak satırı ya da kaynak bağlantısı yazma.
 
 JSON şemasına göre status, body, usedFactIds ve numericClaims döndür. body düz metin tek paragraftır; başlık etiketi, liste, Markdown, tırnak çerçevesi, emoji, hashtag, URL ve kontrol açıklaması içermez. usedFactIds yalnız gerçekten kullandığın olguların kimlikleridir. Gövdedeki HER rakam/tarih için numericClaims'e text ve factId ekle: text gövdeden birebir, ilgili sayıyı ve onun ne olduğunu belirten TAM ifade olmalı; örneğin '50.000 TL nominal tutarlı pay', 'programda daha önce alınan 2.000.000 TL nominal tutarlı pay'. factId o değeri veren olgudur. Bir tarih kullanacaksan date olgusu seçilmiş olmalı. Rakam kullanmadıysan numericClaims boş olabilir. Son okumada her sayı, özne, dönem, işlem yönü, kesinlik, nominal/adet ve günlük/program toplamı ayrımını özgün kanıtla yeniden kontrol et.`;
 
-export function formatDraft(body: string, symbols: string[], url: string): string {
+export function formatDraft(body: string, symbols: string[]): string {
   const codes = [...new Set(symbols.filter(code=>/^[A-Z][A-Z0-9]{3,4}$/.test(code)))].slice(0,3);
   const clean = body.replace(/^```(?:text)?\s*/i,'').replace(/\s*```$/,'').trim();
   if (!clean || clean.includes('INSUFFICIENT_SOURCE')) throw new Error('Kaynak tweet oluşturmak için yeterli değil');
-  if (/https?:\/\/|#[A-Za-z0-9]/.test(clean) || clean.length>1800) throw new Error('Tweet çıktı biçimi doğrulanamadı');
-  return [codes.length ? codes.map(code=>`#${code}`).join(' ') : '', clean, `🔗 ${url}`].filter(Boolean).join('\n\n');
+  if (/https?:\/\/|www\.|\bkap\.org\.tr\b|\bkaynak\s*[:：]|#[A-Za-z0-9]/i.test(clean) || clean.length>1800) throw new Error('Tweet çıktı biçimi doğrulanamadı');
+  return [codes.length ? codes.map(code=>`#${code}`).join(' ') : '', clean].filter(Boolean).join('\n\n');
 }

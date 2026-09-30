@@ -76,7 +76,7 @@ it('keeps GPT-6 Luna, separates source data, caches validated output and rejects
   });
   vi.stubGlobal('fetch',mock);
   const result=await generateTweetDraft({...env,OPENAI_API_KEY:'test-fake'},item);
-  expect(result.tweet).toContain('#VESTL\n\nVestel');expect(result.tweet).toContain('🔗 '+item.url);
+  expect(result.tweet).toBe('#VESTL\n\nVestel, 2 milyon avroluk sözleşme imzaladığını açıkladı.');
   expect((await generateTweetDraft({...env,OPENAI_API_KEY:'test-fake'},item)).cached).toBe(true);
   expect(mock).toHaveBeenCalledTimes(4);
   sql.exec('DELETE FROM ai_tweet_drafts');incomplete=true;

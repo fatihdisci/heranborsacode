@@ -96,8 +96,8 @@ describe('editorial correctness',()=>{
     expect(duplicateNews({title:'Fon açıklaması.',summary:'Ödeme tamamlandı'},{title:'Fon açıklaması',summary:'Ödeme tamamlandı'})).toBe(true);
   });
   it('attaches only validated symbols and exact source URL, preserving paragraphs',()=>{
-    expect(formatDraft('Yeni sözleşme imzalandı.\n\nTeslimatlar gelecek yıl yapılacak.',['THYAO','SKP','THYAO'],'https://example.com/article')).toBe('#THYAO\n\nYeni sözleşme imzalandı.\n\nTeslimatlar gelecek yıl yapılacak.\n\n🔗 https://example.com/article');
-    expect(()=>formatDraft('INSUFFICIENT_SOURCE',[],'https://example.com')).toThrow();
-    expect(()=>formatDraft('Uydurulan #SKP',[],'https://example.com')).toThrow();
+    expect(formatDraft('Yeni sözleşme imzalandı.\n\nTeslimatlar gelecek yıl yapılacak.',['THYAO','SKP','THYAO'])).toBe('#THYAO\n\nYeni sözleşme imzalandı.\n\nTeslimatlar gelecek yıl yapılacak.');
+    expect(()=>formatDraft('INSUFFICIENT_SOURCE',[])).toThrow();
+    expect(()=>formatDraft('Uydurulan #SKP',[])).toThrow();
   });
 });
