@@ -1,5 +1,18 @@
 # Heran Borsa
 
+## Sıralı komut paketi
+
+Mevcut salt-okunur bağlantıya ayrı `command-jobs:run` izniyle bounded şablon
+başlatma ve tam `workflow_id` durum takibi hazırlanmıştır. `market_round` yalnız
+Terane tamamlanıp bütün adımların sonucu saklandıktan sonra Kurum'u kuyruğa alır.
+Son Halka Arzlar açık istek modudur. Onaylı migration, dar grant ve Worker kodu
+yayımlandı; kullanıcı yeniden bağlantı onayı ve gerçek başlatma çağrısı başarılı.
+Terane→Kurum canlı kabul testi 14 + 6 sonuçla tamamlandı. Günlük medya saklama etkinleştirildi: yalnız önceki Türkiye gününün üç şablona
+ait terminal iş görsel/PDF dosyaları temizlenir; metinler ve aktif işler korunur.
+[Saklama kapsamı ve yayın durumu](docs/command-media-retention.md).
+Otomasyon bu kod tarafından kurulmaz.
+[Sözleşme, doğrulama ve yayın adımları](docs/command-workflows.md).
+
 Cloudflare Workers + D1 üzerinde çalışan finans akışı: MKK/KAP bildirimleri, SPK bültenleri ve basın duyuruları ile doğrulanmış RSS kaynaklarını normalize eder, tekilleştirir, Telegram'a iletir ve akıcı bir Telegram Mini App'te sunar. Kullanıcı istediğinde, kaynak metni ve ek dosyalar OpenAI Responses API ile okunarak yayıma hazır tweet taslağı oluşturulur.
 
 ## Mimari
@@ -67,6 +80,10 @@ DKB grubunun üyeleri gönderimden önce sabitlenir; sonraki kayıtlar yanlışl
 AI promptu `src/ai/prompt.ts` içinde sürümlenir. `gpt-6-luna` yalnız kullanıcı butona bastığında çalışır; kaynak tekrar okunup içerik özeti (digest) eşleştiğinde önceki taslak önbellekten sunulur. URL içeriği değişebilen ek dosyalı kaynaklar yeniden değerlendirilir. Model gövdeyi yazar; doğrulanmış hashtagler ve kaynak URL uygulama tarafından eklenir. Tamamlanmamış model cevabı veya boyut sınırını aşan kaynak sessizce kesilerek kullanılmaz. Yeni sürüm ilk taslak isteğinde eski prompt önbelleğini yeniler. Ana metin diğer haberlerden ve menülerden ayrılır; finansal tablolar satır, başlık ve birleşik hücre bilgileriyle gönderilir. Ana metin ayrıştırılamazsa yalnız başlıktan taslak üretilmez. Prompt; işlem aşaması, taraf, dönem, para birimi, iddia/gerçek ayrımı ve ek kaynakların ilişkilendirilmesini zorunlu tutar. Modelin değerlendirme düzeyi medium, çıktı bütçesi 2400 tokendir; doğruluk kontrolü insan editörün yerini tutmaz.
 
 ## Komut Merkezi
+
+Saklanan komut sonuçlarını Dot'a doğrudan açan, varsayılan kapalı ve üç şablonla
+sınırlı OAuth/MCP okuma katmanı için [bağlantı ve canlı kurulum rehberi](docs/command-results-connection.md)
+bulunur. Yeni bağlantı yalnız sonuç okur; mevcut Worker’da dağıtım ve ChatGPT keşfi tamamlandı. Son kullanıcı eklenti onayı ve gerçek iş/metin/görsel kabul denemesi tamamlandı; etkin düzeltme sürümü ve geçici yetki temizliği rehberde kayıtlıdır.
 
 Mini App'in **Komut** sekmesi yalnız `@b0pt_bot` ve `@ucretsizderinlikbot`
 komutlarını, KAP'ın güncel BIST şirket listesinden aranan bir veya çok sayıda hisseyle birleştirir. Kullanıcı komutları

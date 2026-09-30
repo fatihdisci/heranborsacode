@@ -6,8 +6,17 @@ export interface Env {
   TELEGRAM_WEBHOOK_SECRET?: string;
   TELEGRAM_BOT_TOKEN?: string;
   TELEGRAM_CHAT_ID?: string;
+  EVENING_SUMMARY_ENABLED?: string;
+  EVENING_SUMMARY_CALENDAR_JSON?: string;
   TELEGRAM_ALLOWED_USERNAME?: string;
   COMMAND_AGENT_TOKEN?: string;
+  // Separate, disabled-by-default OAuth resource for reading stored results.
+  RESULTS_READ_ENABLED?: string;
+  COMMAND_RUN_ENABLED?: string;
+  COMMAND_MEDIA_RETENTION_MODE?: 'off' | 'dry_run' | 'delete';
+  RESULTS_OAUTH_ISSUER?: string;
+  RESULTS_OAUTH_JWKS_URL?: string;
+  RESULTS_OAUTH_SUBJECT?: string;
   SAFARI_EXTENSION_TOKEN?: string;
   COMMAND_MEDIA: R2Bucket;
   MKK_API_KEY?: string;

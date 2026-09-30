@@ -6,7 +6,18 @@ TELEGRAM_CHAT_ID=
 TELEGRAM_ALLOWED_USERNAME=
 TELEGRAM_WEBHOOK_SECRET=
 COMMAND_AGENT_TOKEN=
+# Results reader is inactive unless all of these are deliberately configured.
+RESULTS_READ_ENABLED=false
+# Separate command permission; leave off until migration, grant and user consent.
+COMMAND_RUN_ENABLED=false
+COMMAND_MEDIA_RETENTION_MODE=off
+RESULTS_OAUTH_ISSUER=
+RESULTS_OAUTH_JWKS_URL=
+RESULTS_OAUTH_SUBJECT=
 OPENAI_API_KEY=
 SAFARI_EXTENSION_TOKEN=
 MKK_API_KEY=
 MKK_API_SECRET=
+
+# Native DKB only; PAY remains manual. Enable only after authorized live publication.
+EVENING_SUMMARY_ENABLED=false

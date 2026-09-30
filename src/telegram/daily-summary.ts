@@ -79,6 +79,13 @@ export function dailySummaryText(rows: DailyDisclosure[], indices: IndexMembersh
 export async function queueDailySummary(env: Env, messageId: number, now = Date.now(), kind: SummaryKind = 'dkb'): Promise<void> {
   const requestId = `day-summary:${kind}:${env.TELEGRAM_CHAT_ID}:${messageId}`;
   if (await env.DB.prepare('SELECT id FROM telegram_outbox WHERE id=?').bind(`${requestId}:0000`).first()) return;
+  const pages = await prepareDailySummary(env, now, kind);
+  await env.DB.batch(pages.map((text, index) => enqueueStatement(env, `${requestId}:${String(index).padStart(4, '0')}`, 'action_reply',
+    { text: pages.length > 1 ? `${text}\n\nBölüm ${index + 1}/${pages.length}` : text, plain: true, replyTo: messageId }, null, new Date(now).toISOString(), null)));
+}
+
+// Shared preparation; scheduled delivery has its own durable sequencing guard.
+export async function prepareDailySummary(env: Env, now = Date.now(), kind: SummaryKind = 'dkb'): Promise<string[]> {
   const { day, start, end } = istanbulDay(now);
   const result = await env.DB.prepare(`SELECT disclosure_id,title,company,ticker,published_at,url,metadata_json
     FROM kap_disclosures WHERE julianday(published_at)>=julianday(?) AND julianday(published_at)<julianday(?)
@@ -106,7 +113,5 @@ export async function queueDailySummary(env: Env, messageId: number, now = Date.
     }));
   }
   const indices = kind === 'dkb' ? await getIndices(env, now) : { bist30: [], bist100: [], source: '', checkedAt: '' };
-  const pages = splitText(dailySummaryText(rows, indices, day, now, kind), 3000);
-  await env.DB.batch(pages.map((text, index) => enqueueStatement(env, `${requestId}:${String(index).padStart(4, '0')}`, 'action_reply',
-    { text: pages.length > 1 ? `${text}\n\nBölüm ${index + 1}/${pages.length}` : text, plain: true, replyTo: messageId }, null, new Date(now).toISOString(), null)));
+  return splitText(dailySummaryText(rows, indices, day, now, kind), 3000);
 }

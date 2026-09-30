@@ -8,6 +8,8 @@ import { COMMAND_BOTS, validateSteps, type CommandStep } from "./catalog";
 import { listBistSymbols } from "./symbols";
 import { commandMediaUrl, finalCommandResults, type CommandResultRow } from "./results";
 import { enqueueTemplateJob, KURUM_TEMPLATE_ID, TERANE_TEMPLATE_ID, AKDTERANE_TEMPLATE_ID, SON_HALKA_ARZLAR_TEMPLATE_ID } from "./jobs";
+import { claimCommandJob, refreshActiveWorkflow } from "./workflows";
+import { expiredCommandMediaKeys, retentionSealedJob } from './media-retention';
 
 interface CommandJob {
   id: string; name: string; steps_json: string; status: string; lease_token: string | null; template_id?: string | null;
@@ -114,9 +116,11 @@ async function userRoutes(request: Request, env: Env, path: string): Promise<Res
       FROM command_jobs WHERE id=?`).bind(jobMatch[1]).first<CommandJob>();
     if (!job) return json({ error: "not_found" }, 404);
     const results = await env.DB.prepare("SELECT step_index,bot_username,command,response_text,response_kind,media_key,file_name,created_at FROM command_results WHERE job_id=? ORDER BY step_index,id").bind(job.id).all<CommandResultRow>();
+    const expired=await expiredCommandMediaKeys(env,(results.results ?? []).map(r=>r.media_key).filter((k):k is string=>!!k));
     const visible = finalCommandResults(results.results ?? []).map(({ media_key, ...row }) => ({
       ...row,
-      media_url: commandMediaUrl(media_key),
+      media_url: media_key && expired.has(media_key) ? null : commandMediaUrl(media_key),
+      media_state: media_key && expired.has(media_key) ? 'expired' : media_key ? 'stored_reference' : 'none',
     }));
     return json({ job: publicJob(job), results: visible });
   }
@@ -144,6 +148,7 @@ function resultMediaUrl(origin: string, mediaKey: string): string {
 }
 
 async function combinedPdf(env: Env, jobId: string, name: string, rows: CommandResultRow[]): Promise<{key:string;pageCount:number} | null> {
+  if(await retentionSealedJob(env,jobId))return null;
   const pdf = await PDFDocument.create(); let pageCount = 0;
   for (const row of rows) {
     if (!row.media_key) continue;
@@ -256,11 +261,7 @@ async function agentRoutes(request: Request, env: Env, ctx: Pick<ExecutionContex
   if (path === "/api/commands/agent/claim" && request.method === "POST") {
     await env.DB.prepare("INSERT INTO system_state(key,value) VALUES ('command_agent_last_seen',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=CURRENT_TIMESTAMP").bind(new Date().toISOString()).run();
     const token = crypto.randomUUID(), expiry = new Date(Date.now() + 10 * 60_000).toISOString().replace('T',' ').replace(/\.\d{3}Z$/,'');
-    const job = await env.DB.prepare(`UPDATE command_jobs SET status='leased',lease_token=?,lease_expires_at=?,attempts=attempts+1,
-      started_at=COALESCE(started_at,CURRENT_TIMESTAMP),error=NULL WHERE id=(SELECT id FROM command_jobs
-      WHERE status='queued' OR (status='leased' AND lease_expires_at<CURRENT_TIMESTAMP) ORDER BY created_at LIMIT 1)
-      RETURNING id,name,steps_json,status,lease_token,lease_expires_at,attempts,error,created_at,started_at,finished_at`)
-      .bind(token, expiry).first<CommandJob>();
+    const job = await claimCommandJob(env, token, expiry) as CommandJob | null;
     if (!job) return new Response(null, { status: 204 });
     return json({ job: publicJob(job), leaseToken: token });
   }
@@ -292,12 +293,17 @@ async function agentRoutes(request: Request, env: Env, ctx: Pick<ExecutionContex
       const text = String(raw.text ?? "").slice(0, 20_000);
       const mediaKey = typeof raw.mediaKey === "string" && raw.mediaKey.startsWith(`commands/${job.id}/`) ? raw.mediaKey : null;
       return [env.DB.prepare(`INSERT INTO command_results(job_id,step_index,bot_username,command,response_text,response_kind,media_key,file_name)
-        VALUES (?,?,?,?,?,?,?,?)`).bind(job.id,index,step.botUsername,step.command,text,kind,mediaKey,String(raw.fileName ?? "").slice(0,100) || null)];
+        SELECT ?,?,?,?,?,?,?,? WHERE EXISTS (SELECT 1 FROM command_jobs WHERE id=? AND status='leased' AND lease_token=?)`)
+        .bind(job.id,index,step.botUsername,step.command,text,kind,mediaKey,String(raw.fileName ?? "").slice(0,100) || null,job.id,value.leaseToken)];
     });
     const finalStatus = value.status === "completed" ? "completed" : "failed";
-    statements.push(env.DB.prepare("UPDATE command_jobs SET status=?,error=?,lease_token=NULL,lease_expires_at=NULL,finished_at=CURRENT_TIMESTAMP WHERE id=?")
-      .bind(finalStatus, finalStatus === "failed" ? String(value.error ?? "Ajan işi tamamlayamadı.").slice(0,1000) : null, job.id));
-    await env.DB.batch(statements);
+    statements.push(env.DB.prepare("UPDATE command_jobs SET status=?,error=?,lease_token=NULL,lease_expires_at=NULL,finished_at=CURRENT_TIMESTAMP WHERE id=? AND status='leased' AND lease_token=?")
+      .bind(finalStatus, finalStatus === "failed" ? String(value.error ?? "Ajan işi tamamlayamadı.").slice(0,1000) : null, job.id, value.leaseToken));
+    const changed = await env.DB.batch(statements);
+    if (!changed.at(-1)?.meta.changes) return json({ error: "invalid_lease" }, 409);
+    // If a transient storage failure interrupts progression, the next agent claim
+    // repeats the guarded transition; it never resends the completed bot commands.
+    await refreshActiveWorkflow(env);
     if (finalStatus === "completed") ctx.waitUntil(notifyResults(env, new URL(request.url).origin, job.id));
     else ctx.waitUntil(sendMessage(env, `⚠️ <b>${escapeTelegramHtml(job.name)}</b> tamamlanamadı. Mini App geçmişinden yeniden deneyebilirsin.`));
     return json({ ok: true });
@@ -311,7 +317,9 @@ export async function commandRoutes(request: Request, env: Env, ctx: Pick<Execut
   if (agent) return agent;
   const media = path.match(/^\/api\/commands\/media\/(commands\/.+)$/);
   if (media && request.method === "GET") {
-    const object = await env.COMMAND_MEDIA.get(decodeURIComponent(media[1]));
+    const key=decodeURIComponent(media[1]);
+    if((await expiredCommandMediaKeys(env,[key])).has(key))return new Response('Media expired',{status:410,headers:{'cache-control':'no-store'}});
+    const object = await env.COMMAND_MEDIA.get(key);
     if (!object) return new Response("Not found", { status: 404 });
     const headers = new Headers(); object.writeHttpMetadata(headers); headers.set("etag", object.httpEtag); headers.set("cache-control", "private, max-age=3600");
     const rawName = object.customMetadata?.filename ?? "dosya";

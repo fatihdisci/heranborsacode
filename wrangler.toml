@@ -44,6 +44,10 @@ head_sampling_rate = 1
 
 [vars]
 PUBLIC_BASE_URL = "https://borsa.discilaw.com"
+# Keep deployed features in source so later releases preserve them.
+COMMAND_RUN_ENABLED = "true"
+COMMAND_MEDIA_RETENTION_MODE = "delete"
+EVENING_SUMMARY_ENABLED = "true"
 # Public RSS mirror; no paid X API or account cookie. Remove to disable X polling.
 X_NITTER_BASE_URL = "https://nitter.cf"
 # This is not a secret. Set it only after confirming the MKK endpoint contract.

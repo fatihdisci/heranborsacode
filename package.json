@@ -9,7 +9,9 @@
     "db:migrate:local": "wrangler d1 migrations apply DB --local",
     "db:migrate:remote": "wrangler d1 migrations apply DB --remote",
     "check": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:evening:runtime": "node test/evening-summary.runtime.mjs",
+    "test:workflows:runtime": "node test/command-workflows.runtime.mjs"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^5.20260920.1",

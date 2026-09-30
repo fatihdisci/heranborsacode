@@ -90,9 +90,19 @@ export async function deliverOne(env: Env): Promise<number> {
   const now = Date.now();
   const cooldown = await env.DB.prepare("SELECT value FROM system_state WHERE key='telegram_cooldown_until'").first<{ value: string }>();
   if (Number(cooldown?.value ?? 0) > now) return Math.min(60_000, Number(cooldown!.value) - now);
+  // Only native scheduled summaries fail closed; all legacy retry rules stay intact.
+  const autoPrefix='day-summary:auto:';
+  const local=new Date(now+3*3600_000),minute=local.getUTCHours()*60+local.getUTCMinutes();
+  const today=local.toISOString().slice(0,10),windowOpen=minute>=1230 && minute<1260;
+  const currentPrefix=autoPrefix+today+':'+env.TELEGRAM_CHAT_ID+':%';
+  await env.DB.prepare(`UPDATE telegram_outbox SET status='blocked',last_error='scheduled_summary_expired_or_uncertain',lease_until=0
+    WHERE id LIKE 'day-summary:auto:%' AND ((status='sending' AND lease_until<=?)
+      OR (status='pending' AND (?=0 OR id NOT LIKE ?)))`).bind(now,windowOpen?1:0,currentPrefix).run();
   const job = await env.DB.prepare(`UPDATE telegram_outbox SET status='sending',lease_until=?,attempts=attempts+1
-    WHERE id=(SELECT q.id FROM telegram_outbox q WHERE ((q.status='pending' AND q.available_at<=?) OR (q.status='sending' AND q.lease_until<=?))
+    WHERE id=(SELECT q.id FROM telegram_outbox q WHERE ((q.status='pending' AND q.available_at<=?) OR (q.status='sending' AND q.lease_until<=? AND q.id NOT LIKE 'day-summary:auto:%'))
       AND ${financeOutboxPredicate}
+      AND (q.id NOT LIKE 'day-summary:auto:%' OR NOT EXISTS (SELECT 1 FROM telegram_outbox earlier
+        WHERE earlier.id LIKE substr(q.id,1,length(q.id)-5)||':%' AND earlier.id<q.id AND earlier.status!='sent'))
       ORDER BY CASE WHEN kind='dkb_group' THEN 0 WHEN kind='action_reply' THEN 1 WHEN kind='priority_message' THEN 2 ELSE 3 END,first_seen_at,id LIMIT 1) RETURNING *`).bind(now + 90_000, now, now).first<Job>();
   if (!job) return 3_000;
   // During a rolling deployment the old worker may have completed an imported
@@ -141,7 +151,7 @@ export async function deliverOne(env: Env): Promise<number> {
   } catch (cause) {
     const error = cause instanceof TelegramError ? cause : null;
     const delay = retryDelay(job.attempts, error?.retryAfter);
-    const blocked = error && [400, 401, 403, 404].includes(error.status);
+    const blocked = job.id.startsWith(autoPrefix) || (error && [400, 401, 403, 404].includes(error.status));
     const detail = error?.message ?? 'Telegram network error or timeout (delivery uncertain)';
     await env.DB.batch([
       env.DB.prepare("UPDATE telegram_outbox SET status=?,available_at=?,last_error=?,lease_until=0 WHERE id=?").bind(blocked ? 'blocked' : 'pending', now + delay, detail, job.id),

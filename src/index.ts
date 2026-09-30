@@ -1,3 +1,4 @@
+import { runEveningSummaries } from "./telegram/evening-summary";
 import { refreshIndices } from "./notifications/indices";
 import { api } from "./api/routes";
 import { ensurePollingShards, PollShard } from "./scheduler/shards";
@@ -5,6 +6,8 @@ import type { Env } from "./types";
 import { ensureTelegramWebhook, telegramRoutes } from './telegram/webhook';
 import { ensureTelegramActions } from './telegram/actions';
 import { commandRoutes, retryUnnotifiedCommandJobs } from './commands/routes';
+import { resultsReaderRoutes } from './commands/reader-routes';
+import { runCommandMediaRetention } from './commands/media-retention';
 export { TelegramActions } from './telegram/action-worker';
 
 export { PollShard };
@@ -43,6 +46,8 @@ export default {
         },
       });
     }
+    const results = await resultsReaderRoutes(request,env);
+    if (results) return privateResponse(results);
     const telegram = await telegramRoutes(request,env,ctx);
     if (telegram) return privateResponse(telegram);
     const commands = await commandRoutes(request,env,ctx);
@@ -51,8 +56,10 @@ export default {
     return privateResponse(response ?? await env.ASSETS.fetch(request));
   },
   async scheduled(event: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+    ctx.waitUntil(runEveningSummaries(env));
     ctx.waitUntil(refreshIndices(env));
     ctx.waitUntil(runScheduled(env));
     ctx.waitUntil(retryUnnotifiedCommandJobs(env));
+    ctx.waitUntil(runCommandMediaRetention(env));
   }
 } satisfies ExportedHandler<Env>;
