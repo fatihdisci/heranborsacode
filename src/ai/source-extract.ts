@@ -1,9 +1,10 @@
 import { parseHTML } from 'linkedom';
 import type { FeedItem } from '../types';
 import { decodeEntities, normalizeUrl } from '../utils/text';
+import { sourceTable, type SourceDocument } from './source-document';
 
 type Target = Pick<FeedItem, 'type' | 'url' | 'title'>;
-export interface ArticleSource { text: string; html: string; }
+export interface ArticleSource { text: string; html: string; document: SourceDocument; }
 const clean = (value: string) => value.replace(/\s+/g,' ').trim();
 const normalized = (value: string) => clean(value).toLocaleLowerCase('tr-TR');
 const NOISE = 'script,style,noscript,svg,nav,aside,footer,form,button,iframe,[hidden],[aria-hidden="true"],.related-news,.related-articles,.recommended,.recommendations,.advertisement,.ad-container,.social-share,.cookie-banner';
@@ -30,22 +31,29 @@ function matchesTarget(record: Record<string,unknown>, target: Target): boolean 
 
 // Preserve rows, units and merged-cell information. Flattening all table cells
 // into one sentence can associate a value with the wrong period or shareholder.
-function readable(root: Element): string {
+function readable(root: Element): {text:string; document:SourceDocument} {
   const parts: string[] = [];
+  const document:SourceDocument={version:1,passages:[],tables:[]};
+  let section='', previousText='';
   let pending = '';
-  const flush = () => { const text = clean(pending); pending=''; if (text) parts.push(text); };
+  const flush = () => {
+    const text = clean(pending); pending='';
+    if(text) {parts.push(text);document.passages.push({id:`p${document.passages.length+1}`,text,section});previousText=text;}
+  };
   function walk(node: Node): void {
     if (node.nodeType === 3) { pending += node.textContent ?? ''; return; }
     if (node.nodeType !== 1) return;
     const el = node as Element;
     const tag = el.tagName.toLowerCase();
+    if(/^h[1-6]$/.test(tag) || el.classList.contains('bgGreen')) {flush();section=clean(el.textContent??'');previousText='';}
     if (tag === 'table' && !el.querySelector('table')) {
       flush();
-      const span = (cell: Element, name: string) => Math.max(1,Math.min(1000,Number.parseInt(cell.getAttribute(name) ?? '1',10)||1));
-      const rows = [...el.querySelectorAll('tr')].map(row => [...row.querySelectorAll('th,td')].map(cell => ({
-        text:clean(cell.textContent ?? ''), header:cell.tagName.toLowerCase()==='th', rowSpan:span(cell,'rowspan'), colSpan:span(cell,'colspan'),
-      })));
-      if (rows.length) parts.push(`TABLO (satır sırası ve hücre birleşimleri korunmuştur):\n${JSON.stringify(rows)}`);
+      const caption=clean(el.querySelector('caption')?.textContent??'');
+      const context=[section,caption,previousText].filter(text=>text.length<240 && /(?:bin|milyon|milyar)\s*(?:TL|TRY|USD|EUR|Avro|Euro)\b|(?:tutarlar|rakamlar|birim)\s*[:(]/i.test(text)).join(' / ');
+      const table=sourceTable(el,`t${document.tables.length+1}`,section,context);
+      document.tables.push(table);
+      if(table.rows.length)parts.push(`TABLO (satır sırası ve hücre birleşimleri korunmuştur):\n${JSON.stringify(table.rows)}`);
+      previousText='';
       return;
     }
     const boundary = /^(p|div|section|br|li|h[1-6]|tr|td|th)$/.test(tag);
@@ -56,7 +64,8 @@ function readable(root: Element): string {
   walk(root);flush();
   const text = parts.join('\n\n');
   if (text.length > 100_000) throw new Error('Kaynak güvenli içerik boyutunu aşıyor; sessizce kesilmedi');
-  return text;
+  if(JSON.stringify(document).length>350_000)throw new Error('Kaynak tabloları güvenli içerik boyutunu aşıyor; sessizce kesilmedi');
+  return {text,document};
 }
 
 export function extractArticleSource(html: string, target?: Target): ArticleSource {
@@ -80,8 +89,8 @@ export function extractArticleSource(html: string, target?: Target): ArticleSour
       root.querySelectorAll('[style]').forEach(el=>{
         if(/(?:^|;)\s*display\s*:\s*none\s*(?:!important)?\s*(?:;|$)/i.test(el.getAttribute('style')??''))el.remove();
       });
-      const text=readable(root);
-      if(text.length>=20)return {text,html:root.outerHTML};
+      const source=readable(root);
+      if(source.text.length>=20)return {...source,html:root.outerHTML};
     }
     throw new Error('Kaynağın ana metni güvenle ayrıştırılamadı; yalnız başlıktan taslak üretilmedi');
   }
@@ -98,8 +107,8 @@ export function extractArticleSource(html: string, target?: Target): ArticleSour
     }) : [];
     const root = matching.length===1 ? matching[0] : roots.length===1 ? roots[0] : null;
     if (!root) continue;
-    const text=readable(root);
-    if (text.length >= 20) return {text,html:root.outerHTML};
+    const source=readable(root);
+    if (source.text.length >= 20) return {...source,html:root.outerHTML};
   }
   {
     const matched=target ? records.filter(record=>matchesTarget(record,target)) : records;
@@ -108,8 +117,8 @@ export function extractArticleSource(html: string, target?: Target): ArticleSour
       const record=unique[0];
       const {document:fragment}=parseHTML(`<article>${String(record.articleBody)}</article>`);
       fragment.querySelectorAll(NOISE).forEach(el=>el.remove());
-      const text=readable(fragment.firstElementChild!);
-      if (text.length>=20) return {text,html:fragment.firstElementChild!.outerHTML};
+      const source=readable(fragment.firstElementChild!);
+      if (source.text.length>=20) return {...source,html:fragment.firstElementChild!.outerHTML};
     }
   }
   throw new Error('Kaynağın ana metni güvenle ayrıştırılamadı; yalnız başlıktan taslak üretilmedi');

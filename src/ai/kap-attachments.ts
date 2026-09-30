@@ -17,7 +17,8 @@ function jsonValue(text:string,start:number):unknown {
   }
   throw new Error('Kaynak KAP ek verisi tamamlanmadı');
 }
-export function kapAttachments(html:string,url:string):SourceAttachment[]|null {
+export interface KapSourceMetadata { attachments:SourceAttachment[]; issuer:string|null; }
+export function kapSourceMetadata(html:string,url:string):KapSourceMetadata|null {
   const target=new URL(url),id=target.pathname.match(/^\/tr\/Bildirim\/(\d+)$/)?.[1];
   if(!id||!['www.kap.org.tr','kap.org.tr'].includes(target.hostname))return null;
   const {document}=parseHTML(html);const chunks:string[]=[];
@@ -26,13 +27,19 @@ export function kapAttachments(html:string,url:string):SourceAttachment[]|null {
     if(!match)continue;
     try{const value=JSON.parse(match[1]);if(value[0]===1&&typeof value[1]==='string')chunks.push(value[1]);}catch{/* unrelated malformed script */}
   }
-  const text=chunks.join('');let expected:number|null=null;
+  const text=chunks.join('');let expected:number|null=null,issuer:string|null=null;
   for(const match of text.matchAll(/"disclosureBasic"\s*:\s*(?=\{)/g)) {
-    const basic=jsonValue(text,match.index!+match[0].length) as {disclosureIndex?:number;attachmentCount?:number};
+    const basic=jsonValue(text,match.index!+match[0].length) as {disclosureIndex?:number;attachmentCount?:number;companyTitle?:string};
     if(String(basic.disclosureIndex)!==id)throw new Error('Kaynak KAP bildirim kimliği eşleşmedi');
     if(!Number.isInteger(basic.attachmentCount)||basic.attachmentCount!<0)throw new Error('Kaynak KAP ek sayısı doğrulanamadı');
     if(expected!==null&&expected!==basic.attachmentCount)throw new Error('Kaynak KAP ek sayıları tutarsız');
     expected=basic.attachmentCount!;
+    if(basic.companyTitle!==undefined) {
+      if(typeof basic.companyTitle!=='string' || basic.companyTitle.length>500)throw new Error('Kaynak KAP bildirim kurumu doğrulanamadı');
+      const company=basic.companyTitle.replace(/\s+/g,' ').trim();
+      if(issuer && issuer!==company)throw new Error('Kaynak KAP bildirim kurumları tutarsız');
+      issuer=company||null;
+    }
   }
   if(expected===null)return null;
   const found=new Map<string,SourceAttachment>();
@@ -46,5 +53,6 @@ export function kapAttachments(html:string,url:string):SourceAttachment[]|null {
     }
   }
   if(found.size!==expected)throw new Error('Kaynak KAP ekleri eksik; eksik kaynakla taslak üretilmedi');
-  return [...found.values()];
+  return {attachments:[...found.values()],issuer};
 }
+export function kapAttachments(html:string,url:string):SourceAttachment[]|null {return kapSourceMetadata(html,url)?.attachments??null;}

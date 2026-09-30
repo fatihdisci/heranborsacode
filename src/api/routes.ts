@@ -2,7 +2,7 @@ import { getPreferences, savePreferences, TOPICS, decide } from "../notification
 import { getIndices } from "../notifications/indices";
 import { X_ACCOUNTS } from "../x/sources";
 import type { Env, FeedType } from "../types";
-import { listFeed } from "../db/feed";
+import { listFeed, feedJoinSql, subjectTickersSql } from "../db/feed";
 import { json } from "../utils/http";
 import { generateTweetDraft } from "../ai/tweet";
 import { authorizeTelegramRequest } from "../security/telegram";
@@ -116,7 +116,7 @@ export async function api(request: Request, env: Env): Promise<Response | null> 
     } catch { return json({ error: "invalid_json" }, 400); }
     if (!Number.isSafeInteger(feedItemId) || feedItemId < 1) return json({ error: "invalid_feed_item" }, 400);
     if (instruction.length > 500) return json({error:'instruction_too_long'},400);
-    const item = await env.DB.prepare("SELECT * FROM feed_items WHERE id=? AND category IS NULL").bind(feedItemId).first<import("../types").FeedItem>();
+    const item = await env.DB.prepare(`SELECT f.*,${subjectTickersSql} AS subject_tickers_json FROM feed_items f ${feedJoinSql} WHERE f.id=? AND f.category IS NULL`).bind(feedItemId).first<import("../types").FeedItem>();
     if (!item) return json({ error: "not_found" }, 404);
     try {
       const draft = await generateTweetDraft(env, item, {regenerate,instruction});

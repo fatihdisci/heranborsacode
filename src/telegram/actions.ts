@@ -3,6 +3,7 @@ import { readerContent, type ReaderContent } from '../reader/content';
 import { generateTweetDraft } from '../ai/tweet';
 import { enqueueStatement, type DeliveryPayload } from './outbox';
 import { feedKeyboard, tweetDraftKeyboard } from './buttons';
+import { feedJoinSql, subjectTickersSql } from '../db/feed';
 
 export interface ActionJob {
   id: string; callback_id: string; action: 'read' | 'tweet' | 'tweet_regenerate' | 'tweet_instruction' | 'page'; feed_item_id: number;
@@ -64,7 +65,7 @@ export async function processAction(env: Env, lane: ActionLane): Promise<number 
     SELECT id FROM telegram_actions WHERE status='queued' AND ${condition} ORDER BY created_at,id LIMIT 1) RETURNING *`).bind(now+180_000).first<ActionJob>();
   if (!job) return null;
   try {
-    const item = await env.DB.prepare('SELECT * FROM feed_items WHERE id=? AND category IS NULL').bind(job.feed_item_id).first<FeedItem>();
+    const item = await env.DB.prepare(`SELECT f.*,${subjectTickersSql} AS subject_tickers_json FROM feed_items f ${feedJoinSql} WHERE f.id=? AND f.category IS NULL`).bind(job.feed_item_id).first<FeedItem>();
     if (!item) throw new Error('item_missing');
     let payload: DeliveryPayload;
     let result: string | null = null;
@@ -96,11 +97,11 @@ export async function processAction(env: Env, lane: ActionLane): Promise<number 
   } catch (error) {
     // Keep source/API failure diagnostics without logging source text, user
     // instructions, tokens, or arbitrary upstream response bodies.
-    const reason=error instanceof Error && /^(Kaynak|Kaynağın|OpenAI|Tweet çıktı|X paylaşımının)/.test(error.message)
+    const reason=error instanceof Error && /^(Kaynak|Kaynağın|OpenAI|Modelin yapılandırılmış|Tweet çıktı|X paylaşımının)/.test(error.message)
       ? error.message.slice(0,200) : 'action_failed';
     console.error('Telegram action failed',{feedItemId:job.feed_item_id,action:job.action,reason});
     await finish(env,job,{text:job.action === 'tweet' || job.action === 'tweet_regenerate' || job.action === 'tweet_instruction'
-      ? 'Tweet oluşturulamadı; eksik bir taslak gönderilmedi. Kaynak mesajındaki “Tweet oluştur” butonuyla yeniden deneyebilirsiniz.'
+      ? 'Tweet oluşturulamadı; kaynak veya rakamlar güvenle değerlendirilemedi. Kaynak bağlantısını inceleyebilir veya “Tweet oluştur” butonuyla yeniden deneyebilirsiniz.'
       : 'İçerik şu anda okunamadı. Kaynak bağlantısını açabilir veya “Oku” butonuyla yeniden deneyebilirsiniz.',plain:true,replyTo:job.reply_to},null,'failed');
   }
   return 1000;

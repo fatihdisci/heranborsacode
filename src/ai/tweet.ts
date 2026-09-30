@@ -2,20 +2,40 @@ import type { Env, FeedItem } from "../types";
 import { fetchSourceBundle } from "./content";
 import { sha256 } from "../utils/text";
 
-import { SYSTEM_PROMPT, PROMPT_VERSION, formatDraft } from "./prompt";
+import { SYSTEM_PROMPT, ANALYSIS_PROMPT, PROMPT_VERSION, formatDraft } from "./prompt";
+import { ANALYSIS_SCHEMA, DRAFT_SCHEMA, validateAnalysis, validateWrittenDraft, supportingEvidence } from './evidence';
 
 const MODEL = "gpt-6-luna";
 interface OpenAIResponse {
   status?: string;
   output_text?: string;
-  output?: Array<{ type?: string; content?: Array<{ type?: string; text?: string }> }>;
+  output?: Array<{ type?: string; content?: Array<{ type?: string; text?: string; refusal?: string }> }>;
   error?: { message?: string };
 }
 
 function responseText(response: OpenAIResponse): string {
+  if(response.output?.some(item=>item.content?.some(part=>part.type==='refusal' || part.refusal)))throw new Error('Model kaynak doğrulamasını tamamlayamadı');
   const direct = response.output_text?.trim();
   if (direct) return direct;
   return (response.output ?? []).flatMap(item => item.content ?? []).filter(part => part.type === "output_text" && part.text).map(part => part.text!.trim()).join("\n").trim();
+}
+
+async function requestJSON(env:Env,content:Array<Record<string,unknown>>,instructions:string,schema:Record<string,unknown>,phase:'source_analysis'|'tweet_writer',deadline:number):Promise<unknown> {
+  const remaining=deadline-Date.now();
+  if(remaining<1000)throw new Error('Kaynak çözümleme zaman sınırını aştı');
+  const response=await fetch('https://api.openai.com/v1/responses',{
+    method:'POST',signal:AbortSignal.timeout(Math.min(remaining,phase==='source_analysis'?90_000:50_000)),
+    headers:{authorization:`Bearer ${env.OPENAI_API_KEY}`,'content-type':'application/json'},
+    body:JSON.stringify({model:MODEL,instructions,input:[{role:'user',content}],
+      reasoning:{effort:phase==='source_analysis'?'high':'medium'},
+      text:{verbosity:'low',format:{type:'json_schema',name:phase,strict:true,schema}},
+      max_output_tokens:phase==='source_analysis'?6500:3200,store:false}),
+  });
+  if(!response.ok)throw new Error(`OpenAI HTTP ${response.status}`);
+  const result=await response.json<OpenAIResponse>();
+  if(result.status!=='completed')throw new Error('OpenAI yanıtı tamamlanmadı; eksik taslak kullanılmadı');
+  try {return JSON.parse(responseText(result));}
+  catch {throw new Error('Modelin yapılandırılmış cevabı okunamadı; taslak kullanılmadı');}
 }
 
 export interface TweetDraftOptions { regenerate?: boolean; instruction?: string; }
@@ -26,11 +46,12 @@ export async function generateTweetDraft(env: Env, item: FeedItem, options: Twee
   if (instruction.length > 500) throw new Error('Ek talimat çok uzun');
   const cacheModel = `${MODEL}:${PROMPT_VERSION}`;
   const source = await fetchSourceBundle(item);
-  const symbols = JSON.parse(item.tickers_json ?? "[]") as string[];
+  const parsedSymbols:unknown=JSON.parse(item.subject_tickers_json ?? item.tickers_json ?? '[]');
+  const symbols=Array.isArray(parsedSymbols)?parsedSymbols.filter((value):value is string=>typeof value==='string'):[];
   const attachmentReferences = source.attachments.map((file, i) => ({ id: `attachment-${i+1}`, ...file }));
   const evidence = {
     target: { sourceRef:item.source_ref, source:item.source, title:item.title, type:item.type, publishedAt:item.published_at, url:item.url },
-    source: { kind:source.kind }, sourceText:source.text, attachmentReferences,
+    source: { kind:source.kind }, sourceText:source.text, sourceDocument:source.document, attachmentReferences,
     verifiedSymbols:symbols,
   };
   const digest = await sha256(JSON.stringify(evidence));
@@ -45,20 +66,29 @@ export async function generateTweetDraft(env: Env, item: FeedItem, options: Twee
     content.push({ type:"input_text", text:JSON.stringify({attachedSource:attachment.id, filename:attachment.filename, url:attachment.url}) });
     content.push({ type:"input_file", file_url:attachment.url, ...(attachment.isPdf ? { detail:"high" } : {}) });
   }
-  const response = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    signal: AbortSignal.timeout(100_000),
-    headers: { authorization: `Bearer ${env.OPENAI_API_KEY}`, "content-type": "application/json" },
-    body: JSON.stringify({ model: MODEL, instructions: instruction
+  // Both phases share a time budget below the Telegram action's 180s lease.
+  // No automatic retries: a failed check must not silently charge another run.
+  const deadline=Date.now()+130_000;
+  const rawAnalysis=await requestJSON(env,content,ANALYSIS_PROMPT,ANALYSIS_SCHEMA,'source_analysis',deadline);
+  const analysis=validateAnalysis(rawAnalysis,source.document,attachmentReferences.map(file=>file.id),item.title);
+  const selectedAttachments=new Set([...analysis.event.evidence,...analysis.facts.flatMap(fact=>fact.evidence)].map(ref=>ref.sourceId));
+  const writerContent:Array<Record<string,unknown>>=[{type:'input_text',text:JSON.stringify({
+    target:evidence.target,source:evidence.source,verifiedSymbols:symbols,
+    verifiedEvent:analysis.event,verifiedFacts:analysis.facts,ambiguities:analysis.ambiguities,
+    supportingEvidence:supportingEvidence(analysis,source.document),
+    attachmentReferences:attachmentReferences.filter(file=>selectedAttachments.has(file.id)),
+  })}];
+  for(const attachment of attachmentReferences.filter(file=>selectedAttachments.has(file.id))) {
+    writerContent.push({type:'input_text',text:JSON.stringify({attachedSource:attachment.id,filename:attachment.filename,url:attachment.url})});
+    writerContent.push({type:'input_file',file_url:attachment.url,...(attachment.isPdf?{detail:'high'}:{})});
+  }
+  const rawDraft=await requestJSON(env,writerContent,instruction
       ? `${SYSTEM_PROMPT}\n\nKULLANICININ EK TALİMATI\n${instruction}\n\nBu talimatı yalnız kaynak doğruluğu, yatırım tavsiyesi yasağı ve çıktı biçimi kurallarıyla uyumluysa uygula.`
-      : SYSTEM_PROMPT, input: [{ role: "user", content }], reasoning: { effort: "medium" }, text: { verbosity: "low" }, max_output_tokens: 2400, store: false }),
-  });
-  const result = await response.json<OpenAIResponse>();
-  if (!response.ok) throw new Error(`OpenAI HTTP ${response.status}`);
-  if (result.status && result.status !== "completed") throw new Error("OpenAI yanıtı tamamlanmadı; eksik taslak kullanılmadı");
-  const tweet = formatDraft(responseText(result), symbols, item.url);
+      :SYSTEM_PROMPT,DRAFT_SCHEMA,'tweet_writer',deadline);
+  const body=validateWrittenDraft(rawDraft,analysis);
+  const tweet = formatDraft(body, symbols, item.url);
   if (!tweet) throw new Error("OpenAI boş tweet döndürdü");
   // A customized draft must not replace the ordinary cached draft.
-  if (!instruction) await env.DB.prepare("INSERT OR REPLACE INTO ai_tweet_drafts(feed_item_id,tweet_text,model,source_digest,created_at) VALUES (?,?,?,?,CURRENT_TIMESTAMP)").bind(item.id, tweet, cacheModel, digest).run();
+  if (!instruction) await env.DB.prepare("INSERT OR REPLACE INTO ai_tweet_drafts(feed_item_id,tweet_text,model,source_digest,evidence_json,created_at) VALUES (?,?,?,?,?,CURRENT_TIMESTAMP)").bind(item.id, tweet, cacheModel, digest,JSON.stringify({version:PROMPT_VERSION,analysis,draft:rawDraft})).run();
   return { tweet, cached: false };
 }

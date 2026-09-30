@@ -9,6 +9,11 @@ beforeEach(()=>{({sql,env}=database());});
 afterEach(()=>{sql.close();vi.unstubAllGlobals();});
 const source={name:'Test Ekonomi',url:'https://example.com/rss'};
 function rss(amount,date=new Date()) {return `<rss><channel><item><title>Vestel yeni sözleşme imzaladı</title><link>https://example.com/news/1</link><description>Vestel, ${amount} milyon TL tutarında yeni sözleşme imzaladı.</description><pubDate>${date.toUTCString()}</pubDate></item></channel></rss>`;}
+function analysisOutput(sourceText,facts=[],sourceId='p1') {
+  return {status:'ready',event:{kind:'other',stage:sourceText.includes('başvurdu')?'application':sourceText.includes('onaylandı')||sourceText.includes('onayladı')?'approval':'executed',direction:'none',actor:null,subject:null,summary:sourceText,eventDate:null,evidence:[{sourceId,quote:sourceText,location:sourceId.startsWith('attachment-')?'Sayfa 1':null}]},facts,ambiguities:[]};
+}
+function draftOutput(body,usedFactIds=[],numericClaims=[]) {return {status:'ready',body,usedFactIds,numericClaims};}
+function modelResponse(output,status='completed') {return new Response(JSON.stringify({status,output_text:JSON.stringify(output)}));}
 it('handles RSS revisions and repeated polls without sending Telegram during ingestion',async()=>{
   sql.prepare("INSERT INTO system_state(key,value) VALUES (?,'1')").run('rss_baseline:'+source.url);
   let amount=10;
@@ -65,13 +70,15 @@ it('keeps GPT-6 Luna, separates source data, caches validated output and rejects
     if(url===item.url) return new Response('<article>Vestel, 2 milyon avroluk sözleşme imzaladı.</article>',{headers:{'content-type':'text/html'}});
     const body=JSON.parse(init.body);expect(body.model).toBe('gpt-6-luna');expect(body.instructions).toContain('brüt/net');
     expect(JSON.parse(body.input[0].content[0].text).target.url).toBe(item.url);
-    return new Response(JSON.stringify({status:incomplete?'incomplete':'completed',output_text:'Vestel, 2 milyon avroluk sözleşme imzaladığını açıkladı.'}));
+    const fact={id:'f1',meaning:'Sözleşme tutarı',value:'2 milyon avro',metric:'cash_amount',scope:'unknown',unit:'avro',transactionDate:null,evidence:[{sourceId:'p1',quote:'2 milyon avroluk sözleşme',location:null}]};
+    const output=body.text.format.name==='source_analysis'?analysisOutput('Vestel, 2 milyon avroluk sözleşme imzaladı.',[fact]):draftOutput('Vestel, 2 milyon avroluk sözleşme imzaladığını açıkladı.',['f1'],[{text:'2 milyon avroluk sözleşme',factId:'f1'}]);
+    return modelResponse(output,incomplete?'incomplete':'completed');
   });
   vi.stubGlobal('fetch',mock);
   const result=await generateTweetDraft({...env,OPENAI_API_KEY:'test-fake'},item);
   expect(result.tweet).toContain('#VESTL\n\nVestel');expect(result.tweet).toContain('🔗 '+item.url);
   expect((await generateTweetDraft({...env,OPENAI_API_KEY:'test-fake'},item)).cached).toBe(true);
-  expect(mock).toHaveBeenCalledTimes(3);
+  expect(mock).toHaveBeenCalledTimes(4);
   sql.exec('DELETE FROM ai_tweet_drafts');incomplete=true;
   await expect(generateTweetDraft({...env,OPENAI_API_KEY:'test-fake'},item)).rejects.toThrow('tamamlanmadı');
   expect(sql.prepare('SELECT count(*) AS n FROM ai_tweet_drafts').get().n).toBe(0);
@@ -80,20 +87,23 @@ it('regenerates ordinary drafts and sends extra instructions without overwriting
   sql.exec("INSERT INTO feed_items(type,source,source_ref,title,body,url,tickers_json) VALUES ('news','Test','rss:custom','Sözleşme','Özet','https://example.com/custom','[]')");
   const item=sql.prepare("SELECT * FROM feed_items WHERE source_ref='rss:custom'").get();
   const instructions=[];
+  const variants=['Şirket sözleşme imzaladı.','Şirket, sözleşmeye imza attı.','Şirket bir sözleşme imzaladığını açıkladı.'];
   let calls=0;
   vi.stubGlobal('fetch',vi.fn(async(url,init)=>{
     if(url===item.url) return new Response('<article>Şirket sözleşme imzaladı.</article>',{headers:{'content-type':'text/html'}});
-    const body=JSON.parse(init.body);instructions.push(body.instructions);calls++;
-    return new Response(JSON.stringify({status:'completed',output_text:`Sözleşme taslağı ${calls}.`}));
+    const body=JSON.parse(init.body);
+    if(body.text.format.name==='source_analysis')return modelResponse(analysisOutput('Şirket sözleşme imzaladı.'));
+    instructions.push(body.instructions);calls++;
+    return modelResponse(draftOutput(variants[calls-1]));
   }));
   const configured={...env,OPENAI_API_KEY:'test-fake'};
-  expect((await generateTweetDraft(configured,item)).tweet).toContain('taslağı 1');
+  expect((await generateTweetDraft(configured,item)).tweet).toContain(variants[0]);
   expect((await generateTweetDraft(configured,item)).cached).toBe(true);
-  expect((await generateTweetDraft(configured,item,{regenerate:true})).tweet).toContain('taslağı 2');
-  expect((await generateTweetDraft(configured,item,{instruction:'Rakamı ilk cümlede vurgula.'})).tweet).toContain('taslağı 3');
+  expect((await generateTweetDraft(configured,item,{regenerate:true})).tweet).toContain(variants[1]);
+  expect((await generateTweetDraft(configured,item,{instruction:'Rakamı ilk cümlede vurgula.'})).tweet).toContain(variants[2]);
   expect(instructions[2]).toContain('KULLANICININ EK TALİMATI\nRakamı ilk cümlede vurgula.');
   expect(instructions[2]).toContain('Heran Borsa');
-  expect((await generateTweetDraft(configured,item)).tweet).toContain('taslağı 2');
+  expect((await generateTweetDraft(configured,item)).tweet).toContain(variants[1]);
   expect(calls).toBe(3);
 });
 it('invalidates cached drafts when source facts change and refuses unreadable evidence',async()=>{
@@ -102,10 +112,12 @@ it('invalidates cached drafts when source facts change and refuses unreadable ev
   let html='<article>Şirket kredi limiti için başvurdu.</article>', calls=0;
   vi.stubGlobal('fetch',vi.fn(async(url,init)=>{
     if(url===item.url)return new Response(html,{headers:{'content-type':'text/html'}});
-    calls++;const body=JSON.parse(init.body), evidence=JSON.parse(body.input[0].content[0].text);
+    const body=JSON.parse(init.body), evidence=JSON.parse(body.input[0].content[0].text);
     expect(evidence.source.kind).toBe('article');expect(evidence.target.sourceRef).toBe(item.source_ref);
-    expect(body.reasoning.effort).toBe('medium');
-    return new Response(JSON.stringify({status:'completed',output_text:calls===1?'Şirket kredi limiti için başvurdu.':'Şirketin kredi limiti onaylandı.'}));
+    expect(body.reasoning.effort).toBe(body.text.format.name==='source_analysis'?'high':'medium');
+    if(body.text.format.name==='source_analysis')return modelResponse(analysisOutput(html.replace(/<[^>]+>/g,'')));
+    calls++;
+    return modelResponse(draftOutput(calls===1?'Şirket kredi limiti için başvurdu.':'Şirketin kredi limiti onaylandı.'));
   }));
   const configured={...env,OPENAI_API_KEY:'test-fake'};
   await generateTweetDraft(configured,item);
@@ -119,13 +131,13 @@ it('maps PDF attachments to source references and does not reuse URL-only eviden
   const item=sql.prepare("SELECT * FROM feed_items WHERE source_ref='spk:pdf'").get();let calls=0;
   vi.stubGlobal('fetch',vi.fn(async(url,init)=>{
     if(url===item.url)return new Response('PDF',{headers:{'content-type':'application/pdf'}});
-    calls++;const content=JSON.parse(init.body).input[0].content;
+    calls++;const requestBody=JSON.parse(init.body),content=requestBody.input[0].content;
     const evidence=JSON.parse(content[0].text);
     expect(evidence.source.kind).toBe('pdf');expect(evidence.attachmentReferences[0].id).toBe('attachment-1');
     expect(JSON.parse(content[1].text).attachedSource).toBe('attachment-1');
     expect(content[2]).toEqual({type:'input_file',file_url:item.url,detail:'high'});
-    return new Response(JSON.stringify({status:'completed',output_text:'SPK başvuruyu onayladı.'}));
+    return modelResponse(requestBody.text.format.name==='source_analysis'?analysisOutput('SPK başvuruyu onayladı.',[],'attachment-1'):draftOutput('SPK başvuruyu onayladı.'));
   }));
   const configured={...env,OPENAI_API_KEY:'test-fake'};
-  await generateTweetDraft(configured,item);expect((await generateTweetDraft(configured,item)).cached).toBe(false);expect(calls).toBe(2);
+  await generateTweetDraft(configured,item);expect((await generateTweetDraft(configured,item)).cached).toBe(false);expect(calls).toBe(4);
 });
