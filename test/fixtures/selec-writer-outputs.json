@@ -1,0 +1,180 @@
+[
+  {
+    "status": "ready",
+    "event": {
+      "kind": "buyback_decision",
+      "stage": "decision",
+      "direction": "buy",
+      "actor": "SELÇUK ECZA DEPOSU TİCARET VE SANAYİ A.Ş.",
+      "subject": "SELÇUK ECZA DEPOSU TİCARET VE SANAYİ A.Ş.",
+      "summary": "Selçuk Ecza Deposu Yönetim Kurulu, şirket payları için geri alım programı başlatılmasına karar verdi.",
+      "eventDate": "30.09.2026",
+      "evidence": [
+        {
+          "sourceId": "p4",
+          "quote": "pay geri alım programı başlatılmasına,",
+          "location": "Ek Açıklamalar, 1. madde"
+        },
+        {
+          "sourceId": "p11",
+          "quote": "karar verilmiştir.",
+          "location": "Ek Açıklamalar"
+        },
+        {
+          "sourceId": "t2:r1:c2",
+          "quote": "SELÇUK ECZA DEPOSU TİCARET VE SANAYİ A.Ş.",
+          "location": "Geri Alım İşlemini Gerçekleştiren Ortaklık"
+        },
+        {
+          "sourceId": "t2:r2:c2",
+          "quote": "SELÇUK ECZA DEPOSU TİCARET VE SANAYİ A.Ş.",
+          "location": "Geri Alım İşlemine Konu Ortaklık"
+        },
+        {
+          "sourceId": "t3:r2:c2",
+          "quote": "30.09.2026",
+          "location": "Yönetim Kurulu Karar Tarihi"
+        }
+      ]
+    },
+    "facts": [
+      {
+        "id": "f1",
+        "meaning": "Yönetim kurulu karar tarihi",
+        "value": "30.09.2026",
+        "metric": "date",
+        "scope": "unknown",
+        "unit": null,
+        "transactionDate": null,
+        "evidence": [
+          {
+            "sourceId": "t3:r2:c2",
+            "quote": "30.09.2026",
+            "location": "Yönetim Kurulu Karar Tarihi"
+          }
+        ]
+      },
+      {
+        "id": "f2",
+        "meaning": "Program kapsamında geri alınabilecek azami pay adedi",
+        "value": "5.000.000",
+        "metric": "share_count",
+        "scope": "planned",
+        "unit": "adet",
+        "transactionDate": null,
+        "evidence": [
+          {
+            "sourceId": "p5",
+            "quote": "B Grubu paylardan azami 5.000.000 adet",
+            "location": "Ek Açıklamalar, 2. madde"
+          }
+        ]
+      },
+      {
+        "id": "f3",
+        "meaning": "Program kapsamında geri alınabilecek payların toplam nominal değeri",
+        "value": "5.000.000",
+        "metric": "nominal_amount",
+        "scope": "planned",
+        "unit": "TL",
+        "transactionDate": null,
+        "evidence": [
+          {
+            "sourceId": "p5",
+            "quote": "toplam 5.000.000 TL nominal değerli payın geri alınabilmesine",
+            "location": "Ek Açıklamalar, 2. madde"
+          }
+        ]
+      },
+      {
+        "id": "f4",
+        "meaning": "Geri alım işlemleri için belirlenen azami tutar",
+        "value": "600.000.000",
+        "metric": "cash_amount",
+        "scope": "planned",
+        "unit": "TL",
+        "transactionDate": null,
+        "evidence": [
+          {
+            "sourceId": "p6",
+            "quote": "Geri alım işlemleri için ayrılabilecek azami tutarın 600.000.000 TL olarak belirlenmesine",
+            "location": "Ek Açıklamalar, 3. madde"
+          }
+        ]
+      },
+      {
+        "id": "f5",
+        "meaning": "Geri alım programının uygulanma süresi",
+        "value": "12 ay",
+        "metric": "duration",
+        "scope": "planned",
+        "unit": "ay",
+        "transactionDate": null,
+        "evidence": [
+          {
+            "sourceId": "p7",
+            "quote": "Geri alım programının işbu karar tarihinden itibaren 12 ay süreyle uygulanmasına",
+            "location": "Ek Açıklamalar, 4. madde"
+          }
+        ]
+      }
+    ],
+    "ambiguities": []
+  },
+  {
+    "status": "ready",
+    "body": "Selçuk Ecza Deposu, şirket payları için geri alım programı başlatma kararı aldı. Program kapsamında B Grubu paylardan azami 5.000.000 adet, toplam 5.000.000 TL nominal değerli pay geri alınabilecek; ayrılabilecek azami tutar 600.000.000 TL, uygulama süresi karar tarihinden itibaren 12 ay.",
+    "usedFactIds": [
+      "f2",
+      "f3",
+      "f4",
+      "f5"
+    ],
+    "numericClaims": [
+      {
+        "text": "5.000.000 adet",
+        "factId": "f2"
+      },
+      {
+        "text": "5.000.000 TL nominal değerli pay",
+        "factId": "f3"
+      },
+      {
+        "text": "600.000.000 TL",
+        "factId": "f4"
+      },
+      {
+        "text": "12 ay",
+        "factId": "f5"
+      }
+    ]
+  },
+  {
+    "status": "ready",
+    "body": "Selçuk Ecza Deposu, şirket payları için geri alım programı başlatma kararı aldı. Program kapsamında B Grubu paylardan azami 5.000.000 adet, toplam 5.000.000 TL nominal değerli pay geri alınabilecek. Geri alım için ayrılabilecek azami tutar 600.000.000 TL; program karar tarihinden itibaren 12 ay uygulanacak.",
+    "usedFactIds": [
+      "f2",
+      "f3",
+      "f4",
+      "f5"
+    ],
+    "numericClaims": [
+      {
+        "text": "azami 5.000.000 adet",
+        "factId": "f2"
+      },
+      {
+        "text": "toplam 5.000.000 TL nominal değerli pay",
+        "factId": "f3"
+      },
+      {
+        "text": "azami tutar 600.000.000 TL",
+        "factId": "f4"
+      },
+      {
+        "text": "12 ay",
+        "factId": "f5"
+      }
+    ]
+  }
+]

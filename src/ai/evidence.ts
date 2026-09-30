@@ -17,7 +17,8 @@ export interface VerifiedEvent {
 export interface SourceAnalysis { status: 'ready' | 'insufficient' | 'conflict'; event: VerifiedEvent; facts: VerifiedFact[]; ambiguities: string[]; }
 export interface WrittenDraft { status: 'ready' | 'reject'; body: string; usedFactIds: string[]; numericClaims: Array<{text:string; factId:string}>; }
 interface Entry { id: string; text: string; section: string; cell?: SourceCell; }
-const METRICS: Metric[]=['nominal_amount','share_count','cash_amount','unit_price','percentage','date','text','unknown'];
+const METRICS: Metric[]=['nominal_amount','share_count','cash_amount','unit_price','percentage','date','duration','text','unknown'];
+const FINANCIAL_METRICS:Metric[]=['nominal_amount','share_count','cash_amount','unit_price','percentage'];
 const SCOPES: Scope[]=['transaction','cumulative','prior_cumulative','planned','holding','unknown'];
 const KINDS=['buyback_transaction','buyback_decision','buyback_completion','ownership_transaction','other'];
 const STAGES=['executed','decision','proposal','application','approval','expectation','other'];
@@ -35,6 +36,7 @@ export const ANALYSIS_SCHEMA=object({
 });
 export const DRAFT_SCHEMA=object({status:{type:'string',enum:['ready','reject']},body:string,usedFactIds:array(string),numericClaims:array(object({text:string,factId:string}))});
 export class SourceValidationError extends Error {
+  context?: {phase?:'source_analysis'|'tweet_writer';factId?:string;metric?:Metric;scope?:Scope};
   constructor(reason:string) {super(`Kaynak doğrulaması başarısız: ${reason}`);this.name='SourceValidationError';}
 }
 const fail=(reason:string):never=>{throw new SourceValidationError(reason);};
@@ -95,6 +97,28 @@ function contexts(evidence:EvidenceRef[],registry:Map<string,Entry>):string {
   }).join('\n');
 }
 
+function explicitlyCounted(quote:string,value:string):boolean {
+  const source=normalizeLabel(quote),needle=normalizeLabel(value);
+  // An explicit "5.000.000 adet" remains a count when that sentence also
+  // states the nominal TL value. A nominal-only amount is never a count.
+  for(let index=source.indexOf(needle);index>=0;index=source.indexOf(needle,index+1)) {
+    const rest=source.slice(index+needle.length);
+    if (/^(?:\s*(?:adet|lot|pay)\b)/.test(rest) || /\b(?:adet|lot|pay)$/.test(needle))return true;
+  }
+  return false;
+}
+
+function explicitlyCash(quote:string,value:string):boolean {
+  const source=normalizeLabel(quote),needle=normalizeLabel(value);
+  for(let index=source.indexOf(needle);index>=0;index=source.indexOf(needle,index+1)) {
+    const after=source.slice(index+needle.length).split(/\d/)[0];
+    const before=source.slice(0,index).split(/\d/).at(-1)??'';
+    if (/^\s*(?:tl|try|usd|eur|avro|euro|dolar)\b/.test(after) && !/nominal/.test(after)
+      && (/karsiliginda|bedelle|harcan|oden/.test(after) || /odenen|harcanan|maliyet|islem tutari|islem bedeli|ayrilan fon/.test(before)))return true;
+  }
+  return false;
+}
+
 export function validateAnalysis(value:unknown,document:SourceDocument|null,attachmentIds:string[],title:string):SourceAnalysis {
   const analysis=value as SourceAnalysis;
   if(!analysis || !['ready','insufficient','conflict'].includes(analysis.status))fail('çözümleme biçimi hatalı');
@@ -114,6 +138,11 @@ export function validateAnalysis(value:unknown,document:SourceDocument|null,atta
       const sourceDate=fact.evidence.flatMap(ref=>datesInText(ref.quote)).find(date=>dateKey(date)===dateKey(fact.value));
       if(sourceDate)fact.value=sourceDate;
     }
+    if(fact.metric==='duration') {
+      const pattern=new RegExp(normalized(fact.value).replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'iu');
+      const sourceDuration=fact.evidence.map(ref=>normalized(ref.quote).match(pattern)?.[0]).find(Boolean);
+      if(sourceDuration)fact.value=sourceDuration;
+    }
     if(!fact.evidence.some(ref=>normalized(ref.quote).includes(normalized(fact.value))))fail('olgu değeri kendi alıntısında yok');
     const matching=fact.evidence.filter(ref=>normalized(ref.quote).includes(normalized(fact.value)));
     if(!numbers(fact.value).every(number=>matching.some(ref=>numbers(ref.quote).some(raw=>raw.value===number.value))))fail('olgu değeri alıntıdaki sayıdan farklı');
@@ -127,7 +156,8 @@ export function validateAnalysis(value:unknown,document:SourceDocument|null,atta
       if(cell.metric!=='unknown' && fact.metric!==cell.metric)fail('nominal/adet/fiyat/tutar etiketi değiştirildi');
       if(cell.scope!=='unknown' && fact.scope!==cell.scope)fail('işlem/toplam/önceki toplam/plan kapsamı değiştirildi');
       if(normalizeLabel(fact.unit??'')!==normalizeLabel(cell.unit??''))fail('tablo birimi veya ölçeği değiştirildi');
-      if(cell.transactionDate && fact.transactionDate!==cell.transactionDate)fail('tablo değeri başka işlem gününe bağlandı');
+      if(cell.transactionDate && (!fact.transactionDate || dateKey(fact.transactionDate)!==dateKey(cell.transactionDate)))fail('tablo değeri başka işlem gününe bağlandı');
+      if(cell.transactionDate)fact.transactionDate=cell.transactionDate;
       if(fact.transactionDate && !cell.transactionDate)fail('tarihsiz tablo değeri işlem gününe bağlandı');
       if(cell.transactionDate) {
         if(!event.eventDate || !dateKey(event.eventDate) || dateKey(event.eventDate)!==dateKey(cell.transactionDate))fail('geçmiş tablonun satırı hedef işlem günüyle karıştı');
@@ -135,7 +165,7 @@ export function validateAnalysis(value:unknown,document:SourceDocument|null,atta
       }
     }
     const context=normalizeLabel(contexts(matching,registry));
-    if(numbers(fact.value).length && ['nominal_amount','share_count','cash_amount','unit_price','percentage'].includes(fact.metric) && !fact.unit)fail('sayısal finansal değerin birimi belirsiz');
+    if(numbers(fact.value).length && [...FINANCIAL_METRICS,'duration'].includes(fact.metric) && !fact.unit)fail('sayısal finansal değerin birimi belirsiz');
     if(numbers(fact.value).length && ['nominal_amount','share_count','cash_amount','unit_price'].includes(fact.metric) && matching.every(ref=>!registry.get(ref.sourceId)?.cell)) {
       const scale=context.match(/\b(?:bin|milyon|milyar)\b/)?.[0];
       if(scale && !normalizeLabel(`${fact.value} ${fact.unit??''}`).includes(scale))fail('alıntıdaki bin/milyon/milyar ölçeği kayboldu');
@@ -143,11 +173,12 @@ export function validateAnalysis(value:unknown,document:SourceDocument|null,atta
     if(fact.transactionDate && !fact.evidence.some(ref=>containsDate(ref.quote,fact.transactionDate!) || registry.get(ref.sourceId)?.cell?.transactionDate===fact.transactionDate))fail('olgunun işlem tarihi kanıtında yok');
     if(fact.scope==='transaction' && fact.transactionDate && event.eventDate && dateKey(fact.transactionDate)!==dateKey(event.eventDate))fail('metin olgusu başka işlem gününe bağlandı');
     if(fact.metric==='nominal_amount' && !context.includes('nominal'))fail('nominal değer kanıtı yok');
-    if((fact.metric==='share_count' || fact.metric==='cash_amount') && matching.every(ref=>!registry.get(ref.sourceId)?.cell) && context.includes('nominal'))fail('nominal tutar adet veya işlem tutarına dönüştürüldü');
+    if((fact.metric==='share_count' || fact.metric==='cash_amount') && matching.every(ref=>!registry.get(ref.sourceId)?.cell) && context.includes('nominal')
+      && !matching.some(ref=>fact.metric==='share_count'?explicitlyCounted(ref.quote,fact.value):explicitlyCash(ref.quote,fact.value)))fail('nominal tutar adet veya işlem tutarına dönüştürüldü');
     if(fact.unit && matching.every(ref=>!registry.get(ref.sourceId)?.cell) && !context.includes(normalizeLabel(fact.unit)))fail('alıntıda birim yok');
     // Labels in prose are useful only when explicit. Do not infer a scope
     // from publication time or from a neighbouring historical table row.
-    if(numbers(fact.value).length && matching.every(ref=>!registry.get(ref.sourceId)?.cell)) {
+    if(FINANCIAL_METRICS.includes(fact.metric) && numbers(fact.value).length && matching.every(ref=>!registry.get(ref.sourceId)?.cell)) {
       for(const ref of matching) {
         const explicit=proseScopeFor(registry.get(ref.sourceId)?.text??ref.quote,fact.value);
         if(explicit!=='unknown' && fact.scope!==explicit)fail('alıntıdaki kapsam değiştirildi');
@@ -177,7 +208,9 @@ export function validateAnalysis(value:unknown,document:SourceDocument|null,atta
       const cell=registry.get(ref.sourceId)?.cell;
       return cell && cell.scope==='transaction' && !!cell.transactionDate && !cell.ambiguous;
     });
-    if(!tableExecution && !/geri al(?:indi|dik|di|inmistir|im.{0,40}(?:yapil|gerceklestir))|satin al(?:indi|dik|di|inmistir)|alim.{0,50}(?:yapil|gerceklestir)/.test(eventText) && !event.evidence.some(ref=>attachments.has(ref.sourceId)))fail('fiili geri alım kanıtı yok');
+    if(!tableExecution && !executedPurchase.test(eventText)
+      && !/alim.{0,120}(?:yapildi|yapilmistir|gerceklestirildi|gerceklestirilmistir)\b/.test(eventText)
+      && !event.evidence.some(ref=>attachments.has(ref.sourceId)))fail('fiili geri alım kanıtı yok');
   }
   if(event.kind==='buyback_decision') {
     // A date labelled "Yönetim Kurulu Karar Tarihi" appears in every trade
@@ -197,25 +230,45 @@ export function supportingEvidence(analysis:SourceAnalysis,document:SourceDocume
   return [...ids].flatMap(id=>registry.has(id)?[registry.get(id)!]:[]);
 }
 
-function validateNumericMeaning(claim:string,fact:VerifiedFact,shareEvent:boolean):void {
+function claimSentence(body:string,start:number,end:number):string {
+  const boundaries=[...body.matchAll(/[.!?;]\s+/g)].map(match=>match.index!+match[0].length);
+  const left=boundaries.filter(index=>index<=start).at(-1)??0;
+  const right=boundaries.find(index=>index>=end)??body.length;
+  return body.slice(left,right);
+}
+
+const executedPurchase=/(?:geri|satin) al(?:di|dik|indi|inmistir|mistir)(?:gini|gine|ginden)?\b/;
+const executedPayment=/\b(?:harcadi|harcandi|harcanmistir|harcamistir|odedi|odendi|odenmistir)(?:gini|gine|ginden)?\b/;
+
+function validateNumericMeaning(claim:string,fact:VerifiedFact,shareEvent:boolean,sentence=claim):void {
   const normalized=normalizeLabel(claim);
-  if(['nominal_amount','share_count','cash_amount','unit_price','percentage','date'].includes(fact.metric) && !normalized.includes(normalizeLabel(fact.value)))fail('sayısal değerin yazımı, işareti veya aralığı değiştirildi');
+  if([...FINANCIAL_METRICS,'date','duration'].includes(fact.metric) && !normalized.includes(normalizeLabel(fact.value)))fail('sayısal değerin yazımı, işareti veya aralığı değiştirildi');
   if(fact.metric==='nominal_amount' && (!normalized.includes('nominal') || /\badet\b|\blot\b|harca|maliyet|odenen|bedelle/.test(normalized)))fail('tweet nominal tutarı adet veya harcama gibi anlatıyor');
   if(fact.metric==='share_count' && (!/\bpay\b|\badet\b|\blot\b/.test(normalized) || /nominal/.test(normalized)))fail('tweet pay adedinin birimini değiştirdi');
   if(fact.metric==='cash_amount' && /nominal|\badet\b|\blot\b/.test(normalized))fail('işlem tutarı nominal değer veya adet gibi anlatılıyor');
   if(fact.metric==='unit_price' && !/fiyat|ortalama|\/(?:adet|pay)|(?:TL|TRY|USD|EUR|avro|euro|dolar)[’']?den/i.test(claim))fail('birim fiyat toplam işlem tutarı gibi anlatılıyor');
   if(fact.metric==='percentage' && !/%|yuzde/.test(normalized))fail('yüzde birimi kayboldu');
-  if(['date','text','unknown'].includes(fact.metric) && /\bTL\b|\bUSD\b|\bEUR\b|₺|\$|€|nominal|\badet\b|\blot\b|yuzde|%/i.test(claim))fail('tarih veya metin değeri finansal rakama dönüştürüldü');
+  if(['date','duration','text','unknown'].includes(fact.metric) && /\bTL\b|\bUSD\b|\bEUR\b|₺|\$|€|nominal|\badet\b|\blot\b|yuzde|%/i.test(claim))fail('tarih veya metin değeri finansal rakama dönüştürüldü');
   if(fact.unit && fact.metric!=='date' && fact.metric!=='text') {
     const unit=normalizeLabel(fact.unit);
     // TL/Adet may be written as a price in TL; scales must still be explicit.
-    if(!normalized.includes(unit.split('/')[0].trim()))fail('tweet para birimi veya ölçeği değiştirdi');
+    const equivalentCount=fact.metric==='share_count' && ['adet','pay'].includes(unit) && /\b(?:adet|pay)\b/.test(normalized);
+    const equivalentPercent=fact.metric==='percentage' && unit==='%' && /%|\byuzde\b/.test(normalized);
+    if(!equivalentCount && !equivalentPercent && !normalized.includes(unit.split('/')[0].trim()))fail('tweet para birimi veya ölçeği değiştirdi');
   }
-  if(!shareEvent)return;
+  // Scope qualifiers describe amounts and holdings, not calendar dates or
+  // durations. "12 ay süreli" need not repeat "azami bütçe".
+  if(!shareEvent || !FINANCIAL_METRICS.includes(fact.metric))return;
   if(fact.scope==='prior_cumulative' && !/daha once|onceki|islem oncesi/.test(normalized))fail('önceki birikim günlük işlem veya son toplam gibi anlatılıyor');
   if(fact.scope==='cumulative' && !/toplam|kumulatif|bugune kadar/.test(normalized))fail('program toplamı günlük işlem gibi anlatılıyor');
   if(['cumulative','prior_cumulative'].includes(fact.scope) && /\bbugun\b|gunluk|bu islemde|bir islemde/.test(normalized))fail('program birikimi tek günün işlemi gibi anlatılıyor');
-  if(fact.scope==='planned' && (!/azami|plan|hedef|ayril|ayir|butce|fon|ongor|tavan/.test(normalized) || /harca|geri aldi|satin aldi/.test(normalized)))fail('program sınırı veya bütçesi gerçekleşmiş işlem gibi anlatılıyor');
+  // Scope is expressed by the sentence's verb/qualifier, which the model may
+  // legitimately omit from its narrow numeric binding ("600.000.000 TL").
+  // The binding still proves the exact value/unit; completed spending or
+  // buying in that sentence still blocks a planned amount.
+  const scopeContext=normalizeLabel(sentence);
+  if(fact.scope==='planned' && (!/azami|plan|hedef|ayril|ayir|butce|fon|ongor|tavan|geri alinabilecek|geri alinmasina/.test(scopeContext)
+    || executedPayment.test(scopeContext) || executedPurchase.test(scopeContext)))fail('program sınırı veya bütçesi gerçekleşmiş işlem gibi anlatılıyor');
   if(fact.scope==='holding' && !/sahip|bakiye|eldeki|pay[ıi]|pay oran/.test(normalized))fail('eldeki paylar yeni işlem gibi anlatılıyor');
   if(fact.scope==='transaction' && /program toplami|program.{0,20}toplam|daha once|islem oncesi/.test(normalized))fail('işlem miktarı program birikimi gibi anlatılıyor');
   if(fact.scope==='transaction' && (fact.transactionRowsOnDate??0)>1 && ['nominal_amount','share_count','cash_amount'].includes(fact.metric) && !/bir islemde|islemlerden biri|tek islemde/.test(normalized))fail('çok satırlı günün tek işlemi günlük toplam gibi anlatılıyor');
@@ -234,14 +287,18 @@ export function validateWrittenDraft(value:unknown,analysis:SourceAnalysis):stri
     const first=draft.body.indexOf(binding.text);
     if(first<0 || !numbers(binding.text).length)fail('sayısal ifade tweet içinde yok');
     if(!numbers(binding.text).every(number=>numbers(fact.value).some(source=>source.value===number.value)))fail('tweette kaynakta olmayan veya değiştirilmiş sayı var');
-    validateNumericMeaning(binding.text,fact,analysis.event.kind!=='other');
-    for(let offset=first;offset>=0;offset=draft.body.indexOf(binding.text,offset+1))intervals.push({start:offset,end:offset+binding.text.length});
+    for(let offset=first;offset>=0;offset=draft.body.indexOf(binding.text,offset+1)) {
+      try {validateNumericMeaning(binding.text,fact,analysis.event.kind!=='other',claimSentence(draft.body,offset,offset+binding.text.length));}
+      catch(error) {if(error instanceof SourceValidationError)error.context={factId:fact.id,metric:fact.metric,scope:fact.scope};throw error;}
+      intervals.push({start:offset,end:offset+binding.text.length});
+    }
   }
   for(const number of numbers(draft.body))if(!intervals.some(interval=>interval.start<=number.start && interval.end>=number.end))fail('tweette kanıtsız sayı veya tarih var');
   const body=normalizeLabel(draft.body);
   if(/\bbugun\b/.test(body))fail('göreli tarih yerine kaynak işlem tarihi kullanılmalı');
   if(analysis.event.kind==='ownership_transaction' && /geri al/.test(body))fail('ortak pay işlemi şirket geri alımı gibi anlatılıyor');
-  if(['decision','proposal','application','expectation'].includes(analysis.event.stage) && /geri aldi|geri alindi|satin aldi|odendi|tamamlandi|gerceklesti|gerceklestirdi|alinmistir/.test(body))fail('işlem aşaması gerçekleşme olarak değiştirildi');
+  if(['decision','proposal','application','expectation'].includes(analysis.event.stage) && (executedPurchase.test(body) || executedPayment.test(body)
+    || /\b(?:tamamlandi|gerceklesti|gerceklestirdi|gerceklestirildi)(?:gini|gine|ginden)?\b/.test(body)))fail('işlem aşaması gerçekleşme olarak değiştirildi');
   if(analysis.event.stage==='application' && /onaylandi|onayladi/.test(body))fail('başvuru onay gibi anlatılıyor');
   if(analysis.event.direction==='sell' && /geri aldi|satin al|(?:pay|hisse).{0,50}al(?:di|indi|mis)|alim.{0,30}(?:yap|gerceklestir)/.test(body))fail('satış alış gibi anlatılıyor');
   if(analysis.event.direction==='buy' && /geri sat|(?:pay|hisse).{0,50}sat(?:ti|ildi|mis)|satis.{0,30}(?:yap|gerceklestir)/.test(body))fail('alış satış gibi anlatılıyor');

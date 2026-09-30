@@ -1,0 +1,600 @@
+{
+  "version": 1,
+  "passages": [
+    {
+      "id": "p1",
+      "text": "Geri Alım Yapılması Planlanan Dönem",
+      "section": "Geri Alım Yapılması Planlanan Dönem"
+    },
+    {
+      "id": "p2",
+      "text": "Ek Açıklamalar",
+      "section": "Ek Açıklamalar"
+    },
+    {
+      "id": "p3",
+      "text": "Şirketimiz Yönetim Kurulunca, son dönemde sermaye piyasalarında yaşanan gelişmeler ve piyasa koşulları ile Şirketimizin faaliyetleri ve finansal yapısı birlikte değerlendirilmiş olup;",
+      "section": "Ek Açıklamalar"
+    },
+    {
+      "id": "p4",
+      "text": "1. Şirket kaynaklarının etkin kullanımına imkân sağlanması, piyasa koşullarının Şirket payları üzerindeki etkilerinin değerlendirilmesi ve pay sahiplerinin uzun vadeli menfaatlerinin gözetilmesi amacıyla; Sermaye Piyasası Kurulu'nun II-22.1 sayılı Geri Alınan Paylar Tebliği, i-SPK.22.9 (19.03.2025 Tarih ve 16/531 S.K.) Sayılı İlke Kararı, i-SPK 22.9.A (22.09.2026 Tarihli ve 60/1711 S.K.) Sayılı İlke Kararı ve ilgili diğer mevzuat hükümleri çerçevesinde pay geri alım programı başlatılmasına,",
+      "section": "Ek Açıklamalar"
+    },
+    {
+      "id": "p5",
+      "text": "2. Program kapsamında Borsa İstanbul'da işlem gören B Grubu paylardan azami 5.000.000 adet, toplam 5.000.000 TL nominal değerli payın geri alınabilmesine,",
+      "section": "Ek Açıklamalar"
+    },
+    {
+      "id": "p6",
+      "text": "3. Geri alım işlemleri için ayrılabilecek azami tutarın 600.000.000 TL olarak belirlenmesine ve söz konusu tutarın Şirket kaynaklarından karşılanmasına,",
+      "section": "Ek Açıklamalar"
+    },
+    {
+      "id": "p7",
+      "text": "4. Geri alım programının işbu karar tarihinden itibaren 12 ay süreyle uygulanmasına; belirlenen azami pay miktarına daha önce ulaşılması veya piyasa koşulları ile Şirketin finansal durumunun gerektirmesi halinde programın süresinden önce sonlandırılabilmesine,",
+      "section": "Ek Açıklamalar"
+    },
+    {
+      "id": "p8",
+      "text": "5. İşbu kararda belirlenen azami pay miktarı, azami tutar ve program süresinin söz konusu limitlerin tamamının kullanılacağına ilişkin bir taahhüt teşkil etmediğinin kabulüne; fiili geri alım işlemlerinin zamanlaması ve miktarının piyasa koşulları, pay fiyatı ve likiditesi ile Şirketin nakit durumu, işletme sermayesi ihtiyaçları ve finansal esnekliği dikkate alınarak belirlenmesine,",
+      "section": "Ek Açıklamalar"
+    },
+    {
+      "id": "p9",
+      "text": "6. Pay geri alım programının uygulanması, geri alım işlemlerinin gerçekleştirilmesi ve program kapsamında gerekli iş ve işlemlerin yürütülmesi hususunda Şirket Yönetiminin yetkilendirilmesine,",
+      "section": "Ek Açıklamalar"
+    },
+    {
+      "id": "p10",
+      "text": "7. İşbu kararın ve program kapsamında gerçekleştirilecek işlemlerin ilgili sermaye piyasası mevzuatı çerçevesinde kamuya açıklanmasına ve pay geri alım programı hakkında yapılacak ilk Genel Kurul toplantısında pay sahiplerine bilgi verilmesine,",
+      "section": "Ek Açıklamalar"
+    },
+    {
+      "id": "p11",
+      "text": "karar verilmiştir.",
+      "section": "Ek Açıklamalar"
+    }
+  ],
+  "tables": [
+    {
+      "id": "t1",
+      "section": "",
+      "caption": "",
+      "unitContext": "",
+      "rows": [
+        [
+          {
+            "text": "Özet Bilgi",
+            "header": false,
+            "rowSpan": 1,
+            "colSpan": 1
+          },
+          {
+            "text": "Pay Geri Alım Programının Başlatılması Hk.",
+            "header": false,
+            "rowSpan": 1,
+            "colSpan": 1
+          }
+        ],
+        [
+          {
+            "text": "Yapılan Açıklama Güncelleme mi ?",
+            "header": false,
+            "rowSpan": 1,
+            "colSpan": 1
+          },
+          {
+            "text": "Hayır",
+            "header": false,
+            "rowSpan": 1,
+            "colSpan": 1
+          }
+        ],
+        [
+          {
+            "text": "Yapılan Açıklama Düzeltme mi ?",
+            "header": false,
+            "rowSpan": 1,
+            "colSpan": 1
+          },
+          {
+            "text": "Hayır",
+            "header": false,
+            "rowSpan": 1,
+            "colSpan": 1
+          }
+        ],
+        [
+          {
+            "text": "Yapılan Açıklama Ertelenmiş Bir Açıklama mı ?",
+            "header": false,
+            "rowSpan": 1,
+            "colSpan": 1
+          },
+          {
+            "text": "Hayır",
+            "header": false,
+            "rowSpan": 1,
+            "colSpan": 1
+          }
+        ]
+      ],
+      "cells": [
+        {
+          "id": "t1:r1:c2",
+          "row": 1,
+          "column": 2,
+          "text": "Pay Geri Alım Programının Başlatılması Hk.",
+          "columnHeaders": [
+            "Özet Bilgi"
+          ],
+          "rowHeaders": [],
+          "section": "",
+          "metric": "unknown",
+          "scope": "unknown",
+          "unit": null,
+          "transactionDate": null,
+          "transactionRowsOnDate": null,
+          "ambiguous": false
+        },
+        {
+          "id": "t1:r2:c2",
+          "row": 2,
+          "column": 2,
+          "text": "Hayır",
+          "columnHeaders": [
+            "Yapılan Açıklama Güncelleme mi ?"
+          ],
+          "rowHeaders": [],
+          "section": "",
+          "metric": "unknown",
+          "scope": "unknown",
+          "unit": null,
+          "transactionDate": null,
+          "transactionRowsOnDate": null,
+          "ambiguous": false
+        },
+        {
+          "id": "t1:r3:c2",
+          "row": 3,
+          "column": 2,
+          "text": "Hayır",
+          "columnHeaders": [
+            "Yapılan Açıklama Düzeltme mi ?"
+          ],
+          "rowHeaders": [],
+          "section": "",
+          "metric": "unknown",
+          "scope": "unknown",
+          "unit": null,
+          "transactionDate": null,
+          "transactionRowsOnDate": null,
+          "ambiguous": false
+        },
+        {
+          "id": "t1:r4:c2",
+          "row": 4,
+          "column": 2,
+          "text": "Hayır",
+          "columnHeaders": [
+            "Yapılan Açıklama Ertelenmiş Bir Açıklama mı ?"
+          ],
+          "rowHeaders": [],
+          "section": "",
+          "metric": "unknown",
+          "scope": "unknown",
+          "unit": null,
+          "transactionDate": null,
+          "transactionRowsOnDate": null,
+          "ambiguous": false
+        }
+      ]
+    },
+    {
+      "id": "t2",
+      "section": "",
+      "caption": "",
+      "unitContext": "",
+      "rows": [
+        [
+          {
+            "text": "Geri Alım İşlemini Gerçekleştiren Ortaklık",
+            "header": false,
+            "rowSpan": 1,
+            "colSpan": 1
+          },
+          {
+            "text": "SELÇUK ECZA DEPOSU TİCARET VE SANAYİ A.Ş.",
+            "header": false,
+            "rowSpan": 1,
+            "colSpan": 1
+          }
+        ],
+        [
+          {
+            "text": "Geri Alım İşlemine Konu Ortaklık",
+            "header": false,
+            "rowSpan": 1,
+            "colSpan": 1
+          },
+          {
+            "text": "SELÇUK ECZA DEPOSU TİCARET VE SANAYİ A.Ş.",
+            "header": false,
+            "rowSpan": 1,
+            "colSpan": 1
+          }
+        ]
+      ],
+      "cells": [
+        {
+          "id": "t2:r1:c2",
+          "row": 1,
+          "column": 2,
+          "text": "SELÇUK ECZA DEPOSU TİCARET VE SANAYİ A.Ş.",
+          "columnHeaders": [
+            "Geri Alım İşlemini Gerçekleştiren Ortaklık"
+          ],
+          "rowHeaders": [],
+          "section": "",
+          "metric": "unknown",
+          "scope": "unknown",
+          "unit": null,
+          "transactionDate": null,
+          "transactionRowsOnDate": null,
+          "ambiguous": false
+        },
+        {
+          "id": "t2:r2:c2",
+          "row": 2,
+          "column": 2,
+          "text": "SELÇUK ECZA DEPOSU TİCARET VE SANAYİ A.Ş.",
+          "columnHeaders": [
+            "Geri Alım İşlemine Konu Ortaklık"
+          ],
+          "rowHeaders": [],
+          "section": "",
+          "metric": "unknown",
+          "scope": "unknown",
+          "unit": null,
+          "transactionDate": null,
+          "transactionRowsOnDate": null,
+          "ambiguous": false
+        }
+      ]
+    },
+    {
+      "id": "t3",
+      "section": "",
+      "caption": "",
+      "unitContext": "",
+      "rows": [
+        [
+          {
+            "text": "Geri Alım İşleminin Niteliği",
+            "header": false,
+            "rowSpan": 1,
+            "colSpan": 1
+          },
+          {
+            "text": "Geri Alım Programı Çerçevesinde",
+            "header": false,
+            "rowSpan": 1,
+            "colSpan": 1
+          }
+        ],
+        [
+          {
+            "text": "Yönetim Kurulu Karar Tarihi",
+            "header": false,
+            "rowSpan": 1,
+            "colSpan": 1
+          },
+          {
+            "text": "30.09.2026",
+            "header": false,
+            "rowSpan": 1,
+            "colSpan": 1
+          }
+        ],
+        [
+          {
+            "text": "Varsa Geri Alım Programının Uygulanacağı Süre",
+            "header": false,
+            "rowSpan": 1,
+            "colSpan": 1
+          },
+          {
+            "text": "12 Ay",
+            "header": false,
+            "rowSpan": 1,
+            "colSpan": 1
+          }
+        ],
+        [
+          {
+            "text": "Geri Alıma Konu Azami Pay Miktarı (Nominal TL)",
+            "header": false,
+            "rowSpan": 1,
+            "colSpan": 1
+          },
+          {
+            "text": "5.000.000",
+            "header": false,
+            "rowSpan": 1,
+            "colSpan": 1
+          }
+        ],
+        [
+          {
+            "text": "Geri Alım İçin Ayrılan Fonun Toplam Tutarı (TL)",
+            "header": false,
+            "rowSpan": 1,
+            "colSpan": 1
+          },
+          {
+            "text": "600.000.000",
+            "header": false,
+            "rowSpan": 1,
+            "colSpan": 1
+          }
+        ]
+      ],
+      "cells": [
+        {
+          "id": "t3:r1:c2",
+          "row": 1,
+          "column": 2,
+          "text": "Geri Alım Programı Çerçevesinde",
+          "columnHeaders": [
+            "Geri Alım İşleminin Niteliği"
+          ],
+          "rowHeaders": [],
+          "section": "",
+          "metric": "unknown",
+          "scope": "unknown",
+          "unit": null,
+          "transactionDate": null,
+          "transactionRowsOnDate": null,
+          "ambiguous": false
+        },
+        {
+          "id": "t3:r2:c2",
+          "row": 2,
+          "column": 2,
+          "text": "30.09.2026",
+          "columnHeaders": [
+            "Yönetim Kurulu Karar Tarihi"
+          ],
+          "rowHeaders": [],
+          "section": "",
+          "metric": "date",
+          "scope": "unknown",
+          "unit": null,
+          "transactionDate": null,
+          "transactionRowsOnDate": null,
+          "ambiguous": false
+        },
+        {
+          "id": "t3:r3:c2",
+          "row": 3,
+          "column": 2,
+          "text": "12 Ay",
+          "columnHeaders": [
+            "Varsa Geri Alım Programının Uygulanacağı Süre"
+          ],
+          "rowHeaders": [],
+          "section": "",
+          "metric": "unknown",
+          "scope": "unknown",
+          "unit": null,
+          "transactionDate": null,
+          "transactionRowsOnDate": null,
+          "ambiguous": false
+        },
+        {
+          "id": "t3:r4:c2",
+          "row": 4,
+          "column": 2,
+          "text": "5.000.000",
+          "columnHeaders": [
+            "Geri Alıma Konu Azami Pay Miktarı (Nominal TL)"
+          ],
+          "rowHeaders": [],
+          "section": "",
+          "metric": "nominal_amount",
+          "scope": "planned",
+          "unit": "TL",
+          "transactionDate": null,
+          "transactionRowsOnDate": null,
+          "ambiguous": false
+        },
+        {
+          "id": "t3:r5:c2",
+          "row": 5,
+          "column": 2,
+          "text": "600.000.000",
+          "columnHeaders": [
+            "Geri Alım İçin Ayrılan Fonun Toplam Tutarı (TL)"
+          ],
+          "rowHeaders": [],
+          "section": "",
+          "metric": "cash_amount",
+          "scope": "planned",
+          "unit": "TL",
+          "transactionDate": null,
+          "transactionRowsOnDate": null,
+          "ambiguous": false
+        }
+      ]
+    },
+    {
+      "id": "t4",
+      "section": "Geri Alım Yapılması Planlanan Dönem",
+      "caption": "",
+      "unitContext": "",
+      "rows": [
+        [
+          {
+            "text": "İşleme Konu Pay",
+            "header": false,
+            "rowSpan": 1,
+            "colSpan": 1
+          },
+          {
+            "text": "Başlangıç Tarihi",
+            "header": false,
+            "rowSpan": 1,
+            "colSpan": 1
+          },
+          {
+            "text": "Bitiş Tarihi",
+            "header": false,
+            "rowSpan": 1,
+            "colSpan": 1
+          },
+          {
+            "text": "Nominal Tutar (TL)",
+            "header": false,
+            "rowSpan": 1,
+            "colSpan": 1
+          },
+          {
+            "text": "Sermayeye Oranı (%)",
+            "header": false,
+            "rowSpan": 1,
+            "colSpan": 1
+          }
+        ],
+        [
+          {
+            "text": "B Grubu, SELEC, TRESLEC00014",
+            "header": false,
+            "rowSpan": 1,
+            "colSpan": 1
+          },
+          {
+            "text": "30.09.2026",
+            "header": false,
+            "rowSpan": 1,
+            "colSpan": 1
+          },
+          {
+            "text": "30.09.2027",
+            "header": false,
+            "rowSpan": 1,
+            "colSpan": 1
+          },
+          {
+            "text": "5.000.000",
+            "header": false,
+            "rowSpan": 1,
+            "colSpan": 1
+          },
+          {
+            "text": "0,80515",
+            "header": false,
+            "rowSpan": 1,
+            "colSpan": 1
+          }
+        ]
+      ],
+      "cells": [
+        {
+          "id": "t4:r2:c1",
+          "row": 2,
+          "column": 1,
+          "text": "B Grubu, SELEC, TRESLEC00014",
+          "columnHeaders": [
+            "İşleme Konu Pay"
+          ],
+          "rowHeaders": [],
+          "section": "Geri Alım Yapılması Planlanan Dönem",
+          "metric": "unknown",
+          "scope": "planned",
+          "unit": null,
+          "transactionDate": null,
+          "transactionRowsOnDate": null,
+          "ambiguous": false
+        },
+        {
+          "id": "t4:r2:c2",
+          "row": 2,
+          "column": 2,
+          "text": "30.09.2026",
+          "columnHeaders": [
+            "Başlangıç Tarihi"
+          ],
+          "rowHeaders": [
+            "B Grubu, SELEC, TRESLEC00014"
+          ],
+          "section": "Geri Alım Yapılması Planlanan Dönem",
+          "metric": "date",
+          "scope": "planned",
+          "unit": null,
+          "transactionDate": null,
+          "transactionRowsOnDate": null,
+          "ambiguous": false
+        },
+        {
+          "id": "t4:r2:c3",
+          "row": 2,
+          "column": 3,
+          "text": "30.09.2027",
+          "columnHeaders": [
+            "Bitiş Tarihi"
+          ],
+          "rowHeaders": [
+            "B Grubu, SELEC, TRESLEC00014"
+          ],
+          "section": "Geri Alım Yapılması Planlanan Dönem",
+          "metric": "date",
+          "scope": "planned",
+          "unit": null,
+          "transactionDate": null,
+          "transactionRowsOnDate": null,
+          "ambiguous": false
+        },
+        {
+          "id": "t4:r2:c4",
+          "row": 2,
+          "column": 4,
+          "text": "5.000.000",
+          "columnHeaders": [
+            "Nominal Tutar (TL)"
+          ],
+          "rowHeaders": [
+            "B Grubu, SELEC, TRESLEC00014"
+          ],
+          "section": "Geri Alım Yapılması Planlanan Dönem",
+          "metric": "nominal_amount",
+          "scope": "planned",
+          "unit": "TL",
+          "transactionDate": null,
+          "transactionRowsOnDate": null,
+          "ambiguous": false
+        },
+        {
+          "id": "t4:r2:c5",
+          "row": 2,
+          "column": 5,
+          "text": "0,80515",
+          "columnHeaders": [
+            "Sermayeye Oranı (%)"
+          ],
+          "rowHeaders": [
+            "B Grubu, SELEC, TRESLEC00014"
+          ],
+          "section": "Geri Alım Yapılması Planlanan Dönem",
+          "metric": "percentage",
+          "scope": "planned",
+          "unit": "%",
+          "transactionDate": null,
+          "transactionRowsOnDate": null,
+          "ambiguous": false
+        }
+      ]
+    }
+  ]
+}

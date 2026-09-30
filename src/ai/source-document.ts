@@ -1,6 +1,6 @@
 // Source coordinates belong to the application, not the model. Keep the raw
 // cells alongside their resolved headings so uncertain tables remain visible.
-export type Metric = 'nominal_amount' | 'share_count' | 'cash_amount' | 'unit_price' | 'percentage' | 'date' | 'text' | 'unknown';
+export type Metric = 'nominal_amount' | 'share_count' | 'cash_amount' | 'unit_price' | 'percentage' | 'date' | 'duration' | 'text' | 'unknown';
 export type Scope = 'transaction' | 'cumulative' | 'prior_cumulative' | 'planned' | 'holding' | 'unknown';
 export interface SourcePassage { id: string; text: string; section: string; }
 export interface RawCell { text: string; header: boolean; rowSpan: number; colSpan: number; }
@@ -25,6 +25,7 @@ export function metricFor(label: string): Metric {
   if (/fiyat|\/(?:adet|pay)|birim deger/.test(text)) return 'unit_price';
   if (/oran|yuzde|%/.test(text)) return 'percentage';
   if (/tarih/.test(text)) return 'date';
+  if (/\bsure(?:si)?\b|uygulanacagi sure|vade/.test(text)) return 'duration';
   if (/(?:pay|lot).{0,25}(?:adet|adedi|sayisi)|adet|adedi|lot sayisi/.test(text)) return 'share_count';
   if (/tutar|fon|bedel|maliyet|hasilat|\bkar[ıi]?\b|zarar|gelir|nakit|varlik|yukumluluk|ozkaynak/.test(text)) return 'cash_amount';
   return 'unknown';
@@ -60,12 +61,13 @@ export function proseScopeFor(quote: string, value: string): Scope {
   return known.length === 1 ? known[0] as Scope : 'unknown';
 }
 
-function unitFor(label: string, context: string): string | null {
+function unitFor(label: string, context: string, value=''): string | null {
   // Column labels override a table-level scale. Never infer a currency from
   // the company's domicile, or turn nominal TL into an adet/lot unit.
   const explicit = (value: string) => value.match(/(?:milyon|milyar|bin)\s*(?:TL|TRY|USD|EUR|ABD Doları|Avro|Euro)|(?:TL|TRY|USD|EUR|₺|\$|€)\s*\/\s*(?:Adet|Pay)|\b(?:TL|TRY|USD|EUR|Adet|Lot|Avro|Euro|ABD Doları)\b|[%₺$€]/i)?.[0] ?? null;
   const own=explicit(label), shared=explicit(context),metric=metricFor(label);
   if(metric==='date')return null;
+  if(metric==='duration')return normalizeLabel(`${label} ${value}`).match(/\b(?:gun|hafta|ay|yil)\b/)?.[0]??null;
   if(metric==='percentage')return own==='%'?own:null;
   if(metric==='share_count')return own??(/lot/i.test(label)?'lot':'adet');
   if (own && shared && /^(?:bin|milyon|milyar)\b/i.test(shared) && shared.toLocaleLowerCase('tr-TR').endsWith(own.toLocaleLowerCase('tr-TR'))) return shared;
@@ -129,7 +131,7 @@ export function sourceTable(el: Element, id: string, section: string, unitContex
     const scope=scopeFor(label,section)==='unknown'?scopeFor(rowLabel,section):scopeFor(label,section);
     const dateColumn=headerRows ? grid[0].findIndex((_,col)=>Array.from({length:headerRows},(_,h)=>normalizeLabel(grid[h]?.[col]?.raw.text??'')).some(text=>/^(?:islem|alim|satim) tarihi$/.test(text))) : -1;
     const date=dateColumn>=0?grid[r]?.[dateColumn]?.raw.text??null:null;
-    cells.push({id:`${id}:r${r+1}:c${c+1}`,row:r+1,column:c+1,text:raw.text,columnHeaders,rowHeaders,section,metric,scope,unit:unitFor(metricFor(label)==='unknown'?`${rowLabel} / ${label}`:label,unitContext),transactionDate:date,transactionRowsOnDate:null,
+    cells.push({id:`${id}:r${r+1}:c${c+1}`,row:r+1,column:c+1,text:raw.text,columnHeaders,rowHeaders,section,metric,scope,unit:unitFor(metricFor(label)==='unknown'?`${rowLabel} / ${label}`:label,unitContext,raw.text),transactionDate:date,transactionRowsOnDate:null,
       ambiguous:!fields && (!headerRows || raw.colSpan>1 || grid[r].length!==width || Array.from({length:width},(_,cc)=>!grid[r][cc]).some(Boolean))});
   }
   const dates=new Map<string,Set<number>>();

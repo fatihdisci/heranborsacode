@@ -8,7 +8,11 @@ KAP'ın yalnız `disclosureScrollableArea` alanı okunur. Gizli İngilizce kopya
 
 KAP yayıncı adı, sayfanın resmi JSON verisindeki bildirim kimliği URL ile eşleştirilerek alınır. Yayıncı kimliği tek başına bir işlemin gerçekleştiğini veya işlemi o kurumun yaptığını kanıtlamaz. Pay alım/satımı aktörü ayrıca ana metin/tabloyla desteklenmelidir. Hashtagler akışın gerçek bildirim konusu kodlarından seçilir.
 
-`nominal_amount`, `share_count`, `cash_amount`, `unit_price`, `percentage` farklı ölçülerdir. `transaction`, `cumulative`, `prior_cumulative`, `planned`, `holding` ayrı kapsamlardır. Bilinmeyen ölçü veya birim tahmin edilmez. Aynı tarihte birden çok işlem satırı varsa tek satırın miktarı günlük toplam olarak sunulmaz. Ek Açıklamalar'da açık günlük toplam yoksa yeni bir toplam hesaplanmaz.
+`nominal_amount`, `share_count`, `cash_amount`, `unit_price`, `percentage` farklı ölçülerdir. Tarihler `date`, ay/gün/yıl olarak süreler `duration` olur. `transaction`, `cumulative`, `prior_cumulative`, `planned`, `holding` ayrı kapsamlardır. Bilinmeyen ölçü veya birim tahmin edilmez. Aynı tarihte birden çok işlem satırı varsa tek satırın miktarı günlük toplam olarak sunulmaz. Ek Açıklamalar'da açık günlük toplam yoksa yeni bir toplam hesaplanmaz.
+
+Programın süresine veya başlangıç/bitiş tarihine parasal bütçe/toplam kontrolü uygulanmaz. Planlanan miktar ve bütçede kapsam, rakamın yer aldığı cümleden değerlendirilir; kısa sayı eşleştirmesinde “azami” sözcüğünün tekrarı aranmaz. Aynı cümlede fiili harcama/alım varsa planlanan tutar gerçekleşmiş gibi sunulamaz. Gelecek zaman “gerçekleştirilecek”, geçmiş zaman “gerçekleştirildi” ile eşleşmez.
+
+Metinde hem adet hem nominal TL açıkça yazılıysa adet kendi yanındaki birimle kabul edilir. Nominal TL'den adet türetilmez. Aynı alıntıda nominal tutar ve açıkça ödenen nakit tutar bulunması da tek başına çelişki değildir; nakit değer kendi ödeme ifadesine bağlı kalır. Pay adedi “adet” veya “pay” diye yazılabilir; lot dönüşümü yapılmaz.
 
 Metin kapsamı değerin geçtiği kaynak cümlesinden çözülür. “30 Eylül 2026 tarihinde toplam ... pay geri alınmıştır” günlük işlemdir; tek başına “toplam” program birikimi kanıtı değildir. Aynı paragraftaki sonraki sermaye oranı cümlesi günlük miktarın kapsamını değiştirmez. Tarih metadatasında “30 Eylül 2026” ve “30.09.2026” aynı gün olarak karşılaştırılır; başka bir gün kabul edilmez. `date` olgusu aynı tam takvim gününü gösteriyorsa değeri kendi alıntısındaki özgün yazıma döndürülür. Tutar, adet, yüzde ve kaynak alıntıları bu dönüşüme girmez, birebir korunur.
 
@@ -23,8 +27,8 @@ Metin kapsamı değerin geçtiği kaynak cümlesinden çözülür. “30 Eylül 
 
 ## İnceleme ve sınırlar
 
-`ai_tweet_drafts.evidence_json`, son normal taslağın olayını, alıntılarını, seçilmiş olgularını, gövde sayı eşleştirmelerini ve hangi aşamada düzeltme yapıldığını saklar. Başarısız Telegram işlemlerinde `result_text` güvenli hata nedeni içeren JSON'dur; yalnız `status=done` kayıtları taslak/okuma sonucu olarak kullanılır. API anahtarı veya kullanıcı ek talimatı bu alanlara yazılmaz. Özelleştirilmiş taslak normal önbelleği değiştirmez.
+`ai_tweet_drafts.evidence_json`, son normal taslağın olayını, alıntılarını, seçilmiş olgularını, gövde sayı eşleştirmelerini ve hangi aşamada düzeltme yapıldığını saklar. Başarısız Telegram işlemlerinde `result_text` güvenli hata nedeni içeren JSON'dur; doğrulama hatalarında aşama, sayı anlamı hatalarında ayrıca olgu kimliği/ölçüsü/kapsamı tutulur. Aynı bağlam düzeltme isteğine de eklenir. Yalnız `status=done` kayıtları taslak/okuma sonucu olarak kullanılır. API anahtarı veya kullanıcı ek talimatı bu alanlara yazılmaz. Özelleştirilmiş taslak normal önbelleği değiştirmez.
 
 HTML alıntıları uygulama tarafından birebir karşılaştırılır. PDF/dosya alıntıları için bağımsız yerel metin çıkarımı yapılmaz; ikinci çağrı özgün eki yeniden okur. Şema yalnız çıktı yapısını sınırlar, doğru yorumu garanti etmez. Metinsel iddialar, kısaltılmış şirket isimleri ve karmaşık tablolardaki anlamsal ilişkiler hâlâ model yorumuna bağlıdır. Yayın öncesi editör incelemesi gereklidir.
 
-Dağıtımda `0024_ai_tweet_evidence.sql` D1 migration'ı Worker'dan önce uygulanmalıdır. `editor-v10-evidence-repair`, önceki sürümlerin taslaklarını yeniden kullanmaz.
+Dağıtımda `0024_ai_tweet_evidence.sql` D1 migration'ı Worker'dan önce uygulanmalıdır. `editor-v11-typed-scope`, önceki sürümlerin taslaklarını yeniden kullanmaz. EGEGY ve SELEC'in gerçek kaynakları ile yakalanmış başarısız model yanıtları regresyon testlerinde tutulur; yalnız başarılı örnekler değil, nominal/adet karışması ve bütçenin harcanmış gibi yazılması da sınanır.
