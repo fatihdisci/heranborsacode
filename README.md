@@ -82,6 +82,10 @@ Kurum tamamlandığında bütün metinler tek mesaj veya sınır aşılırsa tek
 bütün görseller tek PDF olarak gönderilir. Terane ve Son halka arzlar tek birleşik
 PDF olarak gelir; bu akışlarda tek tek ara sonuçlar Telegram sohbetine gönderilmez.
 
+**genel kurum** şablonu `@ucretsizderinlikbot` hesabında parametresiz `/kurum`
+komutunu çalıştırır. Komut sekmesindeki şablon listesinden başlatılır; metin
+yanıtı doğrudan bot sohbetine mesaj olarak gönderilir.
+
 Kuyruk D1'da kalıcıdır. Mac mini kapalıyken işler kaybolmaz; ajan açıldığında
 işleri dışarıdan HTTPS ile çeker. Telegram kullanıcı oturumu yalnız Mac mini'deki
 şifreli `telegram.enc` içinde kalır. Medya sonuçları tahmin edilemez anahtarla R2'ye
