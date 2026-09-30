@@ -34,7 +34,10 @@ export const ANALYSIS_SCHEMA=object({
   ambiguities:array(string),
 });
 export const DRAFT_SCHEMA=object({status:{type:'string',enum:['ready','reject']},body:string,usedFactIds:array(string),numericClaims:array(object({text:string,factId:string}))});
-const fail=(reason:string):never=>{throw new Error(`Kaynak doğrulaması başarısız: ${reason}`);};
+export class SourceValidationError extends Error {
+  constructor(reason:string) {super(`Kaynak doğrulaması başarısız: ${reason}`);this.name='SourceValidationError';}
+}
+const fail=(reason:string):never=>{throw new SourceValidationError(reason);};
 const normalized=(value:string)=>value.replace(/\s+/g,' ').trim();
 const numbers=(value:string)=>[...value.matchAll(/[+−-]\s*\d+(?:[.,/]\d+)*|\d+(?:[.,/]\d+)*/g)].map(match=>({value:match[0].replace(/\s/g,'').replace(/−/g,'-'),start:match.index!,end:match.index!+match[0].length}));
 const text=(value:unknown,max=2000):value is string=>typeof value==='string' && value.trim().length>0 && value.length<=max;
@@ -105,6 +108,12 @@ export function validateAnalysis(value:unknown,document:SourceDocument|null,atta
   analysis.facts.forEach((fact,i)=>{
     if(!fact || fact.id!==`f${i+1}` || !text(fact.meaning,1000) || !text(fact.value) || !METRICS.includes(fact.metric) || !SCOPES.includes(fact.scope) || !nullable(fact.unit) || !nullable(fact.transactionDate))fail('olgu biçimi hatalı');
     fact.evidence=refs(fact.evidence,registry,attachments);allRefs.push(...fact.evidence);
+    // Restore the source spelling only for an equivalent, complete calendar
+    // date. Amounts, quantities and percentages are never normalised this way.
+    if(fact.metric==='date' && dateKey(fact.value)) {
+      const sourceDate=fact.evidence.flatMap(ref=>datesInText(ref.quote)).find(date=>dateKey(date)===dateKey(fact.value));
+      if(sourceDate)fact.value=sourceDate;
+    }
     if(!fact.evidence.some(ref=>normalized(ref.quote).includes(normalized(fact.value))))fail('olgu değeri kendi alıntısında yok');
     const matching=fact.evidence.filter(ref=>normalized(ref.quote).includes(normalized(fact.value)));
     if(!numbers(fact.value).every(number=>matching.some(ref=>numbers(ref.quote).some(raw=>raw.value===number.value))))fail('olgu değeri alıntıdaki sayıdan farklı');

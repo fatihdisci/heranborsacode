@@ -82,7 +82,7 @@ it('adds tweet revision buttons and regenerates as a reply to the selected draft
   await deliverOne(env);
   const regenerate=cb('regen',`tweetregen:${firstId}`);regenerate.callback_query.message.message_id=100;
   await handleCallback(env,regenerate,ctx);await processAction(env,'tweet');
-  expect(generateTweetDraft).toHaveBeenLastCalledWith(env,item,{regenerate:true,instruction:''});
+  expect(generateTweetDraft).toHaveBeenLastCalledWith(env,{...item,subject_tickers_json:null},{regenerate:true,instruction:''});
   expect(payload()).toMatchObject({replyTo:100,keyboard:[[
     {text:'🔄 Yeniden oluştur'}, {text:'✎ Ek talimat ver'},
   ]]});
@@ -96,7 +96,7 @@ it('accepts a reply to a draft as an AI instruction and caps it at 500 character
     action:'tweet_instruction',instruction:'Daha kısa yaz, tutarı öne çıkar',reply_to:100,
   });
   await processAction(env,'tweet');
-  expect(generateTweetDraft).toHaveBeenLastCalledWith(env,item,{regenerate:true,instruction:'Daha kısa yaz, tutarı öne çıkar'});
+  expect(generateTweetDraft).toHaveBeenLastCalledWith(env,{...item,subject_tickers_json:null},{regenerate:true,instruction:'Daha kısa yaz, tutarı öne çıkar'});
   expect(payload().replyTo).toBe(100);
 });
 it('reports AI errors without automatically repeating a chargeable request',async()=>{
@@ -104,6 +104,14 @@ it('reports AI errors without automatically repeating a chargeable request',asyn
   await handleCallback(env,cb('tweet','tweet:1'),ctx);await processAction(env,'tweet');await processAction(env,'tweet');
   expect(payload().text).toContain('Tweet oluşturulamadı');expect(generateTweetDraft).toHaveBeenCalledTimes(1);
   expect(sql.prepare('SELECT status FROM telegram_actions').get().status).toBe('failed');
+  expect(JSON.parse(sql.prepare('SELECT result_text FROM telegram_actions').get().result_text)).toEqual({error:'action_failed'});
+});
+it('persists a safe validation reason while keeping the Telegram reply concise',async()=>{
+  vi.mocked(generateTweetDraft).mockRejectedValue(new Error('Kaynak doğrulaması başarısız: olgu değeri kendi alıntısında yok'));
+  await handleCallback(env,cb('tweet','tweet:1'),ctx);await processAction(env,'tweet');
+  const result=JSON.parse(sql.prepare('SELECT result_text FROM telegram_actions').get().result_text);
+  expect(result.error).toContain('olgu değeri kendi alıntısında yok');
+  expect(payload().text).not.toContain('olgu değeri');
 });
 it('recovers an expired processing lease with an explicit error, never repeating AI automatically',async()=>{
   await handleCallback(env,cb('tweet','tweet:1'),ctx);

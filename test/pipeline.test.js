@@ -14,6 +14,53 @@ function analysisOutput(sourceText,facts=[],sourceId='p1') {
 }
 function draftOutput(body,usedFactIds=[],numericClaims=[]) {return {status:'ready',body,usedFactIds,numericClaims};}
 function modelResponse(output,status='completed') {return new Response(JSON.stringify({status,output_text:JSON.stringify(output)}));}
+it.each(['source_analysis','tweet_writer'])('repairs one invalid %s output with source evidence and records the repair',async phase=>{
+  sql.exec("INSERT INTO feed_items(type,source,source_ref,title,url,tickers_json) VALUES ('news','Test','rss:repair','Sözleşme','https://example.com/repair','[]')");
+  const item=sql.prepare('SELECT * FROM feed_items').get();
+  const sourceText='Şirket, 2 milyon avroluk sözleşme imzaladı.';
+  const fact={id:'f1',meaning:'Tutar',value:'2 milyon avro',metric:'cash_amount',scope:'unknown',unit:'avro',transactionDate:null,evidence:[{sourceId:'p1',quote:'2 milyon avroluk sözleşme',location:null}]};
+  const calls=[];
+  vi.stubGlobal('fetch',vi.fn(async(url,init)=>{
+    if(url===item.url)return new Response(`<article>${sourceText}</article>`,{headers:{'content-type':'text/html'}});
+    const body=JSON.parse(init.body);calls.push(body);
+    const current=body.text.format.name;
+    const invalid=current===phase && calls.filter(call=>call.text.format.name===phase).length===1;
+    if(current==='source_analysis')return modelResponse(analysisOutput(sourceText,[{...fact,value:invalid?'3 milyon avro':fact.value}]));
+    return modelResponse(draftOutput(invalid?'Şirket, 3 milyon avroluk sözleşme imzaladı.':sourceText,['f1'],[{text:invalid?'3 milyon avroluk sözleşme':'2 milyon avroluk sözleşme',factId:'f1'}]));
+  }));
+  const result=await generateTweetDraft({...env,OPENAI_API_KEY:'fake-test-key'},item);
+  expect(result.tweet).toBe(sourceText);expect(calls).toHaveLength(3);
+  const correction=calls.filter(call=>call.text.format.name===phase)[1];
+  expect(correction.instructions).toContain('DOĞRULAMA DÜZELTMESİ');
+  expect(JSON.parse(correction.input[0].content.at(-1).text).validationError).toContain('Kaynak doğrulaması başarısız');
+  const audit=JSON.parse(sql.prepare('SELECT evidence_json FROM ai_tweet_drafts').get().evidence_json);
+  expect(audit.repairs).toEqual({analysis:phase==='source_analysis',writer:phase==='tweet_writer'});
+});
+it('stops after one unsuccessful correction and never caches an invalid draft',async()=>{
+  sql.exec("INSERT INTO feed_items(type,source,source_ref,title,url) VALUES ('news','Test','rss:bad-repair','Sözleşme','https://example.com/bad-repair')");
+  const item=sql.prepare('SELECT * FROM feed_items').get();let calls=0;
+  vi.stubGlobal('fetch',vi.fn(async(url)=>{
+    if(url===item.url)return new Response('<article>Şirket sözleşme imzaladı.</article>',{headers:{'content-type':'text/html'}});
+    calls++;return modelResponse(analysisOutput('Kaynakta olmayan olay.'));
+  }));
+  await expect(generateTweetDraft({...env,OPENAI_API_KEY:'fake-test-key'},item)).rejects.toThrow('alıntı kaynak');
+  expect(calls).toBe(2);expect(sql.prepare('SELECT COUNT(*) n FROM ai_tweet_drafts').get().n).toBe(0);
+});
+it.each(['api_error','conflict','reject'])('does not retry %s as an evidence correction',async failure=>{
+  sql.exec("INSERT INTO feed_items(type,source,source_ref,title,url) VALUES ('news','Test','rss:no-retry','Sözleşme','https://example.com/no-retry')");
+  const item=sql.prepare('SELECT * FROM feed_items').get();let calls=0;
+  const sourceText='Şirket sözleşme imzaladı.';
+  vi.stubGlobal('fetch',vi.fn(async(url,init)=>{
+    if(url===item.url)return new Response(`<article>${sourceText}</article>`,{headers:{'content-type':'text/html'}});
+    calls++;
+    if(failure==='api_error')return new Response('upstream unavailable',{status:503});
+    if(JSON.parse(init.body).text.format.name==='source_analysis')return modelResponse({...analysisOutput(sourceText),status:failure==='conflict'?'conflict':'ready'});
+    return modelResponse({status:'reject',body:'',usedFactIds:[],numericClaims:[]});
+  }));
+  await expect(generateTweetDraft({...env,OPENAI_API_KEY:'fake-test-key'},item)).rejects.toThrow();
+  expect(calls).toBe(failure==='reject'?2:1);
+  expect(sql.prepare('SELECT COUNT(*) n FROM ai_tweet_drafts').get().n).toBe(0);
+});
 it('handles RSS revisions and repeated polls without sending Telegram during ingestion',async()=>{
   sql.prepare("INSERT INTO system_state(key,value) VALUES (?,'1')").run('rss_baseline:'+source.url);
   let amount=10;

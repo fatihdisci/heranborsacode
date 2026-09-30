@@ -1,4 +1,4 @@
-export const PROMPT_VERSION = 'editor-v9-daily-scope';
+export const PROMPT_VERSION = 'editor-v10-evidence-repair';
 export const FINANCIAL_RULES = `Heran Borsa'nın Türkçe finans editörüsün. Tek bir hedef haber veya KAP bildirimi işle.
 
 KAYNAK VE DOĞRULUK

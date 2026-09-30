@@ -1,0 +1,1877 @@
+{
+  "sourceUrl": "https://www.kap.org.tr/tr/Bildirim/1670553",
+  "document": {
+    "version": 1,
+    "passages": [
+      {
+        "id": "p1",
+        "text": "Geri Alım İşlemlerinin Detayları",
+        "section": "Geri Alım İşlemlerinin Detayları"
+      },
+      {
+        "id": "p2",
+        "text": "Ek Açıklamalar",
+        "section": "Ek Açıklamalar"
+      },
+      {
+        "id": "p3",
+        "text": "01 Eylül 2026 tarihli Yönetim Kurulu kararıyla başlatılan pay geri alım programı kapsamında, 30 Eylül 2026 tarihinde toplam 93.546 adet pay 1.384.306 TL karşılığında Şirketimizce geri alınmıştır. Alınan payların sermayeye oranı %3,012 seviyesine ulaşmıştır.",
+        "section": "Ek Açıklamalar"
+      },
+      {
+        "id": "p4",
+        "text": "Yatırımcılarımızın ve kamuoyunun bilgisine sunarız.",
+        "section": "Ek Açıklamalar"
+      }
+    ],
+    "tables": [
+      {
+        "id": "t1",
+        "section": "",
+        "caption": "",
+        "unitContext": "",
+        "rows": [
+          [
+            {
+              "text": "Özet Bilgi",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "Pay Geri Alım İşlemi Hakkında",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            }
+          ],
+          [
+            {
+              "text": "Yapılan Açıklama Güncelleme mi ?",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "Evet",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            }
+          ],
+          [
+            {
+              "text": "Yapılan Açıklama Düzeltme mi ?",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "Hayır",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            }
+          ],
+          [
+            {
+              "text": "Yapılan Açıklama Ertelenmiş Bir Açıklama mı ?",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "Hayır",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            }
+          ]
+        ],
+        "cells": [
+          {
+            "id": "t1:r1:c2",
+            "row": 1,
+            "column": 2,
+            "text": "Pay Geri Alım İşlemi Hakkında",
+            "columnHeaders": [
+              "Özet Bilgi"
+            ],
+            "rowHeaders": [],
+            "section": "",
+            "metric": "unknown",
+            "scope": "unknown",
+            "unit": null,
+            "transactionDate": null,
+            "transactionRowsOnDate": null,
+            "ambiguous": false
+          },
+          {
+            "id": "t1:r2:c2",
+            "row": 2,
+            "column": 2,
+            "text": "Evet",
+            "columnHeaders": [
+              "Yapılan Açıklama Güncelleme mi ?"
+            ],
+            "rowHeaders": [],
+            "section": "",
+            "metric": "unknown",
+            "scope": "unknown",
+            "unit": null,
+            "transactionDate": null,
+            "transactionRowsOnDate": null,
+            "ambiguous": false
+          },
+          {
+            "id": "t1:r3:c2",
+            "row": 3,
+            "column": 2,
+            "text": "Hayır",
+            "columnHeaders": [
+              "Yapılan Açıklama Düzeltme mi ?"
+            ],
+            "rowHeaders": [],
+            "section": "",
+            "metric": "unknown",
+            "scope": "unknown",
+            "unit": null,
+            "transactionDate": null,
+            "transactionRowsOnDate": null,
+            "ambiguous": false
+          },
+          {
+            "id": "t1:r4:c2",
+            "row": 4,
+            "column": 2,
+            "text": "Hayır",
+            "columnHeaders": [
+              "Yapılan Açıklama Ertelenmiş Bir Açıklama mı ?"
+            ],
+            "rowHeaders": [],
+            "section": "",
+            "metric": "unknown",
+            "scope": "unknown",
+            "unit": null,
+            "transactionDate": null,
+            "transactionRowsOnDate": null,
+            "ambiguous": false
+          }
+        ]
+      },
+      {
+        "id": "t2",
+        "section": "",
+        "caption": "",
+        "unitContext": "",
+        "rows": [
+          [
+            {
+              "text": "Geri Alım İşlemini Gerçekleştiren Ortaklık",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "EGEYAPI AVRUPA GAYRİMENKUL YATIRIM ORTAKLIĞI A.Ş.",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            }
+          ],
+          [
+            {
+              "text": "Geri Alım İşlemine Konu Ortaklık",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "EGEYAPI AVRUPA GAYRİMENKUL YATIRIM ORTAKLIĞI A.Ş.",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            }
+          ]
+        ],
+        "cells": [
+          {
+            "id": "t2:r1:c2",
+            "row": 1,
+            "column": 2,
+            "text": "EGEYAPI AVRUPA GAYRİMENKUL YATIRIM ORTAKLIĞI A.Ş.",
+            "columnHeaders": [
+              "Geri Alım İşlemini Gerçekleştiren Ortaklık"
+            ],
+            "rowHeaders": [],
+            "section": "",
+            "metric": "unknown",
+            "scope": "unknown",
+            "unit": null,
+            "transactionDate": null,
+            "transactionRowsOnDate": null,
+            "ambiguous": false
+          },
+          {
+            "id": "t2:r2:c2",
+            "row": 2,
+            "column": 2,
+            "text": "EGEYAPI AVRUPA GAYRİMENKUL YATIRIM ORTAKLIĞI A.Ş.",
+            "columnHeaders": [
+              "Geri Alım İşlemine Konu Ortaklık"
+            ],
+            "rowHeaders": [],
+            "section": "",
+            "metric": "unknown",
+            "scope": "unknown",
+            "unit": null,
+            "transactionDate": null,
+            "transactionRowsOnDate": null,
+            "ambiguous": false
+          }
+        ]
+      },
+      {
+        "id": "t3",
+        "section": "",
+        "caption": "",
+        "unitContext": "",
+        "rows": [
+          [
+            {
+              "text": "Geri Alım İşleminin Niteliği",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "Diğer",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            }
+          ],
+          [
+            {
+              "text": "Söz Konusu Geri Alımın Amacı",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "Hisselerimiz üzerinde yaşanan aşırı fiyat dalgalanmalarının önlenerek sağlıklı hareket etmesine katkıda bulunmak ve şirketimiz pay sahiplerinin menfaatlerinin korunması amacıyla",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            }
+          ],
+          [
+            {
+              "text": "Yönetim Kurulu Karar Tarihi",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "01.09.2026",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            }
+          ],
+          [
+            {
+              "text": "Geri Alıma Konu Pay Miktarı (Nominal TL)",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "13.500.000",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            }
+          ],
+          [
+            {
+              "text": "Ödenecek Azami Tutar (TL)",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "400.000.000",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            }
+          ]
+        ],
+        "cells": [
+          {
+            "id": "t3:r1:c2",
+            "row": 1,
+            "column": 2,
+            "text": "Diğer",
+            "columnHeaders": [
+              "Geri Alım İşleminin Niteliği"
+            ],
+            "rowHeaders": [],
+            "section": "",
+            "metric": "unknown",
+            "scope": "unknown",
+            "unit": null,
+            "transactionDate": null,
+            "transactionRowsOnDate": null,
+            "ambiguous": false
+          },
+          {
+            "id": "t3:r2:c2",
+            "row": 2,
+            "column": 2,
+            "text": "Hisselerimiz üzerinde yaşanan aşırı fiyat dalgalanmalarının önlenerek sağlıklı hareket etmesine katkıda bulunmak ve şirketimiz pay sahiplerinin menfaatlerinin korunması amacıyla",
+            "columnHeaders": [
+              "Söz Konusu Geri Alımın Amacı"
+            ],
+            "rowHeaders": [],
+            "section": "",
+            "metric": "unknown",
+            "scope": "unknown",
+            "unit": null,
+            "transactionDate": null,
+            "transactionRowsOnDate": null,
+            "ambiguous": false
+          },
+          {
+            "id": "t3:r3:c2",
+            "row": 3,
+            "column": 2,
+            "text": "01.09.2026",
+            "columnHeaders": [
+              "Yönetim Kurulu Karar Tarihi"
+            ],
+            "rowHeaders": [],
+            "section": "",
+            "metric": "date",
+            "scope": "unknown",
+            "unit": null,
+            "transactionDate": null,
+            "transactionRowsOnDate": null,
+            "ambiguous": false
+          },
+          {
+            "id": "t3:r4:c2",
+            "row": 4,
+            "column": 2,
+            "text": "13.500.000",
+            "columnHeaders": [
+              "Geri Alıma Konu Pay Miktarı (Nominal TL)"
+            ],
+            "rowHeaders": [],
+            "section": "",
+            "metric": "nominal_amount",
+            "scope": "unknown",
+            "unit": "TL",
+            "transactionDate": null,
+            "transactionRowsOnDate": null,
+            "ambiguous": false
+          },
+          {
+            "id": "t3:r5:c2",
+            "row": 5,
+            "column": 2,
+            "text": "400.000.000",
+            "columnHeaders": [
+              "Ödenecek Azami Tutar (TL)"
+            ],
+            "rowHeaders": [],
+            "section": "",
+            "metric": "cash_amount",
+            "scope": "planned",
+            "unit": "TL",
+            "transactionDate": null,
+            "transactionRowsOnDate": null,
+            "ambiguous": false
+          }
+        ]
+      },
+      {
+        "id": "t4",
+        "section": "Geri Alım İşlemlerinin Detayları",
+        "caption": "",
+        "unitContext": "",
+        "rows": [
+          [
+            {
+              "text": "İşleme Konu Pay",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "İşlem Tarihi",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "İşleme Konu Payların Nominal Tutarı (TL)",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "Sermayeye Oranı (%)",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "İşlem Fiyatı (TL/Adet)",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "Varsa Bu Paylara Bağlı İmtiyazlar",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            }
+          ],
+          [
+            {
+              "text": "B Grubu, EGEGY, TREEGEY00018",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "10.09.2026",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "100.000",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "0,05",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "25,03",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "-",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            }
+          ],
+          [
+            {
+              "text": "B Grubu, EGEGY, TREEGEY00018",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "14.09.2026",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "250.000",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "0,125",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "22,84",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "-",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            }
+          ],
+          [
+            {
+              "text": "B Grubu, EGEGY, TREEGEY00018",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "15.09.2026",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "250.000",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "0,125",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "22,44",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            }
+          ],
+          [
+            {
+              "text": "B Grubu, EGEGY, TREEGEY00018",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "16.09.2026",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "100.000",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "0,05",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "20,14",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            }
+          ],
+          [
+            {
+              "text": "B Grubu, EGEGY, TREEGEY00018",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "17.09.2026",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "500.000",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "0,25",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "18,13",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            }
+          ],
+          [
+            {
+              "text": "B Grubu, EGEGY, TREEGEY00018",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "21.09.2026",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "2.500.000",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "1,25",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "14,69",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            }
+          ],
+          [
+            {
+              "text": "B Grubu, EGEGY, TREEGEY00018",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "23.09.2026",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "2.000.000",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "1",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "15,6",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            }
+          ],
+          [
+            {
+              "text": "B Grubu, EGEGY, TREEGEY00018",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "28.09.2026",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "190.000",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "0,095",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "15,12",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            }
+          ],
+          [
+            {
+              "text": "B Grubu, EGEGY, TREEGEY00018",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "29.09.2026",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "40.000",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "0,02",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "14,895",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            }
+          ],
+          [
+            {
+              "text": "B Grubu, EGEGY, TREEGEY00018",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "30.09.2026",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "93.546",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "0,04677",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "14,798",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            }
+          ]
+        ],
+        "cells": [
+          {
+            "id": "t4:r2:c1",
+            "row": 2,
+            "column": 1,
+            "text": "B Grubu, EGEGY, TREEGEY00018",
+            "columnHeaders": [
+              "İşleme Konu Pay"
+            ],
+            "rowHeaders": [],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "unknown",
+            "scope": "transaction",
+            "unit": null,
+            "transactionDate": "10.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r2:c2",
+            "row": 2,
+            "column": 2,
+            "text": "10.09.2026",
+            "columnHeaders": [
+              "İşlem Tarihi"
+            ],
+            "rowHeaders": [
+              "B Grubu, EGEGY, TREEGEY00018"
+            ],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "date",
+            "scope": "transaction",
+            "unit": null,
+            "transactionDate": "10.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r2:c3",
+            "row": 2,
+            "column": 3,
+            "text": "100.000",
+            "columnHeaders": [
+              "İşleme Konu Payların Nominal Tutarı (TL)"
+            ],
+            "rowHeaders": [
+              "B Grubu, EGEGY, TREEGEY00018"
+            ],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "nominal_amount",
+            "scope": "transaction",
+            "unit": "TL",
+            "transactionDate": "10.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r2:c4",
+            "row": 2,
+            "column": 4,
+            "text": "0,05",
+            "columnHeaders": [
+              "Sermayeye Oranı (%)"
+            ],
+            "rowHeaders": [
+              "B Grubu, EGEGY, TREEGEY00018"
+            ],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "percentage",
+            "scope": "transaction",
+            "unit": "%",
+            "transactionDate": "10.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r2:c5",
+            "row": 2,
+            "column": 5,
+            "text": "25,03",
+            "columnHeaders": [
+              "İşlem Fiyatı (TL/Adet)"
+            ],
+            "rowHeaders": [
+              "B Grubu, EGEGY, TREEGEY00018"
+            ],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "unit_price",
+            "scope": "transaction",
+            "unit": "TL/Adet",
+            "transactionDate": "10.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r2:c6",
+            "row": 2,
+            "column": 6,
+            "text": "-",
+            "columnHeaders": [
+              "Varsa Bu Paylara Bağlı İmtiyazlar"
+            ],
+            "rowHeaders": [
+              "B Grubu, EGEGY, TREEGEY00018"
+            ],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "unknown",
+            "scope": "transaction",
+            "unit": null,
+            "transactionDate": "10.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r3:c1",
+            "row": 3,
+            "column": 1,
+            "text": "B Grubu, EGEGY, TREEGEY00018",
+            "columnHeaders": [
+              "İşleme Konu Pay"
+            ],
+            "rowHeaders": [],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "unknown",
+            "scope": "transaction",
+            "unit": null,
+            "transactionDate": "14.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r3:c2",
+            "row": 3,
+            "column": 2,
+            "text": "14.09.2026",
+            "columnHeaders": [
+              "İşlem Tarihi"
+            ],
+            "rowHeaders": [
+              "B Grubu, EGEGY, TREEGEY00018"
+            ],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "date",
+            "scope": "transaction",
+            "unit": null,
+            "transactionDate": "14.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r3:c3",
+            "row": 3,
+            "column": 3,
+            "text": "250.000",
+            "columnHeaders": [
+              "İşleme Konu Payların Nominal Tutarı (TL)"
+            ],
+            "rowHeaders": [
+              "B Grubu, EGEGY, TREEGEY00018"
+            ],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "nominal_amount",
+            "scope": "transaction",
+            "unit": "TL",
+            "transactionDate": "14.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r3:c4",
+            "row": 3,
+            "column": 4,
+            "text": "0,125",
+            "columnHeaders": [
+              "Sermayeye Oranı (%)"
+            ],
+            "rowHeaders": [
+              "B Grubu, EGEGY, TREEGEY00018"
+            ],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "percentage",
+            "scope": "transaction",
+            "unit": "%",
+            "transactionDate": "14.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r3:c5",
+            "row": 3,
+            "column": 5,
+            "text": "22,84",
+            "columnHeaders": [
+              "İşlem Fiyatı (TL/Adet)"
+            ],
+            "rowHeaders": [
+              "B Grubu, EGEGY, TREEGEY00018"
+            ],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "unit_price",
+            "scope": "transaction",
+            "unit": "TL/Adet",
+            "transactionDate": "14.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r3:c6",
+            "row": 3,
+            "column": 6,
+            "text": "-",
+            "columnHeaders": [
+              "Varsa Bu Paylara Bağlı İmtiyazlar"
+            ],
+            "rowHeaders": [
+              "B Grubu, EGEGY, TREEGEY00018"
+            ],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "unknown",
+            "scope": "transaction",
+            "unit": null,
+            "transactionDate": "14.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r4:c1",
+            "row": 4,
+            "column": 1,
+            "text": "B Grubu, EGEGY, TREEGEY00018",
+            "columnHeaders": [
+              "İşleme Konu Pay"
+            ],
+            "rowHeaders": [],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "unknown",
+            "scope": "transaction",
+            "unit": null,
+            "transactionDate": "15.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r4:c2",
+            "row": 4,
+            "column": 2,
+            "text": "15.09.2026",
+            "columnHeaders": [
+              "İşlem Tarihi"
+            ],
+            "rowHeaders": [
+              "B Grubu, EGEGY, TREEGEY00018"
+            ],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "date",
+            "scope": "transaction",
+            "unit": null,
+            "transactionDate": "15.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r4:c3",
+            "row": 4,
+            "column": 3,
+            "text": "250.000",
+            "columnHeaders": [
+              "İşleme Konu Payların Nominal Tutarı (TL)"
+            ],
+            "rowHeaders": [
+              "B Grubu, EGEGY, TREEGEY00018"
+            ],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "nominal_amount",
+            "scope": "transaction",
+            "unit": "TL",
+            "transactionDate": "15.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r4:c4",
+            "row": 4,
+            "column": 4,
+            "text": "0,125",
+            "columnHeaders": [
+              "Sermayeye Oranı (%)"
+            ],
+            "rowHeaders": [
+              "B Grubu, EGEGY, TREEGEY00018"
+            ],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "percentage",
+            "scope": "transaction",
+            "unit": "%",
+            "transactionDate": "15.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r4:c5",
+            "row": 4,
+            "column": 5,
+            "text": "22,44",
+            "columnHeaders": [
+              "İşlem Fiyatı (TL/Adet)"
+            ],
+            "rowHeaders": [
+              "B Grubu, EGEGY, TREEGEY00018"
+            ],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "unit_price",
+            "scope": "transaction",
+            "unit": "TL/Adet",
+            "transactionDate": "15.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r5:c1",
+            "row": 5,
+            "column": 1,
+            "text": "B Grubu, EGEGY, TREEGEY00018",
+            "columnHeaders": [
+              "İşleme Konu Pay"
+            ],
+            "rowHeaders": [],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "unknown",
+            "scope": "transaction",
+            "unit": null,
+            "transactionDate": "16.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r5:c2",
+            "row": 5,
+            "column": 2,
+            "text": "16.09.2026",
+            "columnHeaders": [
+              "İşlem Tarihi"
+            ],
+            "rowHeaders": [
+              "B Grubu, EGEGY, TREEGEY00018"
+            ],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "date",
+            "scope": "transaction",
+            "unit": null,
+            "transactionDate": "16.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r5:c3",
+            "row": 5,
+            "column": 3,
+            "text": "100.000",
+            "columnHeaders": [
+              "İşleme Konu Payların Nominal Tutarı (TL)"
+            ],
+            "rowHeaders": [
+              "B Grubu, EGEGY, TREEGEY00018"
+            ],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "nominal_amount",
+            "scope": "transaction",
+            "unit": "TL",
+            "transactionDate": "16.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r5:c4",
+            "row": 5,
+            "column": 4,
+            "text": "0,05",
+            "columnHeaders": [
+              "Sermayeye Oranı (%)"
+            ],
+            "rowHeaders": [
+              "B Grubu, EGEGY, TREEGEY00018"
+            ],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "percentage",
+            "scope": "transaction",
+            "unit": "%",
+            "transactionDate": "16.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r5:c5",
+            "row": 5,
+            "column": 5,
+            "text": "20,14",
+            "columnHeaders": [
+              "İşlem Fiyatı (TL/Adet)"
+            ],
+            "rowHeaders": [
+              "B Grubu, EGEGY, TREEGEY00018"
+            ],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "unit_price",
+            "scope": "transaction",
+            "unit": "TL/Adet",
+            "transactionDate": "16.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r6:c1",
+            "row": 6,
+            "column": 1,
+            "text": "B Grubu, EGEGY, TREEGEY00018",
+            "columnHeaders": [
+              "İşleme Konu Pay"
+            ],
+            "rowHeaders": [],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "unknown",
+            "scope": "transaction",
+            "unit": null,
+            "transactionDate": "17.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r6:c2",
+            "row": 6,
+            "column": 2,
+            "text": "17.09.2026",
+            "columnHeaders": [
+              "İşlem Tarihi"
+            ],
+            "rowHeaders": [
+              "B Grubu, EGEGY, TREEGEY00018"
+            ],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "date",
+            "scope": "transaction",
+            "unit": null,
+            "transactionDate": "17.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r6:c3",
+            "row": 6,
+            "column": 3,
+            "text": "500.000",
+            "columnHeaders": [
+              "İşleme Konu Payların Nominal Tutarı (TL)"
+            ],
+            "rowHeaders": [
+              "B Grubu, EGEGY, TREEGEY00018"
+            ],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "nominal_amount",
+            "scope": "transaction",
+            "unit": "TL",
+            "transactionDate": "17.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r6:c4",
+            "row": 6,
+            "column": 4,
+            "text": "0,25",
+            "columnHeaders": [
+              "Sermayeye Oranı (%)"
+            ],
+            "rowHeaders": [
+              "B Grubu, EGEGY, TREEGEY00018"
+            ],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "percentage",
+            "scope": "transaction",
+            "unit": "%",
+            "transactionDate": "17.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r6:c5",
+            "row": 6,
+            "column": 5,
+            "text": "18,13",
+            "columnHeaders": [
+              "İşlem Fiyatı (TL/Adet)"
+            ],
+            "rowHeaders": [
+              "B Grubu, EGEGY, TREEGEY00018"
+            ],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "unit_price",
+            "scope": "transaction",
+            "unit": "TL/Adet",
+            "transactionDate": "17.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r7:c1",
+            "row": 7,
+            "column": 1,
+            "text": "B Grubu, EGEGY, TREEGEY00018",
+            "columnHeaders": [
+              "İşleme Konu Pay"
+            ],
+            "rowHeaders": [],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "unknown",
+            "scope": "transaction",
+            "unit": null,
+            "transactionDate": "21.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r7:c2",
+            "row": 7,
+            "column": 2,
+            "text": "21.09.2026",
+            "columnHeaders": [
+              "İşlem Tarihi"
+            ],
+            "rowHeaders": [
+              "B Grubu, EGEGY, TREEGEY00018"
+            ],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "date",
+            "scope": "transaction",
+            "unit": null,
+            "transactionDate": "21.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r7:c3",
+            "row": 7,
+            "column": 3,
+            "text": "2.500.000",
+            "columnHeaders": [
+              "İşleme Konu Payların Nominal Tutarı (TL)"
+            ],
+            "rowHeaders": [
+              "B Grubu, EGEGY, TREEGEY00018"
+            ],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "nominal_amount",
+            "scope": "transaction",
+            "unit": "TL",
+            "transactionDate": "21.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r7:c4",
+            "row": 7,
+            "column": 4,
+            "text": "1,25",
+            "columnHeaders": [
+              "Sermayeye Oranı (%)"
+            ],
+            "rowHeaders": [
+              "B Grubu, EGEGY, TREEGEY00018"
+            ],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "percentage",
+            "scope": "transaction",
+            "unit": "%",
+            "transactionDate": "21.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r7:c5",
+            "row": 7,
+            "column": 5,
+            "text": "14,69",
+            "columnHeaders": [
+              "İşlem Fiyatı (TL/Adet)"
+            ],
+            "rowHeaders": [
+              "B Grubu, EGEGY, TREEGEY00018"
+            ],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "unit_price",
+            "scope": "transaction",
+            "unit": "TL/Adet",
+            "transactionDate": "21.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r8:c1",
+            "row": 8,
+            "column": 1,
+            "text": "B Grubu, EGEGY, TREEGEY00018",
+            "columnHeaders": [
+              "İşleme Konu Pay"
+            ],
+            "rowHeaders": [],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "unknown",
+            "scope": "transaction",
+            "unit": null,
+            "transactionDate": "23.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r8:c2",
+            "row": 8,
+            "column": 2,
+            "text": "23.09.2026",
+            "columnHeaders": [
+              "İşlem Tarihi"
+            ],
+            "rowHeaders": [
+              "B Grubu, EGEGY, TREEGEY00018"
+            ],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "date",
+            "scope": "transaction",
+            "unit": null,
+            "transactionDate": "23.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r8:c3",
+            "row": 8,
+            "column": 3,
+            "text": "2.000.000",
+            "columnHeaders": [
+              "İşleme Konu Payların Nominal Tutarı (TL)"
+            ],
+            "rowHeaders": [
+              "B Grubu, EGEGY, TREEGEY00018"
+            ],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "nominal_amount",
+            "scope": "transaction",
+            "unit": "TL",
+            "transactionDate": "23.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r8:c4",
+            "row": 8,
+            "column": 4,
+            "text": "1",
+            "columnHeaders": [
+              "Sermayeye Oranı (%)"
+            ],
+            "rowHeaders": [
+              "B Grubu, EGEGY, TREEGEY00018"
+            ],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "percentage",
+            "scope": "transaction",
+            "unit": "%",
+            "transactionDate": "23.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r8:c5",
+            "row": 8,
+            "column": 5,
+            "text": "15,6",
+            "columnHeaders": [
+              "İşlem Fiyatı (TL/Adet)"
+            ],
+            "rowHeaders": [
+              "B Grubu, EGEGY, TREEGEY00018"
+            ],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "unit_price",
+            "scope": "transaction",
+            "unit": "TL/Adet",
+            "transactionDate": "23.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r9:c1",
+            "row": 9,
+            "column": 1,
+            "text": "B Grubu, EGEGY, TREEGEY00018",
+            "columnHeaders": [
+              "İşleme Konu Pay"
+            ],
+            "rowHeaders": [],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "unknown",
+            "scope": "transaction",
+            "unit": null,
+            "transactionDate": "28.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r9:c2",
+            "row": 9,
+            "column": 2,
+            "text": "28.09.2026",
+            "columnHeaders": [
+              "İşlem Tarihi"
+            ],
+            "rowHeaders": [
+              "B Grubu, EGEGY, TREEGEY00018"
+            ],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "date",
+            "scope": "transaction",
+            "unit": null,
+            "transactionDate": "28.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r9:c3",
+            "row": 9,
+            "column": 3,
+            "text": "190.000",
+            "columnHeaders": [
+              "İşleme Konu Payların Nominal Tutarı (TL)"
+            ],
+            "rowHeaders": [
+              "B Grubu, EGEGY, TREEGEY00018"
+            ],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "nominal_amount",
+            "scope": "transaction",
+            "unit": "TL",
+            "transactionDate": "28.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r9:c4",
+            "row": 9,
+            "column": 4,
+            "text": "0,095",
+            "columnHeaders": [
+              "Sermayeye Oranı (%)"
+            ],
+            "rowHeaders": [
+              "B Grubu, EGEGY, TREEGEY00018"
+            ],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "percentage",
+            "scope": "transaction",
+            "unit": "%",
+            "transactionDate": "28.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r9:c5",
+            "row": 9,
+            "column": 5,
+            "text": "15,12",
+            "columnHeaders": [
+              "İşlem Fiyatı (TL/Adet)"
+            ],
+            "rowHeaders": [
+              "B Grubu, EGEGY, TREEGEY00018"
+            ],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "unit_price",
+            "scope": "transaction",
+            "unit": "TL/Adet",
+            "transactionDate": "28.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r10:c1",
+            "row": 10,
+            "column": 1,
+            "text": "B Grubu, EGEGY, TREEGEY00018",
+            "columnHeaders": [
+              "İşleme Konu Pay"
+            ],
+            "rowHeaders": [],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "unknown",
+            "scope": "transaction",
+            "unit": null,
+            "transactionDate": "29.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r10:c2",
+            "row": 10,
+            "column": 2,
+            "text": "29.09.2026",
+            "columnHeaders": [
+              "İşlem Tarihi"
+            ],
+            "rowHeaders": [
+              "B Grubu, EGEGY, TREEGEY00018"
+            ],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "date",
+            "scope": "transaction",
+            "unit": null,
+            "transactionDate": "29.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r10:c3",
+            "row": 10,
+            "column": 3,
+            "text": "40.000",
+            "columnHeaders": [
+              "İşleme Konu Payların Nominal Tutarı (TL)"
+            ],
+            "rowHeaders": [
+              "B Grubu, EGEGY, TREEGEY00018"
+            ],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "nominal_amount",
+            "scope": "transaction",
+            "unit": "TL",
+            "transactionDate": "29.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r10:c4",
+            "row": 10,
+            "column": 4,
+            "text": "0,02",
+            "columnHeaders": [
+              "Sermayeye Oranı (%)"
+            ],
+            "rowHeaders": [
+              "B Grubu, EGEGY, TREEGEY00018"
+            ],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "percentage",
+            "scope": "transaction",
+            "unit": "%",
+            "transactionDate": "29.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r10:c5",
+            "row": 10,
+            "column": 5,
+            "text": "14,895",
+            "columnHeaders": [
+              "İşlem Fiyatı (TL/Adet)"
+            ],
+            "rowHeaders": [
+              "B Grubu, EGEGY, TREEGEY00018"
+            ],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "unit_price",
+            "scope": "transaction",
+            "unit": "TL/Adet",
+            "transactionDate": "29.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r11:c1",
+            "row": 11,
+            "column": 1,
+            "text": "B Grubu, EGEGY, TREEGEY00018",
+            "columnHeaders": [
+              "İşleme Konu Pay"
+            ],
+            "rowHeaders": [],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "unknown",
+            "scope": "transaction",
+            "unit": null,
+            "transactionDate": "30.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r11:c2",
+            "row": 11,
+            "column": 2,
+            "text": "30.09.2026",
+            "columnHeaders": [
+              "İşlem Tarihi"
+            ],
+            "rowHeaders": [
+              "B Grubu, EGEGY, TREEGEY00018"
+            ],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "date",
+            "scope": "transaction",
+            "unit": null,
+            "transactionDate": "30.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r11:c3",
+            "row": 11,
+            "column": 3,
+            "text": "93.546",
+            "columnHeaders": [
+              "İşleme Konu Payların Nominal Tutarı (TL)"
+            ],
+            "rowHeaders": [
+              "B Grubu, EGEGY, TREEGEY00018"
+            ],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "nominal_amount",
+            "scope": "transaction",
+            "unit": "TL",
+            "transactionDate": "30.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r11:c4",
+            "row": 11,
+            "column": 4,
+            "text": "0,04677",
+            "columnHeaders": [
+              "Sermayeye Oranı (%)"
+            ],
+            "rowHeaders": [
+              "B Grubu, EGEGY, TREEGEY00018"
+            ],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "percentage",
+            "scope": "transaction",
+            "unit": "%",
+            "transactionDate": "30.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          },
+          {
+            "id": "t4:r11:c5",
+            "row": 11,
+            "column": 5,
+            "text": "14,798",
+            "columnHeaders": [
+              "İşlem Fiyatı (TL/Adet)"
+            ],
+            "rowHeaders": [
+              "B Grubu, EGEGY, TREEGEY00018"
+            ],
+            "section": "Geri Alım İşlemlerinin Detayları",
+            "metric": "unit_price",
+            "scope": "transaction",
+            "unit": "TL/Adet",
+            "transactionDate": "30.09.2026",
+            "transactionRowsOnDate": 1,
+            "ambiguous": false
+          }
+        ]
+      }
+    ]
+  },
+  "analysis": {
+    "status": "ready",
+    "event": {
+      "kind": "buyback_transaction",
+      "stage": "executed",
+      "direction": "buy",
+      "actor": "EGEYAPI AVRUPA GAYRİMENKUL YATIRIM ORTAKLIĞI A.Ş.",
+      "subject": "EGEYAPI AVRUPA GAYRİMENKUL YATIRIM ORTAKLIĞI A.Ş.",
+      "summary": "Şirket, 30.09.2026 tarihinde 93.546 adet payı 1.384.306 TL karşılığında geri aldı.",
+      "eventDate": "30.09.2026",
+      "evidence": [
+        {
+          "sourceId": "p3",
+          "quote": "30 Eylül 2026 tarihinde toplam 93.546 adet pay 1.384.306 TL karşılığında Şirketimizce geri alınmıştır.",
+          "location": "Ek Açıklamalar"
+        },
+        {
+          "sourceId": "t2:r1:c2",
+          "quote": "EGEYAPI AVRUPA GAYRİMENKUL YATIRIM ORTAKLIĞI A.Ş.",
+          "location": "Geri Alım İşlemini Gerçekleştiren Ortaklık"
+        },
+        {
+          "sourceId": "t2:r2:c2",
+          "quote": "EGEYAPI AVRUPA GAYRİMENKUL YATIRIM ORTAKLIĞI A.Ş.",
+          "location": "Geri Alım İşlemine Konu Ortaklık"
+        }
+      ]
+    },
+    "facts": [
+      {
+        "id": "f1",
+        "meaning": "Geri alımın gerçekleştiği tarih",
+        "value": "30.09.2026",
+        "metric": "date",
+        "scope": "transaction",
+        "unit": null,
+        "transactionDate": "30.09.2026",
+        "evidence": [
+          {
+            "sourceId": "p3",
+            "quote": "30 Eylül 2026 tarihinde toplam 93.546 adet pay 1.384.306 TL karşılığında Şirketimizce geri alınmıştır.",
+            "location": "Ek Açıklamalar"
+          }
+        ]
+      },
+      {
+        "id": "f2",
+        "meaning": "Geri alınan pay adedi",
+        "value": "93.546",
+        "metric": "share_count",
+        "scope": "transaction",
+        "unit": "adet",
+        "transactionDate": "30.09.2026",
+        "evidence": [
+          {
+            "sourceId": "p3",
+            "quote": "30 Eylül 2026 tarihinde toplam 93.546 adet pay 1.384.306 TL karşılığında Şirketimizce geri alınmıştır.",
+            "location": "Ek Açıklamalar"
+          }
+        ]
+      },
+      {
+        "id": "f3",
+        "meaning": "Geri alım karşılığında ödenen tutar",
+        "value": "1.384.306",
+        "metric": "cash_amount",
+        "scope": "transaction",
+        "unit": "TL",
+        "transactionDate": "30.09.2026",
+        "evidence": [
+          {
+            "sourceId": "p3",
+            "quote": "30 Eylül 2026 tarihinde toplam 93.546 adet pay 1.384.306 TL karşılığında Şirketimizce geri alınmıştır.",
+            "location": "Ek Açıklamalar"
+          }
+        ]
+      }
+    ],
+    "ambiguities": []
+  }
+}

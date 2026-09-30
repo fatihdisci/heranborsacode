@@ -102,7 +102,7 @@ export async function processAction(env: Env, lane: ActionLane): Promise<number 
     console.error('Telegram action failed',{feedItemId:job.feed_item_id,action:job.action,reason});
     await finish(env,job,{text:job.action === 'tweet' || job.action === 'tweet_regenerate' || job.action === 'tweet_instruction'
       ? 'Tweet oluşturulamadı; kaynak veya rakamlar güvenle değerlendirilemedi. Kaynak bağlantısını inceleyebilir veya “Tweet oluştur” butonuyla yeniden deneyebilirsiniz.'
-      : 'İçerik şu anda okunamadı. Kaynak bağlantısını açabilir veya “Oku” butonuyla yeniden deneyebilirsiniz.',plain:true,replyTo:job.reply_to},null,'failed');
+      : 'İçerik şu anda okunamadı. Kaynak bağlantısını açabilir veya “Oku” butonuyla yeniden deneyebilirsiniz.',plain:true,replyTo:job.reply_to},JSON.stringify({error:reason}),'failed');
   }
   return 1000;
 }
