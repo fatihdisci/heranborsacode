@@ -10,6 +10,8 @@ KAP yayıncı adı, sayfanın resmi JSON verisindeki bildirim kimliği URL ile e
 
 `nominal_amount`, `share_count`, `cash_amount`, `unit_price`, `percentage` farklı ölçülerdir. `transaction`, `cumulative`, `prior_cumulative`, `planned`, `holding` ayrı kapsamlardır. Bilinmeyen ölçü veya birim tahmin edilmez. Aynı tarihte birden çok işlem satırı varsa tek satırın miktarı günlük toplam olarak sunulmaz. Ek Açıklamalar'da açık günlük toplam yoksa yeni bir toplam hesaplanmaz.
 
+Metin kapsamı değerin geçtiği kaynak cümlesinden çözülür. “30 Eylül 2026 tarihinde toplam ... pay geri alınmıştır” günlük işlemdir; tek başına “toplam” program birikimi kanıtı değildir. Aynı paragraftaki sonraki sermaye oranı cümlesi günlük miktarın kapsamını değiştirmez. Tarih metadatasında “30 Eylül 2026” ve “30.09.2026” aynı gün olarak karşılaştırılır; başka bir gün kabul edilmez. Sayısal olgu değerleri ve kaynak alıntıları hâlâ birebir korunur.
+
 ## İki aşama ve uygulama kontrolleri
 
 1. Luna, yüksek değerlendirme düzeyinde ana olayı, aktörü, işlem yönünü, aşamayı ve en fazla 12 ilgili olguyu strict JSON schema ile çıkarır. Her olgu bir özgün pasaj/hücre kimliğine ve birebir alıntıya bağlıdır. Başlık ve kayıt özeti kanıt sayılmaz.
@@ -25,4 +27,4 @@ KAP yayıncı adı, sayfanın resmi JSON verisindeki bildirim kimliği URL ile e
 
 HTML alıntıları uygulama tarafından birebir karşılaştırılır. PDF/dosya alıntıları için bağımsız yerel metin çıkarımı yapılmaz; ikinci çağrı özgün eki yeniden okur. Şema yalnız çıktı yapısını sınırlar, doğru yorumu garanti etmez. Metinsel iddialar, kısaltılmış şirket isimleri ve karmaşık tablolardaki anlamsal ilişkiler hâlâ model yorumuna bağlıdır. Yayın öncesi editör incelemesi gereklidir.
 
-Dağıtımda `0024_ai_tweet_evidence.sql` D1 migration'ı Worker'dan önce uygulanmalıdır. `editor-v8-no-source`, önceki sürümlerin taslaklarını yeniden kullanmaz.
+Dağıtımda `0024_ai_tweet_evidence.sql` D1 migration'ı Worker'dan önce uygulanmalıdır. `editor-v9-daily-scope`, önceki sürümlerin taslaklarını yeniden kullanmaz.

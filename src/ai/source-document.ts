@@ -40,6 +40,26 @@ export function scopeFor(label: string, section: string): Scope {
   return 'unknown';
 }
 
+// A prose sentence can give a daily total. The word "toplam" by itself
+// establishes no period, unlike an explicit cumulative table heading.
+export function proseScopeFor(quote: string, value: string): Scope {
+  const text = normalizeLabel(quote), needle = normalizeLabel(value);
+  const sentences = text.split(/(?<=[.!?])\s+/).filter(sentence => sentence.includes(needle));
+  const scopes = sentences.map(sentence => {
+    if (/daha once|islem oncesi|onceki|once geri/.test(sentence)) return 'prior_cumulative';
+    if (/azami|ayrilan fon|planlanan|hedeflenen/.test(sentence)) return 'planned';
+    if (/kumulatif|bugune kadar|baslangicindan|program toplami|program(?:i)? (?:kapsaminda|cercevesinde) toplam/.test(sentence)) return 'cumulative';
+    const datedDay = /(?:\d{1,2}[./]\d{1,2}[./]\d{4}|\d{1,2} \p{L}+ \d{4}) (?:tarihinde|gunu)/u.test(sentence);
+    if ((datedDay || /gun icinde|gunluk|bu islemde/.test(sentence)) && /geri al|satin al|satil|satim|alim/.test(sentence)) return 'transaction';
+    // "itibarıyla ... toplam ... ulaşmıştır" is a balance, even when a
+    // calendar date appears in that same sentence.
+    if (/toplam|ulas/.test(sentence)) return /toplam.*ulas|itibariyla.*toplam/.test(sentence) ? 'cumulative' : 'unknown';
+    return scopeFor(sentence, '');
+  });
+  const known = [...new Set(scopes.filter(scope => scope !== 'unknown'))];
+  return known.length === 1 ? known[0] as Scope : 'unknown';
+}
+
 function unitFor(label: string, context: string): string | null {
   // Column labels override a table-level scale. Never infer a currency from
   // the company's domicile, or turn nominal TL into an adet/lot unit.

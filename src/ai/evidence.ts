@@ -1,4 +1,4 @@
-import { normalizeLabel, scopeFor, type Metric, type Scope, type SourceCell, type SourceDocument } from './source-document';
+import { normalizeLabel, proseScopeFor, type Metric, type Scope, type SourceCell, type SourceDocument } from './source-document';
 import { shareActivity } from '../kap/share-activity';
 
 export interface EvidenceRef { sourceId: string; quote: string; location: string | null; }
@@ -76,6 +76,15 @@ function dateKey(value:string):string|null {
   return Number.isFinite(stamp) && new Date(stamp).toISOString().slice(0,10)===key?key:null;
 }
 
+function datesInText(value:string):string[] {
+  return [...value.matchAll(/\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}[./]\d{1,2}[./]\d{4}\b|\b\d{1,2}\s+\p{L}+\s+\d{4}\b/gu)].map(match=>match[0]).filter(date=>dateKey(date)!==null);
+}
+
+function containsDate(value:string,date:string):boolean {
+  const key=dateKey(date);
+  return key!==null && datesInText(value).some(candidate=>dateKey(candidate)===key);
+}
+
 function contexts(evidence:EvidenceRef[],registry:Map<string,Entry>):string {
   return evidence.map(ref=>{
     const entry=registry.get(ref.sourceId),cell=entry?.cell;
@@ -122,21 +131,31 @@ export function validateAnalysis(value:unknown,document:SourceDocument|null,atta
       const scale=context.match(/\b(?:bin|milyon|milyar)\b/)?.[0];
       if(scale && !normalizeLabel(`${fact.value} ${fact.unit??''}`).includes(scale))fail('alıntıdaki bin/milyon/milyar ölçeği kayboldu');
     }
-    if(fact.transactionDate && !fact.evidence.some(ref=>ref.quote.includes(fact.transactionDate!) || registry.get(ref.sourceId)?.cell?.transactionDate===fact.transactionDate))fail('olgunun işlem tarihi kanıtında yok');
+    if(fact.transactionDate && !fact.evidence.some(ref=>containsDate(ref.quote,fact.transactionDate!) || registry.get(ref.sourceId)?.cell?.transactionDate===fact.transactionDate))fail('olgunun işlem tarihi kanıtında yok');
+    if(fact.scope==='transaction' && fact.transactionDate && event.eventDate && dateKey(fact.transactionDate)!==dateKey(event.eventDate))fail('metin olgusu başka işlem gününe bağlandı');
     if(fact.metric==='nominal_amount' && !context.includes('nominal'))fail('nominal değer kanıtı yok');
     if((fact.metric==='share_count' || fact.metric==='cash_amount') && matching.every(ref=>!registry.get(ref.sourceId)?.cell) && context.includes('nominal'))fail('nominal tutar adet veya işlem tutarına dönüştürüldü');
     if(fact.unit && matching.every(ref=>!registry.get(ref.sourceId)?.cell) && !context.includes(normalizeLabel(fact.unit)))fail('alıntıda birim yok');
     // Labels in prose are useful only when explicit. Do not infer a scope
     // from publication time or from a neighbouring historical table row.
     if(numbers(fact.value).length && matching.every(ref=>!registry.get(ref.sourceId)?.cell)) {
-      const explicit=scopeFor(context,'');
-      if(explicit!=='unknown' && fact.scope!==explicit)fail('alıntıdaki kapsam değiştirildi');
+      for(const ref of matching) {
+        const explicit=proseScopeFor(registry.get(ref.sourceId)?.text??ref.quote,fact.value);
+        if(explicit!=='unknown' && fact.scope!==explicit)fail('alıntıdaki kapsam değiştirildi');
+      }
     }
   });
   const evidenceText=contexts(allRefs,registry),eventText=normalizeLabel(contexts(event.evidence,registry));
   for(const actor of [event.actor,event.subject])if(actor && !normalizeLabel(evidenceText).includes(normalizeLabel(actor)))fail('işlemin tarafı kaynakta yok');
-  for(const number of numbers(event.summary))if(!allRefs.some(ref=>numbers(ref.quote).some(raw=>raw.value===number.value)))fail('ana olaydaki sayı kaynakta yok');
-  if(event.eventDate && !allRefs.some(ref=>normalized(ref.quote).includes(normalized(event.eventDate!))))fail('olay tarihi kaynakta yok');
+  // Date spelling is metadata, not a different amount: 30 Eylül 2026 and
+  // 30.09.2026 name the same day. All other numbers still match exactly.
+  let summaryNumbers=event.summary;
+  for(const date of datesInText(event.summary)) {
+    if(!allRefs.some(ref=>containsDate(ref.quote,date)))fail('ana olaydaki tarih kaynakta yok');
+    summaryNumbers=summaryNumbers.replace(date,'');
+  }
+  for(const number of numbers(summaryNumbers))if(!allRefs.some(ref=>numbers(ref.quote).some(raw=>raw.value===number.value)))fail('ana olaydaki sayı kaynakta yok');
+  if(event.eventDate && !allRefs.some(ref=>containsDate(ref.quote,event.eventDate!)))fail('olay tarihi kaynakta yok');
   const activity=shareActivity(title);
   if(activity==='ownership' && event.kind!=='ownership_transaction')fail('pay alım/satımı geri alım gibi çözümlendi');
   if(activity==='buyback' && !event.kind.startsWith('buyback_'))fail('geri alım olay türü doğrulanamadı');
