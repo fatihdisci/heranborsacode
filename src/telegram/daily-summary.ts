@@ -10,6 +10,7 @@ export interface DailyDisclosure {
   disclosure_id: string; title: string; company: string | null; ticker: string | null;
   published_at: string; url: string; metadata_json: string | null;
 }
+export type SummaryKind = 'dkb' | 'pay';
 export function istanbulDay(now = Date.now()): { day: string; start: string; end: string } {
   const day = new Date(now + 3 * 3600_000).toISOString().slice(0, 10);
   const start = new Date(`${day}T00:00:00+03:00`);
@@ -24,7 +25,7 @@ function codes(row: DailyDisclosure): string[] {
   return Array.isArray(values) ? [...new Set(values.filter(value => typeof value === 'string' && /^[A-Z][A-Z0-9]{3,4}$/.test(value)))] : [];
 }
 
-export function dailySummaryText(rows: DailyDisclosure[], indices: IndexMembership, day: string, now = Date.now()): string {
+export function dailySummaryText(rows: DailyDisclosure[], indices: IndexMembership, day: string, now = Date.now(), kind: SummaryKind = 'dkb'): string {
   // A grouped Telegram message is never an event. KAP IDs deduplicate sources;
   // a repeated event for the same share still increments that share's count.
   rows = [...new Map(rows.map(row => [row.disclosure_id, row])).values()];
@@ -43,11 +44,14 @@ export function dailySummaryText(rows: DailyDisclosure[], indices: IndexMembersh
     return `${selected.reduce((sum, [, count]) => sum + count, 0)} tetiklenme · ${selected.length} farklı hisse`;
   };
   const sections = [
-    `📊 Günün özeti · ${day}\nİstanbul saati ${new Date(now + 3 * 3600_000).toISOString().slice(11, 16)} itibarıyla kayıtlı KAP bildirimleri`,
+    `📊 ${kind === 'dkb' ? 'Devre kesici özeti' : 'Pay işlemleri özeti'} · ${day}\nİstanbul saati ${new Date(now + 3 * 3600_000).toISOString().slice(11, 16)} itibarıyla kayıtlı KAP bildirimleri`,
     `DEVRE KESİCİ\n${breakers.length} KAP bildirimi · ${total} hisse bazında tetiklenme · ${counts.size} farklı hisse\nBIST 30: ${stats(indices.bist30)}\nBIST 100 (BIST 30 dahil): ${stats(indices.bist100)}\nBIST 100 içinde, BIST 30 dışında: ${stats(indices.bist100.filter(code => !indices.bist30.includes(code)))}\nBIST 100 dışında: ${stats(entries.map(([code]) => code).filter(code => !indices.bist100.includes(code)))}`,
     ...(unknown ? [`${unknown} devre kesici bildiriminin hisse kodu belirlenemedi; tetiklenme ve endeks sayımlarına eklenmedi.`] : []),
     ...(entries.length ? ['Hisse başına devre kesici sayısı:\n' + entries.map(([code, count]) => `#${code}: ${count}`).join(' · ')] : []),
   ];
+  const coverage = 'Kayıtlarda bulunmayan veya henüz taranmayan bildirimler bu özete dahil değildir.';
+  if (kind === 'dkb') return [...sections, `Sayım bildirimlerin yayın tarihine göre yapılır. ${coverage}`].join('\n\n');
+  sections.splice(1);
   const buybacks = rows.filter(row => shareActivity(row.title) === 'buyback');
   const transactions: DailyDisclosure[] = [], decisions: DailyDisclosure[] = [], other: DailyDisclosure[] = [];
   for (const row of buybacks) {
@@ -68,12 +72,12 @@ export function dailySummaryText(rows: DailyDisclosure[], indices: IndexMembersh
   if (other.length) sections.push(`Diğer geri alım bildirimleri: ${other.length}\nÖnceki tarihli işlemler, program değişiklikleri veya işlem/karar tarihi doğrulanamayan kayıtlar; bugünkü alım/karar sayılarına dahil edilmedi.\n${lines(other)}`);
   const ownership = rows.filter(row => shareActivity(row.title) === 'ownership');
   sections.push(`PAY ALIM / SATIM\n${describe(ownership)}\n${lines(ownership)}\nBu bildirimler şirketin kendi payını geri almasıyla aynı işlem olarak sayılmaz.`);
-  sections.push('Sayım bildirimlerin yayın tarihine göre yapılır. Geri alımlarda işlem ve karar tarihi ayrıca doğrulanır; aynı şirketin birden fazla bildirimi tek şirket sayılır. Kayıtlarda bulunmayan veya henüz taranmayan bildirimler bu özete dahil değildir.');
+  sections.push(`Sayım bildirimlerin yayın tarihine göre yapılır. Geri alımlarda işlem ve karar tarihi ayrıca doğrulanır; aynı şirketin birden fazla bildirimi tek şirket sayılır. ${coverage}`);
   return sections.join('\n\n');
 }
 
-export async function queueDailySummary(env: Env, messageId: number, now = Date.now()): Promise<void> {
-  const requestId = `day-summary:${env.TELEGRAM_CHAT_ID}:${messageId}`;
+export async function queueDailySummary(env: Env, messageId: number, now = Date.now(), kind: SummaryKind = 'dkb'): Promise<void> {
+  const requestId = `day-summary:${kind}:${env.TELEGRAM_CHAT_ID}:${messageId}`;
   if (await env.DB.prepare('SELECT id FROM telegram_outbox WHERE id=?').bind(`${requestId}:0000`).first()) return;
   const { day, start, end } = istanbulDay(now);
   const result = await env.DB.prepare(`SELECT disclosure_id,title,company,ticker,published_at,url,metadata_json
@@ -83,7 +87,7 @@ export async function queueDailySummary(env: Env, messageId: number, now = Date.
   const rows = result.results ?? [];
   // Older records lack the labelled transaction evidence. Bound work so a
   // webhook remains within its lifetime; unread sources stay explicitly unknown.
-  const missing = rows.filter(row => shareActivity(row.title) === 'buyback' && !metadata(row).buybackEvidence);
+  const missing = kind === 'pay' ? rows.filter(row => shareActivity(row.title) === 'buyback' && !metadata(row).buybackEvidence) : [];
   const deadline = Date.now() + 18_000;
   for (let offset = 0; offset < missing.length && Date.now() < deadline; offset += 4) {
     await Promise.all(missing.slice(offset, offset + 4).map(async row => {
@@ -101,8 +105,8 @@ export async function queueDailySummary(env: Env, messageId: number, now = Date.
       } catch { /* Missing or ambiguous source remains in the unverified section. */ }
     }));
   }
-  const indices = await getIndices(env, now);
-  const pages = splitText(dailySummaryText(rows, indices, day, now), 3000);
+  const indices = kind === 'dkb' ? await getIndices(env, now) : { bist30: [], bist100: [], source: '', checkedAt: '' };
+  const pages = splitText(dailySummaryText(rows, indices, day, now, kind), 3000);
   await env.DB.batch(pages.map((text, index) => enqueueStatement(env, `${requestId}:${String(index).padStart(4, '0')}`, 'action_reply',
     { text: pages.length > 1 ? `${text}\n\nBölüm ${index + 1}/${pages.length}` : text, plain: true, replyTo: messageId }, null, new Date(now).toISOString(), null)));
 }

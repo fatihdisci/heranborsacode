@@ -52,7 +52,7 @@ it('separates actual transaction dates, decision dates, unverified sources and o
     row(3, 'Payların Geri Alınmasına İlişkin Bildirim', ['THYAO'], { ...evidence, transactionDates: [], decisionDate: day, decisionAnnounced: true }),
     row(4, 'Payların Geri Alınmasına İlişkin Bildirim', ['ZZZZ'], { ...evidence, transactionDates: ['2026-09-29'] }),
     row(5, 'Pay Alım Satım Bildirimi', ['THYAO']),
-  ], indices, day, now);
+  ], indices, day, now, 'pay');
   expect(text).toContain('İşlem tarihi bugün olan geri alımları bildirenler: 2 bildirim · 1 şirket');
   expect(text).toContain('Bugün tarihli yeni geri alım kararı/programı bildirenler: 1 bildirim · 1 şirket');
   expect(text).toContain('Diğer geri alım bildirimleri: 1');
@@ -86,9 +86,20 @@ it('counts filtered source records, excludes adjacent Istanbul days, queues idem
 });
 it('accepts plain Turkish requests and slash commands only in the authorized private chat', async () => {
   env.TELEGRAM_WEBHOOK_SECRET = 'test'; const pending = [];
-  for (const [id, text, from] of [[1, 'günü özetle', 123], [2, '/gunuozetle', 123], [3, 'günü özetle', 456]]) {
+  for (const [id, text, from] of [[1, 'dkbozet', 123], [2, '/payozet', 123], [3, '/dkbozet', 456]]) {
     await telegramRoutes(new Request('https://worker/api/telegram/webhook', { method: 'POST', headers: { 'x-telegram-bot-api-secret-token': 'test' }, body: JSON.stringify({ message: { message_id: id, text, from: { id: from }, chat: { id: 123, type: 'private' } } }) }), env, { waitUntil: promise => pending.push(promise) });
   }
   await Promise.all(pending);
   expect(sql.prepare('SELECT COUNT(*) n FROM telegram_outbox').get().n).toBe(2);
+});
+it('keeps the two summary templates separate and avoids buyback source reads for DKB', async () => {
+  const rows = [breaker(1, ['THYAO']), row(2, 'Payların Geri Alınmasına İlişkin Bildirim', ['ARSAN'])];
+  const dkb = dailySummaryText(rows, indices, day, now, 'dkb');
+  const pay = dailySummaryText(rows, indices, day, now, 'pay');
+  expect(dkb).toContain('Devre kesici özeti'); expect(dkb).not.toContain('GERİ ALIM'); expect(dkb).not.toContain('PAY ALIM / SATIM');
+  expect(pay).toContain('Pay işlemleri özeti'); expect(pay).toContain('GERİ ALIM'); expect(pay).not.toContain('DEVRE KESİCİ'); expect(pay).not.toContain('BIST 30');
+  sql.prepare('INSERT INTO kap_disclosures(disclosure_id,title,published_at,url,content_hash) VALUES (?,?,?,?,?)').run('2', rows[1].title, rows[1].published_at, rows[1].url, 'test');
+  vi.stubGlobal('fetch', vi.fn());
+  await queueDailySummary(env, 70, now, 'dkb');
+  expect(fetch).not.toHaveBeenCalled();
 });
