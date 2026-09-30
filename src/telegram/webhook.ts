@@ -5,6 +5,7 @@ import { feedKeyboard } from './buttons';
 import { wakeActions } from './actions';
 import { enqueueTemplateJob, KURUM_TEMPLATE_ID, TERANE_TEMPLATE_ID, AKDTERANE_TEMPLATE_ID, SON_HALKA_ARZLAR_TEMPLATE_ID } from '../commands/jobs';
 import { publicBaseUrl } from '../config';
+import { queueDailySummary } from './daily-summary';
 
 interface Callback {
   id: string; data: string; from: {id:number;username?:string};
@@ -24,6 +25,7 @@ interface TweetDraftRef { id: string; feed_item_id: number; }
 const BOT_COMMANDS = [
   {command:'start',description:'Heran Borsa ana menüsü'},
   {command:'panel',description:'Mini App komut merkezini aç'},
+  {command:'gunuozetle',description:'Devre kesici, geri alım ve pay işlemleri özeti'},
   {command:'kurum',description:'Kurum analiz şablonunu çalıştır'},
   {command:'terane',description:'Terane derinlik şablonunu çalıştır'},
   {command:'akdterane',description:'Terane hisselerinin AKD şablonunu çalıştır'},
@@ -127,6 +129,11 @@ async function handleMessage(env: Env, message: IncomingMessage): Promise<void> 
     && String(message.from?.id ?? '') === env.TELEGRAM_CHAT_ID;
   if (!permitted || !message.text) return;
   const text = message.text.trim();
+  if (/^(?:günü özetle|gunu ozetle|\/gunuozetle(?:@\w+)?|\/ozet(?:@\w+)?)$/iu.test(text)) {
+    try { await queueDailySummary(env, message.message_id); }
+    catch { await sendMessage(env, 'Günün özeti hazırlanamadı. /gunuozetle komutuyla yeniden deneyebilirsin.'); }
+    return;
+  }
   if (!text.startsWith('/')) {
     if (!message.reply_to_message || !text) return;
     const target = await env.DB.prepare(`SELECT a.id,a.feed_item_id FROM telegram_outbox q
@@ -238,11 +245,11 @@ export async function telegramRoutes(request: Request, env: Env, ctx: Pick<Execu
 export async function ensureTelegramWebhook(env: Env): Promise<void> {
   if (!env.TELEGRAM_BOT_TOKEN || !env.TELEGRAM_WEBHOOK_SECRET) return;
   const version = await env.DB.prepare("SELECT value FROM system_state WHERE key='telegram_webhook_version'").first<{value:string}>();
-  if (version?.value === 'heranborsa-restore-v2') return;
+  if (version?.value === 'heranborsa-daily-summary-v3') return;
   const miniAppUrl = publicBaseUrl(env);
   await telegramCall(env,'setWebhook',new URLSearchParams({url:`${miniAppUrl}/api/telegram/webhook`,secret_token:env.TELEGRAM_WEBHOOK_SECRET,
     allowed_updates:JSON.stringify(['callback_query','message']),max_connections:'2',drop_pending_updates:'false'}));
   await telegramCall(env,'setChatMenuButton',new URLSearchParams({menu_button:JSON.stringify({type:'web_app',text:'Heran Borsa',web_app:{url:miniAppUrl}})}));
   await setBotCommands(env);
-  await env.DB.prepare("INSERT INTO system_state(key,value) VALUES ('telegram_webhook_version','heranborsa-restore-v2') ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=CURRENT_TIMESTAMP").run();
+  await env.DB.prepare("INSERT INTO system_state(key,value) VALUES ('telegram_webhook_version','heranborsa-daily-summary-v3') ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=CURRENT_TIMESTAMP").run();
 }

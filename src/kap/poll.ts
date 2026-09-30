@@ -3,7 +3,7 @@ import { insertFeed } from "../db/feed";
 import { sendMessage } from "../telegram/client";
 import { fetchWithTimeout } from "../utils/http";
 import { escapeTelegramHtml, sha256 } from "../utils/text";
-import { BIST50 } from "./bist50";
+import { shareActivity } from './share-activity';
 
 export interface KapListItem { disclosureIndex: string; disclosureType: string; disclosureClass: string; title: string; fundId: string | null; fundCode: string | null; }
 interface Detail { senderTitle?: string; senderExchCodes?: unknown; disclosureType?: string; disclosureClass?: string; subject?: { tr?: string }; summary?: { tr?: string }; time?: string; link?: string; relatedStocks?: unknown; }
@@ -21,6 +21,7 @@ export function normalizeKapList(value: unknown): KapListItem[] {
 
 function relevant(type: string, klass: string, title: string, fund = false): boolean {
   const all = `${type} ${klass} ${title}`.toLocaleUpperCase("tr-TR");
+  if (shareActivity(title)) return true;
   if (fund || /\bFON\b/.test(all)) return true;
   return ["ODA", "CA", "FR"].some(x => `${type} ${klass}`.includes(x)) || (`${type} ${klass}`.includes("DG") && /BORSA|SERMAYE|BİRLEŞ|BIRLES|SATIN AL|PAY ALIM|PAY SATIM|SÖZLEŞ|SOZLES|TEMETT|FİNANSAL|FINANSAL/.test(all));
 }
@@ -40,7 +41,7 @@ async function process(env: Env, silent = false): Promise<void> {
     const response = await kap(env, `/disclosureDetail/${encodeURIComponent(row.disclosure_index)}?fileType=html`); if (!response.ok) throw new Error(`KAP disclosureDetail HTTP ${response.status}`);
     const d = await response.json<Detail>(), codes = row.is_fund ? [] : [...new Set([...symbols(d.senderExchCodes),...symbols(d.relatedStocks)])], title = d.subject?.tr || d.summary?.tr || row.title || "KAP bildirimi", type = d.disclosureType || row.disclosure_type || "", klass = d.disclosureClass || row.disclosure_class || "";
     await env.DB.prepare("DELETE FROM kap_pending WHERE disclosure_index=?").bind(row.disclosure_index).run();
-    if (!relevant(type,klass,title,Boolean(row.is_fund)) || (!row.is_fund && /PAY ALIM|PAY SATIM/i.test(title) && !codes.some(x => BIST50.has(x)))) continue;
+    if (!relevant(type,klass,title,Boolean(row.is_fund))) continue;
     const url=d.link || `https://www.kap.org.tr/tr/Bildirim/${row.disclosure_index}`, write=await env.DB.prepare("INSERT OR IGNORE INTO kap_disclosures(disclosure_id,company,ticker,title,disclosure_type,published_at,url,metadata_json,content_hash) VALUES (?,?,?,?,?,?,?,?,?)").bind(row.disclosure_index,d.senderTitle??null,codes[0]??null,title,type||klass,d.time??null,url,JSON.stringify(d),await sha256(`${row.disclosure_index}|${title}|${url}`)).run();
     if (!write.meta.changes) continue;
     await insertFeed(env,{type:"kap",source:"KAP",source_ref:`kap:${row.disclosure_index}`,title,body:d.senderTitle??null,url,tickers_json:JSON.stringify(codes),published_at:d.time??null});

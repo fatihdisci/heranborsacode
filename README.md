@@ -86,6 +86,22 @@ PDF olarak gelir; bu akışlarda tek tek ara sonuçlar Telegram sohbetine gönde
 komutunu çalıştırır. Komut sekmesindeki şablon listesinden başlatılır; metin
 yanıtı doğrudan bot sohbetine mesaj olarak gönderilir.
 
+Özel sohbette **günü özetle**, `/gunuozetle` veya `/ozet` yazıldığında İstanbul
+takvim gününe ait kayıtlı KAP bildirimleri özetlenir. Devre kesicide tekil KAP
+bildirimi, hisse bazında tetiklenme ve farklı hisse sayısı ayrı hesaplanır;
+hisse başına tekrar sayısı da verilir. BIST 100 sayısı BIST 30'u içerir; BIST 30
+dışındaki BIST 100 ve BIST 100 dışındaki hisseler ayrıca gösterilir.
+
+Geri alım bildirimlerinde KAP'ın etiketli işlem tablosu ve karar tarihi okunur.
+İşlem tarihi bugün olan alımlar ve bugün tarihli yeni karar/program duyuruları
+ayrıdır; eski tarihli işlemler, diğer program bildirimleri ve doğrulanamayan
+kayıtlar ayrı listelenir. Pay alım/satım bildirimleri geri alım sayılmaz. Bu üç
+pay işlemi sınıfı kaydedilir ve mevcut endeks, takip veya başlık filtreleriyle
+susturulmaz. Özet Telegram teslimat kuyruğunda kalıcıdır; tekrarlanan aynı
+Telegram isteği ikinci bir özet oluşturmaz. Gün içinde istenirse o ana kadar
+kaydedilen verileri verir; henüz taranmamış veya önceden kaydedilmemiş eski
+bildirimler için tam piyasa toplamı iddiasında bulunmaz.
+
 Kuyruk D1'da kalıcıdır. Mac mini kapalıyken işler kaybolmaz; ajan açıldığında
 işleri dışarıdan HTTPS ile çeker. Telegram kullanıcı oturumu yalnız Mac mini'deki
 şifreli `telegram.enc` içinde kalır. Medya sonuçları tahmin edilemez anahtarla R2'ye

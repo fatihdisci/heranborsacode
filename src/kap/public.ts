@@ -8,6 +8,7 @@ import { isImportantPublicDisclosure } from "./importance";
 export { isImportantPublicDisclosure } from "./importance";
 import { getPreferences, classify, isMutedKapTitle, isCriticalFundDisclosure } from "../notifications/rules";
 import { financeNotificationCutoff, publishedSince } from '../db/state';
+import { shareActivity, parseBuybackEvidence, type BuybackEvidence } from './share-activity';
 
 const PUBLIC_KAP_URL = "https://www.kap.org.tr/tr/Bildirim";
 const LIVE_CURSOR_KEY = "public_kap_cursor";
@@ -50,6 +51,7 @@ export interface PublicDisclosure {
   resumeAt: string | null;
   publishedAt: string | null;
   url: string;
+  buybackEvidence?: BuybackEvidence | null;
 }
 
 export function disclosureSubjectCodes(item: PublicDisclosure): string[] {
@@ -102,6 +104,7 @@ export function parsePublicKapPage(html: string, requestedId: number): PublicDis
     resumeAt: html.match(/işlemlere\s+(\d{2}:\d{2}:\d{2})\s+itibarıyla devam edilecektir/i)?.[1] ?? null,
     publishedAt: parseDate(basic.publishDate),
     url: `${PUBLIC_KAP_URL}/${requestedId}`,
+    ...(shareActivity(basic.title) === 'buyback' ? { buybackEvidence: parseBuybackEvidence(html) } : {}),
   };
 }
 
@@ -150,7 +153,7 @@ async function store(env: Env, item: PublicDisclosure, silent: boolean): Promise
   const marketwide=subjectCodes.length===0&&item.codes.length>0&&!/PAY ALIM BİLDİRİMİ|PAY SATIM BİLDİRİMİ/i.test(item.title);
   const important=isImportantPublicDisclosure({...item,codes:subjectCodes},priorityCodes)||
     marketwide&&isImportantPublicDisclosure(item,[]);
-  if (!important && !explicitlyTracked && !explicitlySelectedTopic) return;
+  if (!important && !explicitlyTracked && !explicitlySelectedTopic && !shareActivity(item.title) && !isCircuitBreaker(item)) return;
   const known = await env.DB.prepare("SELECT disclosure_id FROM kap_disclosures WHERE disclosure_id=?").bind(String(item.id)).first();
   if (known) return;
   const breakerBody = circuitBreakerBody(item);

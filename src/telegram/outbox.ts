@@ -25,7 +25,7 @@ function utcTime(value: string): number { return Date.parse(value.includes('T') 
 // The AI-era outbox remains in D1. Never deliver its pending source messages,
 // action replies, or operational alerts after the finance runtime returns.
 export const financeOutboxPredicate = `(q.source_ref LIKE 'kap:%' OR q.source_ref LIKE 'spk:%' OR q.source_ref LIKE 'rss:%' OR q.source_ref LIKE 'x:%'
-  OR q.id LIKE 'digest:%' OR q.id LIKE 'dkb:%'
+  OR q.id LIKE 'digest:%' OR q.id LIKE 'dkb:%' OR q.id LIKE 'day-summary:%'
   OR (q.id LIKE 'action:%' AND EXISTS (
     SELECT 1 FROM telegram_actions a JOIN feed_items f ON f.id=a.feed_item_id
     WHERE q.id='action:' || a.id AND f.category IS NULL))

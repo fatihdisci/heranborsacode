@@ -1,4 +1,5 @@
 import { isImportantPublicDisclosure } from "../kap/importance";
+import { shareActivity } from '../kap/share-activity';
 import type {Env,FeedItem} from '../types';
 import {indexTier,type IndexMembership} from './indices';
 export const TOPICS={dividend:'Temettü',buyback:'Geri alım',financials:'Finansal sonuçlar',capital:'Sermaye işlemleri',contract:'İş ilişkisi / sözleşme',ownership:'Pay alım / satım',breaker:'Devre kesici',other:'Diğer'} as const;
@@ -63,6 +64,7 @@ export function decide(item:FeedItem,p:Preferences,indices:IndexMembership):{act
   const codes=symbols(item),tier=indexTier(codes,indices),rules=p.watchlist.filter(w=>codes.includes(w.ticker)),watched=rules.length>0;
   const result=(action:'instant'|'digest'|'off',reason:string)=>({action,reason,tier,watched});
   if(item.type!=='kap')return result('instant','Haber / SPK');
+  if(shareActivity(item.title))return result('instant','Pay geri alım / alım / satım bildirimi');
   if(isMutedKapTitle(item.title))return result('off','Susturulan KAP başlığı');
   if(p.excludedTitles.some(term=>normalize(item.title).includes(normalize(term))))return result('off','Hariç tutulan başlık');
   if(isCriticalFundDisclosure(item))return result('instant','Kritik fon gelişmesi');
