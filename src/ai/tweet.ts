@@ -3,7 +3,7 @@ import { fetchSourceBundle } from "./content";
 import { sha256 } from "../utils/text";
 
 import { SYSTEM_PROMPT, ANALYSIS_PROMPT, PROMPT_VERSION, formatDraft } from "./prompt";
-import { ANALYSIS_SCHEMA, DRAFT_SCHEMA, SourceValidationError, validateAnalysis, validateWrittenDraft, supportingEvidence } from './evidence';
+import { ANALYSIS_SCHEMA, DRAFT_SCHEMA, SourceValidationError, validateAnalysis, validateWrittenDraft, supportingEvidence, actorNames } from './evidence';
 
 const MODEL = "gpt-6-luna";
 interface OpenAIResponse {
@@ -92,7 +92,7 @@ export async function generateTweetDraft(env: Env, item: FeedItem, options: Twee
   const selectedAttachments=new Set([...analysis.event.evidence,...analysis.facts.flatMap(fact=>fact.evidence)].map(ref=>ref.sourceId));
   const writerContent:Array<Record<string,unknown>>=[{type:'input_text',text:JSON.stringify({
     target:evidence.target,source:evidence.source,verifiedSymbols:symbols,
-    verifiedEvent:analysis.event,verifiedFacts:analysis.facts,ambiguities:analysis.ambiguities,
+    verifiedEvent:analysis.event,verifiedActorNames:actorNames(analysis.event),verifiedFacts:analysis.facts,ambiguities:analysis.ambiguities,
     supportingEvidence:supportingEvidence(analysis,source.document),
     attachmentReferences:attachmentReferences.filter(file=>selectedAttachments.has(file.id)),
   })}];

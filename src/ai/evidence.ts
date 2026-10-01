@@ -56,6 +56,19 @@ function partyIn(name:string,source:string):boolean {
   return (` ${partyName(source)} `).includes(` ${partyName(name)} `);
 }
 
+// Accept only abbreviations explicitly paired with this actor in its event
+// evidence. Another institution's acronym elsewhere in the article is not an alias.
+export function actorNames(event:VerifiedEvent):string[] {
+  if(!event.actor)return [];
+  const name=event.actor.replace(/\s*\([A-ZÇĞİÖŞÜ][A-ZÇĞİÖŞÜ0-9.-]{1,11}\)\s*$/u,'').trim();
+  const names=new Set([event.actor,name]);
+  for(const ref of event.evidence)for(const match of ref.quote.matchAll(/\(([A-ZÇĞİÖŞÜ][A-ZÇĞİÖŞÜ0-9.-]{1,11})\)/gu)) {
+    const before=partyName(ref.quote.slice(0,match.index));
+    if((` ${before}`).endsWith(` ${partyName(name)}`))names.add(match[1]);
+  }
+  return [...names];
+}
+
 function includeIssuerIdentity(event:VerifiedEvent,registry:Map<string,Entry>):void {
   const issuer=registry.get('kap-issuer');
   // An issuer alone does not prove an event or the actor of a shareholder
@@ -356,7 +369,12 @@ export function validateWrittenDraft(value:unknown,analysis:SourceAnalysis):stri
   if(analysis.event.direction==='buy' && /geri sat|(?:pay|hisse).{0,50}sat(?:ti|ildi|mis)|satis.{0,30}(?:yap|gerceklestir)/.test(body))fail('alış satış gibi anlatılıyor');
   if(analysis.event.kind==='ownership_transaction' && analysis.event.actor) {
     const name=normalizeLabel(analysis.event.actor).replace(/[^\p{L}\p{N}\s]/gu,' ').split(/\s+/).filter(word=>word.length>1 && !['ve','as','anonim','sirketi','sanayi','ticaret','yatirim','holding','portfoy','yonetimi'].includes(word));
-    if(!name.length || !name.slice(0,2).every(word=>body.includes(word)))fail('pay işlemini gerçekleştiren taraf tweet içinde korunmadı');
+    const explicitName=actorNames(analysis.event).some(name=>partyIn(name,draft.body));
+    if(!explicitName && (!name.length || !name.slice(0,2).every(word=>partyIn(word,draft.body)))) {
+      const error=new SourceValidationError('pay işlemini gerçekleştiren taraf tweet içinde korunmadı');
+      error.context={partyRole:'actor',partyName:analysis.event.actor};
+      throw error;
+    }
   }
   if(/\n|https?:\/\/|#[\p{L}\p{N}]|```|^[\s]*[-*]/u.test(draft.body))fail('tweet gövde biçimi hatalı');
   return draft.body.trim();

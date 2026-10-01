@@ -50,3 +50,15 @@ it('continues rejecting empty or ambiguous KAP roots and hidden ordinary news',(
   expect(()=>extractArticleSource('<div class="disclosureScrollableArea">Birinci şirket kredi aldı.</div><div class="disclosureScrollableArea">İkinci şirket kredi aldı.</div>',target)).toThrow('ana metni');
   expect(()=>extractReadableContent('<div hidden><article>Şirket kredi limiti başvurusu yaptı.</article></div>')).toThrow('ana metni');
 });
+
+it('isolates the Bloomberg article wrapper from recommendations, inline news cards and ads',()=>{
+  const source=extractArticleSource(`<article class="news-content"><h1>Halka arza katılım</h1><div class="article-wrapper">
+    <p>Norges Bank Investment Management (NBIM), halka arzda talepte bulundu.</p>
+    <div data-widget-type="advertisement"><h2>REKLAM</h2></div>
+    <div data-widget-type="newsLinkForNews"><h2>Başka bir fon haberi</h2></div>
+    <p>Fonun hisseleri halen elinde tutup tutmadığı bilinmiyor.</p></div>
+    <section>İlgili Haberler: OpenAI yeni model duyurdu.</section></article>`,{type:'news',title:'Halka arza katılım',url:'https://www.bloomberght.com/ornek'});
+  expect(source.text).toContain('NBIM');
+  expect(source.text).toContain('bilinmiyor');
+  expect(source.text).not.toMatch(/REKLAM|Başka|İlgili|OpenAI/);
+});

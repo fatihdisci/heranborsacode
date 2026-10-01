@@ -7,7 +7,7 @@ type Target = Pick<FeedItem, 'type' | 'url' | 'title'>;
 export interface ArticleSource { text: string; html: string; document: SourceDocument; }
 const clean = (value: string) => value.replace(/\s+/g,' ').trim();
 const normalized = (value: string) => clean(value).toLocaleLowerCase('tr-TR');
-const NOISE = 'script,style,noscript,svg,nav,aside,footer,form,button,iframe,[hidden],[aria-hidden="true"],.related-news,.related-articles,.recommended,.recommendations,.advertisement,.ad-container,.social-share,.cookie-banner';
+const NOISE = 'script,style,noscript,svg,nav,aside,footer,form,button,iframe,[hidden],[aria-hidden="true"],.related-news,.related-articles,.recommended,.recommendations,.advertisement,.ad-container,.social-share,.cookie-banner,[data-widget-type="advertisement"],[data-widget-type="newsLinkForNews"]';
 
 function articleRecords(value: unknown, output: Record<string, unknown>[]): void {
   if (Array.isArray(value)) { value.forEach(v => articleRecords(v,output)); return; }
@@ -97,6 +97,7 @@ export function extractArticleSource(html: string, target?: Target): ArticleSour
   document.querySelectorAll(NOISE).forEach(el=>el.remove());
   const selectors = [
     '.page-content.print-container .icerik.styled-content',
+    'article.news-content .article-wrapper',
     '[itemprop="articleBody"], .article-body, .cms-container, .news-detail-content, .news-content, [data-test="article-body"]', 'article',
   ];
   for (const selector of selectors) {
