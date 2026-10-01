@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import fixture from './fixtures/otkar-contract.json';
+import modelAnalysis from './fixtures/otkar-model-analysis.json';
 import { validateAnalysis, validateWrittenDraft, supportingEvidence, type SourceAnalysis } from '../src/ai/evidence';
 import type { SourceDocument } from '../src/ai/source-document';
+import { SYSTEM_PROMPT } from '../src/ai/prompt';
 
 const document=fixture.document as SourceDocument;
 const issuer=document.passages.find(p=>p.id==='kap-issuer')!;
@@ -62,5 +64,35 @@ describe('OTKAR first-person KAP identity regression',()=>{
     expect(()=>validateAnalysis(candidate,document,[],fixture.title)).toThrow('olgu değeri');
     const verified=validateAnalysis(analysis(),document,[],fixture.title);
     expect(()=>validateWrittenDraft({status:'ready',body:'Otokar 1.472.080.361 USD bedelli sözleşme imzaladı.',usedFactIds:['f1'],numericClaims:[{text:'1.472.080.361 USD bedelli',factId:'f1'}]},verified)).toThrow('değiştirilmiş sayı');
+  });
+  it('accepts the real monetary source values even when the model called a contract amount unknown',()=>{
+    const verified=validateAnalysis(structuredClone(modelAnalysis),document,[],fixture.title);
+    expect(verified.facts[0]).toMatchObject({metric:'cash_amount',value:'1.472.080.360 USD',unit:'USD',scope:'transaction'});
+    expect(verified.facts[1]).toMatchObject({metric:'cash_amount',value:'441.624.108 USD',scope:'planned'});
+    const body='Otokar, 1.472.080.360 USD bedelli zırhlı araç ihracat sözleşmesi imzaladı. Yürürlüğe girmesi resmî onay, teminat işlemleri ve avans ödemesine bağlı.';
+    expect(validateWrittenDraft({status:'ready',body,usedFactIds:['f1'],numericClaims:[{text:'1.472.080.360 USD bedelli',factId:'f1'}]},verified)).toBe(body);
+    expect(SYSTEM_PROMPT).toContain('ilk cümlede şirket adı, ana tutar ve gerçek işlem aşaması');
+  });
+  it('does not infer a currency absent from the source',()=>{
+    const candidate=analysis();candidate.facts=[{...candidate.facts[0],metric:'unknown',unit:'EUR'}];
+    expect(()=>validateAnalysis(candidate,document,[],fixture.title)).toThrow('alıntıda birim yok');
+  });
+  it('does not attach a neighbouring monetary amount to a non-monetary number',()=>{
+    const candidate=analysis();const doc=structuredClone(document);
+    const prose='Teslim edilecek araç sayısı 30 olarak belirlenmiştir; başka bir hizmetin bedeli 100 USD olarak açıklanmıştır.';
+    doc.passages.push({id:'different-units',text:prose,section:''});
+    candidate.facts=[{id:'f1',meaning:'Araç sayısı',value:'30',metric:'unknown',scope:'planned',unit:'USD',transactionDate:null,evidence:[{sourceId:'different-units',quote:prose,location:null}]}];
+    const verified=validateAnalysis(candidate,doc,[],fixture.title);
+    expect(verified.facts[0].metric).toBe('unknown');
+    expect(()=>validateWrittenDraft({status:'ready',body:'Otokar, 30 USD bedelli sözleşme imzaladı.',usedFactIds:['f1'],numericClaims:[{text:'30 USD bedelli',factId:'f1'}]},verified)).toThrow('finansal rakama');
+  });
+  it('does not turn a nominal TL amount into a monetary contract value',()=>{
+    const candidate=analysis();const doc=structuredClone(document);
+    const nominal='Şirketimiz, 50.000 TL nominal tutarlı pay geri almıştır.';
+    doc.passages.push({id:'nominal',text:nominal,section:''});
+    candidate.facts=[{id:'f1',meaning:'Nominal değer',value:'50.000 TL',metric:'unknown',scope:'transaction',unit:'TL',transactionDate:null,evidence:[{sourceId:'nominal',quote:nominal,location:null}]}];
+    const verified=validateAnalysis(candidate,doc,[],fixture.title);
+    expect(verified.facts[0].metric).toBe('unknown');
+    expect(()=>validateWrittenDraft({status:'ready',body:'Otokar, 50.000 TL bedelli sözleşme imzaladı.',usedFactIds:['f1'],numericClaims:[{text:'50.000 TL bedelli',factId:'f1'}]},verified)).toThrow('finansal rakama');
   });
 });

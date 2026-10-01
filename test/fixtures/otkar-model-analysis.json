@@ -1,0 +1,98 @@
+{
+  "status": "ready",
+  "event": {
+    "kind": "other",
+    "stage": "executed",
+    "direction": "none",
+    "actor": "OTOKAR OTOMOTİV VE SAVUNMA SANAYİ A.Ş.",
+    "subject": null,
+    "summary": "OTOKAR OTOMOTİV VE SAVUNMA SANAYİ A.Ş., tekerlekli zırhlı araç tedariki ve entegre lojistik destek hizmetlerini kapsayan 1.472.080.360 USD bedelli ihracat sözleşmesini imzaladı; sözleşme resmi makam onayları, teminat mektubu işlemleri ve avans ödemesi sonrasında yürürlüğe girecek.",
+    "eventDate": null,
+    "evidence": [
+      {
+        "sourceId": "p18",
+        "quote": "Şirketimiz, çeşitli tiplerde tekerlekli zırhlı araçların tedariki ile bu araçların entegre lojistik destek hizmetlerini kapsayan 1.472.080.360 USD bedelli bir ihracat sözleşmesi imzalamıştır.",
+        "location": null
+      },
+      {
+        "sourceId": "kap-issuer",
+        "quote": "OTOKAR OTOMOTİV VE SAVUNMA SANAYİ A.Ş.",
+        "location": "Resmi KAP yayıncı kimliği"
+      },
+      {
+        "sourceId": "p18",
+        "quote": "Sözleşme, gerekli resmi makam onaylarının alınması sonrası, teminat mektubu işlemlerinin tamamlanması ve avans ödemesinin yapılmasını takiben yürürlüğe girecektir.",
+        "location": null
+      }
+    ]
+  },
+  "facts": [
+    {
+      "id": "f1",
+      "meaning": "İmzalanan ihracat sözleşmesinin bedeli",
+      "value": "1.472.080.360 USD",
+      "metric": "unknown",
+      "scope": "transaction",
+      "unit": "USD",
+      "transactionDate": null,
+      "evidence": [
+        {
+          "sourceId": "p18",
+          "quote": "1.472.080.360 USD bedelli bir ihracat sözleşmesi imzalamıştır.",
+          "location": null
+        }
+      ]
+    },
+    {
+      "id": "f2",
+      "meaning": "Müşteriye temin edilecek teminat mektuplarının toplam tutarı",
+      "value": "441.624.108 USD",
+      "metric": "unknown",
+      "scope": "planned",
+      "unit": "USD",
+      "transactionDate": null,
+      "evidence": [
+        {
+          "sourceId": "p18",
+          "quote": "toplam tutarı 441.624.108 USD olan teminat mektupları müşteriye temin edilecektir.",
+          "location": null
+        }
+      ]
+    },
+    {
+      "id": "f3",
+      "meaning": "Araç teslimatlarının planlanan başlangıcı ve tamamlanma takvimi",
+      "value": "2027 yılından itibaren başlayarak partiler halinde 3 yıl içerisinde",
+      "metric": "text",
+      "scope": "planned",
+      "unit": null,
+      "transactionDate": null,
+      "evidence": [
+        {
+          "sourceId": "p19",
+          "quote": "İlgili araç teslimatlarının, 2027 yılından itibaren başlayarak partiler halinde 3 yıl içerisinde tamamlanması planlanmakta",
+          "location": null
+        }
+      ]
+    },
+    {
+      "id": "f4",
+      "meaning": "Sözleşmenin yürürlük süresi",
+      "value": "7 yıl",
+      "metric": "duration",
+      "scope": "planned",
+      "unit": "yıl",
+      "transactionDate": null,
+      "evidence": [
+        {
+          "sourceId": "p19",
+          "quote": "sözleşme 7 yıl boyunca yürürlükte kalacaktır.",
+          "location": null
+        }
+      ]
+    }
+  ],
+  "ambiguities": [
+    "Sözleşmenin karşı tarafı ve imza tarihi açıklanmamıştır."
+  ]
+}

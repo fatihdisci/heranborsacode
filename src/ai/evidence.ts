@@ -176,6 +176,20 @@ export function validateAnalysis(value:unknown,document:SourceDocument|null,atta
     if(!fact.evidence.some(ref=>normalized(ref.quote).includes(normalized(fact.value))))fail('olgu değeri kendi alıntısında yok');
     const matching=fact.evidence.filter(ref=>normalized(ref.quote).includes(normalized(fact.value)));
     if(!numbers(fact.value).every(number=>matching.some(ref=>numbers(ref.quote).some(raw=>raw.value===number.value))))fail('olgu değeri alıntıdaki sayıdan farklı');
+    // The model sometimes labels a contract/guarantee amount "unknown"
+    // because it is not cash already paid. An explicit source currency still
+    // proves a monetary value; execution is determined by scope and event,
+    // not the metric name. Never infer a currency or convert nominal/price
+    // data, and leave uncertain table cells to their existing checks.
+    if(fact.metric==='unknown' && numbers(fact.value).length && fact.unit &&
+      /^(?:(?:bin|milyon|milyar)\s+)?(?:tl|try|usd|eur|avro|euro|abd dolari|dolar|₺|\$|€)$/.test(normalizeLabel(fact.unit)) &&
+      matching.every(ref=>!registry.get(ref.sourceId)?.cell) &&
+      matching.some(ref=>normalized(ref.quote).includes(normalized(fact.value)) &&
+        (normalizeLabel(fact.value).endsWith(` ${normalizeLabel(fact.unit!)}`) ||
+          normalizeLabel(ref.quote).includes(`${normalizeLabel(fact.value)} ${normalizeLabel(fact.unit!)}`))) &&
+      !/nominal|\/(?:adet|pay)|birim fiyat/.test(normalizeLabel(contexts(matching,registry)))) {
+      fact.metric='cash_amount';
+    }
     if(fact.metric==='cash_amount' && !fact.value.trim().startsWith('(') && matching.some(ref=>normalized(ref.quote).replace(/\(\s+/g,'(').replace(/\s+\)/g,')').includes(`(${normalized(fact.value)})`)))fail('parantezle belirtilen tutarın işareti kayboldu');
     delete fact.transactionRowsOnDate;
     for(const ref of matching) {
