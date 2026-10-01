@@ -4,6 +4,7 @@ import { X_ACCOUNTS } from "../x/sources";
 import type { Env, FeedType } from "../types";
 import { listFeed, feedJoinSql, subjectTickersSql } from "../db/feed";
 import { json } from "../utils/http";
+import { MAX_PREVIOUS_DRAFT_LENGTH } from '../ai/prompt';
 import { generateTweetDraft } from "../ai/tweet";
 import { authorizeTelegramRequest } from "../security/telegram";
 import { authorizeExtension, takeExtensionRateSlot } from "../security/extension";
@@ -106,20 +107,24 @@ export async function api(request: Request, env: Env): Promise<Response | null> 
     let feedItemId: number;
     let regenerate = false;
     let instruction = '';
+    let previousDraft = '';
     try {
-      const body = await request.json<{ feedItemId?: unknown; regenerate?: unknown; instruction?: unknown }>();
+      const body = await request.json<{ feedItemId?: unknown; regenerate?: unknown; instruction?: unknown; previousDraft?: unknown }>();
       feedItemId = Number(body.feedItemId);
       if (body.regenerate !== undefined && typeof body.regenerate !== 'boolean') return json({error:'invalid_regenerate'},400);
       if (body.instruction !== undefined && typeof body.instruction !== 'string') return json({error:'invalid_instruction'},400);
+      if (body.previousDraft !== undefined && typeof body.previousDraft !== 'string') return json({error:'invalid_previous_draft'},400);
       regenerate = body.regenerate === true;
       instruction = (body.instruction as string | undefined)?.trim() ?? '';
+      previousDraft = (body.previousDraft as string | undefined)?.trim() ?? '';
     } catch { return json({ error: "invalid_json" }, 400); }
     if (!Number.isSafeInteger(feedItemId) || feedItemId < 1) return json({ error: "invalid_feed_item" }, 400);
     if (instruction.length > 500) return json({error:'instruction_too_long'},400);
+    if (previousDraft.length > MAX_PREVIOUS_DRAFT_LENGTH) return json({error:'previous_draft_too_long'},400);
     const item = await env.DB.prepare(`SELECT f.*,${subjectTickersSql} AS subject_tickers_json FROM feed_items f ${feedJoinSql} WHERE f.id=? AND f.category IS NULL`).bind(feedItemId).first<import("../types").FeedItem>();
     if (!item) return json({ error: "not_found" }, 404);
     try {
-      const draft = await generateTweetDraft(env, item, {regenerate,instruction});
+      const draft = await generateTweetDraft(env, item, {regenerate,instruction,...(previousDraft?{previousDraft}:{})});
       return json(draft);
     } catch (error) {
       console.error("AI tweet generation failed", { feedItemId, error: error instanceof Error ? error.message : String(error) });

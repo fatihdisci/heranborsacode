@@ -179,6 +179,60 @@ it('regenerates ordinary drafts and sends extra instructions without overwriting
   expect((await generateTweetDraft(configured,item)).tweet).toContain(variants[1]);
   expect(calls).toBe(3);
 });
+
+it('uses the instruction and selected draft during source analysis and writing, repairing an unchanged revision once',async()=>{
+  sql.exec("INSERT INTO feed_items(type,source,source_ref,title,url,tickers_json) VALUES ('news','Test','rss:revision','Fonun halka arzında aracı kurum bağlantısı','https://example.com/revision','[]')");
+  const item=sql.prepare("SELECT * FROM feed_items WHERE source_ref='rss:revision'").get();
+  const sourceText='Fon, aracı kurumun yönettiği halka arza katıldı. Aracı kurum konsorsiyum lideriydi. Fonun hisseleri halen elinde tutup tutmadığı bilinmiyor.';
+  const previousDraft='Fon halka arza katıldı.';
+  const instruction='Başlığı yeniden yaz; aracı kurum bağlantısını ve belirsizliği daha ayrıntılı anlat.';
+  const revised='Fonun halka arz katılımında aracı kurum bağlantısı\n\nFon, aracı kurumun konsorsiyum liderliğini üstlendiği halka arza katıldı. Fonun hisseleri halen elinde tutup tutmadığı ise bilinmiyor.';
+  const calls=[];let writerCalls=0;
+  vi.stubGlobal('fetch',vi.fn(async(url,init)=>{
+    if(url===item.url)return new Response(`<article>${sourceText}</article>`,{headers:{'content-type':'text/html'}});
+    const request=JSON.parse(init.body);calls.push(request);
+    const input=JSON.parse(request.input[0].content[0].text);
+    expect(input.target.title).toBe(item.title);
+    expect(input.revision).toEqual({requested:true,instruction,previousDraft});
+    expect(request.instructions).toContain(`KULLANICININ EK TALİMATI\n${instruction}`);
+    if(request.text.format.name==='source_analysis')return modelResponse(analysisOutput(sourceText));
+    expect(input.sourceDocument.passages[0].text).toBe(sourceText);
+    expect(request.text.verbosity).toBe('medium');
+    return modelResponse(draftOutput(++writerCalls===1?previousDraft:revised));
+  }));
+  expect((await generateTweetDraft({...env,OPENAI_API_KEY:'fake-test-key'},item,{instruction,previousDraft,regenerate:true})).tweet).toBe(revised);
+  expect(calls).toHaveLength(3);
+  expect(calls[2].instructions).toContain('DOĞRULAMA DÜZELTMESİ');
+  expect(sql.prepare('SELECT count(*) n FROM ai_tweet_drafts').get().n).toBe(0);
+});
+
+it('does not deliver an unchanged instructed revision after its bounded repair',async()=>{
+  sql.exec("INSERT INTO feed_items(type,source,source_ref,title,url,tickers_json) VALUES ('news','Test','rss:unchanged','Yeni sözleşme','https://example.com/unchanged','[\"OTKAR\"]')");
+  const item=sql.prepare("SELECT * FROM feed_items WHERE source_ref='rss:unchanged'").get();
+  const body='Şirket sözleşme imzaladı.';let calls=0;
+  vi.stubGlobal('fetch',vi.fn(async(url,init)=>{
+    if(url===item.url)return new Response(`<article>${body}</article>`,{headers:{'content-type':'text/html'}});
+    const request=JSON.parse(init.body);calls++;
+    return modelResponse(request.text.format.name==='source_analysis'?analysisOutput(body):draftOutput(body));
+  }));
+  await expect(generateTweetDraft({...env,OPENAI_API_KEY:'fake-test-key'},item,{instruction:'Başlığı da yaz.',previousDraft:`#OTKAR\n\n${body}`})).rejects.toThrow('önceki taslakla aynı');
+  expect(calls).toBe(3);
+  expect(sql.prepare('SELECT count(*) n FROM ai_tweet_drafts').get().n).toBe(0);
+});
+
+it('accepts a requested paragraph-only revision without calling it unchanged',async()=>{
+  sql.exec("INSERT INTO feed_items(type,source,source_ref,title,url,tickers_json) VALUES ('news','Test','rss:paragraph','Yeni sözleşme','https://example.com/paragraph','[]')");
+  const item=sql.prepare("SELECT * FROM feed_items WHERE source_ref='rss:paragraph'").get();
+  const previousDraft='Şirketten yeni sözleşme. Şirket sözleşme imzaladı.';
+  const body='Şirketten yeni sözleşme.\n\nŞirket sözleşme imzaladı.';let calls=0;
+  vi.stubGlobal('fetch',vi.fn(async(url,init)=>{
+    if(url===item.url)return new Response(`<article>${previousDraft}</article>`,{headers:{'content-type':'text/html'}});
+    const request=JSON.parse(init.body);calls++;
+    return modelResponse(request.text.format.name==='source_analysis'?analysisOutput(previousDraft):draftOutput(body));
+  }));
+  expect((await generateTweetDraft({...env,OPENAI_API_KEY:'fake-test-key'},item,{instruction:'Başlığı ayrı satıra al.',previousDraft})).tweet).toBe(body);
+  expect(calls).toBe(2);
+});
 it('invalidates cached drafts when source facts change and refuses unreadable evidence',async()=>{
   sql.exec("INSERT INTO feed_items(type,source,source_ref,title,body,url,tickers_json) VALUES ('news','Test','rss:updated','Kredi','Eski özet','https://example.com/updated','[]')");
   const item=sql.prepare("SELECT * FROM feed_items WHERE source_ref='rss:updated'").get();

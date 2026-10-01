@@ -82,7 +82,7 @@ it('adds tweet revision buttons and regenerates as a reply to the selected draft
   await deliverOne(env);
   const regenerate=cb('regen',`tweetregen:${firstId}`);regenerate.callback_query.message.message_id=100;
   await handleCallback(env,regenerate,ctx);await processAction(env,'tweet');
-  expect(generateTweetDraft).toHaveBeenLastCalledWith(env,{...item,subject_tickers_json:null},{regenerate:true,instruction:''});
+  expect(generateTweetDraft).toHaveBeenLastCalledWith(env,{...item,subject_tickers_json:null},{regenerate:true,instruction:'',previousDraft:'#THYAO\n\nDoğal bir tweet.'});
   expect(payload()).toMatchObject({replyTo:100,keyboard:[[
     {text:'🔄 Yeniden oluştur'}, {text:'✎ Ek talimat ver'},
   ]]});
@@ -96,8 +96,16 @@ it('accepts a reply to a draft as an AI instruction and caps it at 500 character
     action:'tweet_instruction',instruction:'Daha kısa yaz, tutarı öne çıkar',reply_to:100,
   });
   await processAction(env,'tweet');
-  expect(generateTweetDraft).toHaveBeenLastCalledWith(env,{...item,subject_tickers_json:null},{regenerate:true,instruction:'Daha kısa yaz, tutarı öne çıkar'});
+  expect(generateTweetDraft).toHaveBeenLastCalledWith(env,{...item,subject_tickers_json:null},{regenerate:true,instruction:'Daha kısa yaz, tutarı öne çıkar',previousDraft:'#THYAO\n\nDoğal bir tweet.'});
   expect(payload().replyTo).toBe(100);
+});
+it('preserves an instruction when regenerating its revised draft',async()=>{
+  await handleCallback(env,cb('tweet','tweet:1'),ctx);await processAction(env,'tweet');await deliverOne(env);
+  const parent=sql.prepare("SELECT id FROM telegram_actions WHERE action='tweet'").get().id;
+  sql.prepare('UPDATE telegram_actions SET instruction=?,result_text=? WHERE id=?').run('Bağlantıyı daha ayrıntılı anlat.','Yeni başlık\n\nÖnceki ayrıntılı metin.',parent);
+  const regenerate=cb('regen-custom',`tweetregen:${parent}`);regenerate.callback_query.message.message_id=100;
+  await handleCallback(env,regenerate,ctx);await processAction(env,'tweet');
+  expect(generateTweetDraft).toHaveBeenLastCalledWith(env,{...item,subject_tickers_json:null},{regenerate:true,instruction:'Bağlantıyı daha ayrıntılı anlat.',previousDraft:'Yeni başlık\n\nÖnceki ayrıntılı metin.'});
 });
 it('reports AI errors without automatically repeating a chargeable request',async()=>{
   vi.mocked(generateTweetDraft).mockRejectedValue(new Error('failure'));

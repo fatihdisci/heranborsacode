@@ -71,9 +71,13 @@ export async function processAction(env: Env, lane: ActionLane): Promise<number 
     let payload: DeliveryPayload;
     let result: string | null = null;
     if (job.action === 'tweet' || job.action === 'tweet_regenerate' || job.action === 'tweet_instruction') {
+      const previous=job.page_ref ? await env.DB.prepare(`SELECT result_text FROM telegram_actions
+        WHERE id=? AND feed_item_id=? AND status='done' AND action IN (${TWEET_ACTIONS})`)
+        .bind(job.page_ref,job.feed_item_id).first<{result_text:string|null}>() : null;
       const draft = await generateTweetDraft(env,item,{
         regenerate: job.action !== 'tweet',
-        instruction: job.action === 'tweet_instruction' ? job.instruction ?? '' : '',
+        instruction: job.instruction ?? '',
+        ...(previous?.result_text?{previousDraft:previous.result_text}:{}),
       });
       payload = {text:draft.tweet,plain:true,replyTo:job.reply_to,keyboard:tweetDraftKeyboard(job.id)};
       result = draft.tweet;

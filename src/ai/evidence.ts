@@ -1,4 +1,5 @@
 import { normalizeLabel, proseScopeFor, type Metric, type Scope, type SourceCell, type SourceDocument } from './source-document';
+import { MAX_DRAFT_BODY_LENGTH } from './prompt';
 import { shareActivity } from '../kap/share-activity';
 
 export interface EvidenceRef { sourceId: string; quote: string; location: string | null; }
@@ -296,7 +297,7 @@ export function supportingEvidence(analysis:SourceAnalysis,document:SourceDocume
 }
 
 function claimSentence(body:string,start:number,end:number):string {
-  const boundaries=[...body.matchAll(/[.!?;]\s+/g)].map(match=>match.index!+match[0].length);
+  const boundaries=[...body.matchAll(/[.!?;]\s+|\n+/g)].map(match=>match.index!+match[0].length);
   const left=boundaries.filter(index=>index<=start).at(-1)??0;
   const right=boundaries.find(index=>index>=end)??body.length;
   return body.slice(left,right);
@@ -341,7 +342,7 @@ function validateNumericMeaning(claim:string,fact:VerifiedFact,shareEvent:boolea
 
 export function validateWrittenDraft(value:unknown,analysis:SourceAnalysis):string {
   const draft=value as WrittenDraft;
-  if(!draft || draft.status!=='ready' || !text(draft.body,600))fail('tweetin kaynak ve anlam kontrolü geçilemedi');
+  if(!draft || draft.status!=='ready' || !text(draft.body,MAX_DRAFT_BODY_LENGTH))fail('tweetin kaynak ve anlam kontrolü geçilemedi');
   if(!Array.isArray(draft.usedFactIds) || draft.usedFactIds.length>12 || !Array.isArray(draft.numericClaims) || draft.numericClaims.length>30)fail('tweet kanıt eşleştirmesi eksik');
   const facts=new Map(analysis.facts.map(fact=>[fact.id,fact]));
   if(!draft.usedFactIds.every(id=>typeof id==='string' && facts.has(id)))fail('tweet bilinmeyen olgu kullandı');
@@ -376,6 +377,6 @@ export function validateWrittenDraft(value:unknown,analysis:SourceAnalysis):stri
       throw error;
     }
   }
-  if(/\n|https?:\/\/|#[\p{L}\p{N}]|```|^[\s]*[-*]/u.test(draft.body))fail('tweet gövde biçimi hatalı');
+  if(/https?:\/\/|#[\p{L}\p{N}]|```|^\s*[-*]/mu.test(draft.body))fail('tweet gövde biçimi hatalı');
   return draft.body.trim();
 }

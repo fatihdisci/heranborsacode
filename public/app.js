@@ -201,7 +201,7 @@ async function createTweet(item, button, regenerate = false) {
     const response = await fetch("/api/tweet-draft", {
       method: "POST",
       headers: { "content-type": "application/json", "x-telegram-init-data": telegram?.initData || "" },
-      body: JSON.stringify({ feedItemId: item.id, regenerate, instruction: tweetInstruction.value.trim() }),
+      body: JSON.stringify({ feedItemId: item.id, regenerate, instruction: tweetInstruction.value.trim(), previousDraft: regenerate ? tweetDraft.value.trim() : '' }),
     });
     let data = {};
     try { data = await response.json(); } catch { /* non-JSON gateway response */ }

@@ -25,3 +25,11 @@ it('rejects oversized and malformed instructions before calling AI',async()=>{
   expect((await api(request({feedItemId:1,regenerate:'yes'}),env)).status).toBe(400);
   expect(generateTweetDraft).not.toHaveBeenCalled();
 });
+
+it('forwards the selected draft and rejects malformed or oversized revision context',async()=>{
+  expect((await api(request({feedItemId:1,regenerate:true,instruction:'Başlığı değiştir.',previousDraft:'Önceki başlık\n\nAçıklama.'}),env)).status).toBe(200);
+  expect(generateTweetDraft).toHaveBeenCalledWith(env,item,{regenerate:true,instruction:'Başlığı değiştir.',previousDraft:'Önceki başlık\n\nAçıklama.'});
+  vi.mocked(generateTweetDraft).mockClear();
+  for(const previousDraft of [42,'x'.repeat(3601)])expect((await api(request({feedItemId:1,previousDraft}),env)).status).toBe(400);
+  expect(generateTweetDraft).not.toHaveBeenCalled();
+});

@@ -11,6 +11,25 @@ const title='Payların Geri Alınmasına İlişkin Bildirim';
 const document=fixture.document as SourceDocument;
 const fresh=()=>structuredClone(fixture.analysis) as SourceAnalysis;
 
+it('allows a rewritten headline and longer paragraphs but validates numbers in the headline too',()=>{
+  const analysis=validateAnalysis(fresh(),document,[],title);
+  const head='EGEYAPI Avrupa GYO’dan 93.546 adet pay geri alımı';
+  const body=`${head}\n\nEGEYAPI Avrupa GYO, geri alım programı kapsamında kendi paylarını geri aldı.`;
+  const draft={status:'ready',body,usedFactIds:['f2'],numericClaims:[{text:'93.546 adet pay',factId:'f2'}]};
+  expect(validateWrittenDraft(draft,analysis)).toBe(body);
+  expect(()=>validateWrittenDraft({...draft,body:body.replace('93.546','93.547')},analysis)).toThrow();
+  expect(()=>validateWrittenDraft({...draft,numericClaims:[]},analysis)).toThrow('kanıtsız sayı');
+});
+
+it('does not impose the old short-tweet ceiling on Premium drafts and retains a delivery size bound',()=>{
+  const analysis=validateAnalysis(fresh(),document,[],title);
+  const paragraph='Şirket, geri alım programı kapsamında paylarını geri aldı. ';
+  const body='Pay geri alımı\n\n'+paragraph.repeat(35).trim();
+  expect(body.length).toBeGreaterThan(1800);
+  expect(validateWrittenDraft({status:'ready',body,usedFactIds:[],numericClaims:[]},analysis)).toBe(body);
+  expect(()=>validateWrittenDraft({status:'ready',body:paragraph.repeat(60),usedFactIds:[],numericClaims:[]},analysis)).toThrow();
+});
+
 describe('EGEGY real disclosure and model response regression',()=>{
   it('restores an equivalent date fact to the exact quoted source spelling',()=>{
     const result=validateAnalysis(fresh(),document,[],title);

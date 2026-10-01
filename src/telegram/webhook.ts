@@ -20,7 +20,7 @@ interface IncomingMessage {
 }
 
 type TweetAction = 'tweet' | 'tweet_regenerate' | 'tweet_instruction';
-interface TweetDraftRef { id: string; feed_item_id: number; }
+interface TweetDraftRef { id: string; feed_item_id: number; instruction?: string | null; }
 
 const BOT_COMMANDS = [
   {command:'start',description:'Heran Borsa ana menüsü'},
@@ -45,7 +45,7 @@ async function answer(env: Env, id: string, text: string): Promise<void> {
 }
 
 async function findTweetDraft(env: Env, actionId: string, messageId: number): Promise<TweetDraftRef | null> {
-  return env.DB.prepare(`SELECT a.id,a.feed_item_id FROM telegram_actions a
+  return env.DB.prepare(`SELECT a.id,a.feed_item_id,a.instruction FROM telegram_actions a
     JOIN telegram_outbox q ON q.id='action:'||a.id
     JOIN feed_items f ON f.id=a.feed_item_id
     WHERE a.id=? AND q.message_id=? AND q.kind='action_reply' AND a.action IN ('tweet','tweet_regenerate','tweet_instruction')
@@ -88,7 +88,7 @@ export async function handleCallback(env: Env, value: unknown, ctx: Pick<Executi
       return json({ok:true});
     }
     const queued = await queueTweetAction(env,{callbackId:cb.id,action:'tweet_regenerate',itemId:target.feed_item_id,
-      replyTo:cb.message.message_id,parentActionId:target.id});
+      replyTo:cb.message.message_id,parentActionId:target.id,instruction:target.instruction ?? undefined});
     ack(queued ? 'Yeni taslak hazırlanıyor; bu mesajın altında görünecek.' : 'Bu taslak için istek zaten alındı. Biraz bekleyin.');
     await wakeActions(env,'tweet');
     return json({ok:true});
