@@ -114,12 +114,12 @@ it('reports AI errors without automatically repeating a chargeable request',asyn
   expect(sql.prepare('SELECT status FROM telegram_actions').get().status).toBe('failed');
   expect(JSON.parse(sql.prepare('SELECT result_text FROM telegram_actions').get().result_text)).toEqual({error:'action_failed'});
 });
-it('persists a safe validation reason while keeping the Telegram reply concise',async()=>{
-  vi.mocked(generateTweetDraft).mockRejectedValue(new Error('Kaynak doğrulaması başarısız: olgu değeri kendi alıntısında yok'));
+it('persists a safe source error while keeping the Telegram reply concise',async()=>{
+  vi.mocked(generateTweetDraft).mockRejectedValue(new Error('Kaynak HTTP 503'));
   await handleCallback(env,cb('tweet','tweet:1'),ctx);await processAction(env,'tweet');
   const result=JSON.parse(sql.prepare('SELECT result_text FROM telegram_actions').get().result_text);
-  expect(result.error).toContain('olgu değeri kendi alıntısında yok');
-  expect(payload().text).not.toContain('olgu değeri');
+  expect(result.error).toBe('Kaynak HTTP 503');
+  expect(payload().text).not.toContain('503');
 });
 it('recovers an expired processing lease with an explicit error, never repeating AI automatically',async()=>{
   await handleCallback(env,cb('tweet','tweet:1'),ctx);

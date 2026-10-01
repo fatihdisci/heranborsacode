@@ -10,83 +10,6 @@ beforeEach(()=>{({sql,env}=database());});
 afterEach(()=>{sql.close();vi.unstubAllGlobals();});
 const source={name:'Test Ekonomi',url:'https://example.com/rss'};
 function rss(amount,date=new Date()) {return `<rss><channel><item><title>Vestel yeni sözleşme imzaladı</title><link>https://example.com/news/1</link><description>Vestel, ${amount} milyon TL tutarında yeni sözleşme imzaladı.</description><pubDate>${date.toUTCString()}</pubDate></item></channel></rss>`;}
-function analysisOutput(sourceText,facts=[],sourceId='p1') {
-  return {status:'ready',event:{kind:'other',stage:sourceText.includes('başvurdu')?'application':sourceText.includes('onaylandı')||sourceText.includes('onayladı')?'approval':'executed',direction:'none',actor:null,subject:null,summary:sourceText,eventDate:null,evidence:[{sourceId,quote:sourceText,location:sourceId.startsWith('attachment-')?'Sayfa 1':null}]},facts,ambiguities:[]};
-}
-function draftOutput(body,usedFactIds=[],numericClaims=[]) {return {status:'ready',body,usedFactIds,numericClaims};}
-function modelResponse(output,status='completed') {return new Response(JSON.stringify({status,output_text:JSON.stringify(output)}));}
-it('carries a resolved first-person KAP issuer into the writer and cache without a repair call',async()=>{
-  sql.exec("INSERT INTO feed_items(type,source,source_ref,title,url,tickers_json) VALUES ('kap','KAP','kap:1670620','Özel Durum Açıklaması (Genel)','https://www.kap.org.tr/tr/Bildirim/1670620','[\"OTKAR\"]')");
-  const item=sql.prepare('SELECT * FROM feed_items').get();
-  const issuer=otkarSource.document.passages.find(p=>p.id==='kap-issuer').text;
-  const sourceText=otkarSource.document.passages.find(p=>p.text.startsWith('Şirketimiz, çeşitli tiplerde')).text;
-  const stream=JSON.stringify([1,JSON.stringify({disclosureBasic:{disclosureIndex:1670620,attachmentCount:0,companyTitle:issuer},attachments:[]})]);
-  const calls=[];
-  const body='Otokar, tekerlekli zırhlı araç tedariki ve entegre lojistik destek için ihracat sözleşmesi imzaladı. Yürürlüğe girmesi resmî onay, teminat işlemleri ve avans ödemesine bağlı.';
-  vi.stubGlobal('fetch',vi.fn(async(url,init)=>{
-    if(url===item.url)return new Response(`<div class="disclosureScrollableArea"><p>${sourceText}</p></div><script>self.__next_f.push(${stream})</script>`,{headers:{'content-type':'text/html'}});
-    const request=JSON.parse(init.body);calls.push(request);
-    if(request.text.format.name==='source_analysis')return modelResponse({
-      ...analysisOutput(sourceText),event:{...analysisOutput(sourceText).event,actor:issuer,subject:issuer},
-    });
-    const evidence=JSON.parse(request.input[0].content[0].text);
-    expect(evidence.supportingEvidence).toContainEqual(expect.objectContaining({id:'kap-issuer',text:issuer}));
-    expect(evidence.verifiedEvent.evidence).toContainEqual({sourceId:'kap-issuer',quote:issuer,location:null});
-    return modelResponse(draftOutput(body));
-  }));
-  expect(await generateTweetDraft({...env,OPENAI_API_KEY:'fake-test-key'},item)).toEqual({tweet:`#OTKAR\n\n${body}`,cached:false});
-  expect(calls).toHaveLength(2);
-  const audit=JSON.parse(sql.prepare('SELECT evidence_json FROM ai_tweet_drafts').get().evidence_json);
-  expect(audit.analysis.event.evidence).toContainEqual({sourceId:'kap-issuer',quote:issuer,location:null});
-  expect(audit.repairs).toEqual({analysis:false,writer:false});
-});
-it.each(['source_analysis','tweet_writer'])('repairs one invalid %s output with source evidence and records the repair',async phase=>{
-  sql.exec("INSERT INTO feed_items(type,source,source_ref,title,url,tickers_json) VALUES ('news','Test','rss:repair','Sözleşme','https://example.com/repair','[]')");
-  const item=sql.prepare('SELECT * FROM feed_items').get();
-  const sourceText='Şirket, 2 milyon avroluk sözleşme imzaladı.';
-  const fact={id:'f1',meaning:'Tutar',value:'2 milyon avro',metric:'cash_amount',scope:'unknown',unit:'avro',transactionDate:null,evidence:[{sourceId:'p1',quote:'2 milyon avroluk sözleşme',location:null}]};
-  const calls=[];
-  vi.stubGlobal('fetch',vi.fn(async(url,init)=>{
-    if(url===item.url)return new Response(`<article>${sourceText}</article>`,{headers:{'content-type':'text/html'}});
-    const body=JSON.parse(init.body);calls.push(body);
-    const current=body.text.format.name;
-    const invalid=current===phase && calls.filter(call=>call.text.format.name===phase).length===1;
-    if(current==='source_analysis')return modelResponse(analysisOutput(sourceText,[{...fact,value:invalid?'3 milyon avro':fact.value}]));
-    return modelResponse(draftOutput(invalid?'Şirket, 3 milyon avroluk sözleşme imzaladı.':sourceText,['f1'],[{text:invalid?'3 milyon avroluk sözleşme':'2 milyon avroluk sözleşme',factId:'f1'}]));
-  }));
-  const result=await generateTweetDraft({...env,OPENAI_API_KEY:'fake-test-key'},item);
-  expect(result.tweet).toBe(sourceText);expect(calls).toHaveLength(3);
-  const correction=calls.filter(call=>call.text.format.name===phase)[1];
-  expect(correction.instructions).toContain('DOĞRULAMA DÜZELTMESİ');
-  expect(JSON.parse(correction.input[0].content.at(-1).text).validationError).toContain('Kaynak doğrulaması başarısız');
-  const audit=JSON.parse(sql.prepare('SELECT evidence_json FROM ai_tweet_drafts').get().evidence_json);
-  expect(audit.repairs).toEqual({analysis:phase==='source_analysis',writer:phase==='tweet_writer'});
-});
-it('stops after one unsuccessful correction and never caches an invalid draft',async()=>{
-  sql.exec("INSERT INTO feed_items(type,source,source_ref,title,url) VALUES ('news','Test','rss:bad-repair','Sözleşme','https://example.com/bad-repair')");
-  const item=sql.prepare('SELECT * FROM feed_items').get();let calls=0;
-  vi.stubGlobal('fetch',vi.fn(async(url)=>{
-    if(url===item.url)return new Response('<article>Şirket sözleşme imzaladı.</article>',{headers:{'content-type':'text/html'}});
-    calls++;return modelResponse(analysisOutput('Kaynakta olmayan olay.'));
-  }));
-  await expect(generateTweetDraft({...env,OPENAI_API_KEY:'fake-test-key'},item)).rejects.toThrow('alıntı kaynak');
-  expect(calls).toBe(2);expect(sql.prepare('SELECT COUNT(*) n FROM ai_tweet_drafts').get().n).toBe(0);
-});
-it.each(['api_error','conflict','reject'])('does not retry %s as an evidence correction',async failure=>{
-  sql.exec("INSERT INTO feed_items(type,source,source_ref,title,url) VALUES ('news','Test','rss:no-retry','Sözleşme','https://example.com/no-retry')");
-  const item=sql.prepare('SELECT * FROM feed_items').get();let calls=0;
-  const sourceText='Şirket sözleşme imzaladı.';
-  vi.stubGlobal('fetch',vi.fn(async(url,init)=>{
-    if(url===item.url)return new Response(`<article>${sourceText}</article>`,{headers:{'content-type':'text/html'}});
-    calls++;
-    if(failure==='api_error')return new Response('upstream unavailable',{status:503});
-    if(JSON.parse(init.body).text.format.name==='source_analysis')return modelResponse({...analysisOutput(sourceText),status:failure==='conflict'?'conflict':'ready'});
-    return modelResponse({status:'reject',body:'',usedFactIds:[],numericClaims:[]});
-  }));
-  await expect(generateTweetDraft({...env,OPENAI_API_KEY:'fake-test-key'},item)).rejects.toThrow();
-  expect(calls).toBe(failure==='reject'?2:1);
-  expect(sql.prepare('SELECT COUNT(*) n FROM ai_tweet_drafts').get().n).toBe(0);
-});
 it('handles RSS revisions and repeated polls without sending Telegram during ingestion',async()=>{
   sql.prepare("INSERT INTO system_state(key,value) VALUES (?,'1')").run('rss_baseline:'+source.url);
   let amount=10;
@@ -135,136 +58,105 @@ it('groups 100 DKBs into one accepted message and preserves all references',asyn
   expect(sql.prepare("SELECT count(*) AS n FROM telegram_outbox WHERE status='sent' AND source_ref IS NOT NULL").get().n).toBe(100);
   expect(mock).toHaveBeenCalledTimes(1);
 });
-it('keeps GPT-6 Luna, separates source data, caches validated output and rejects truncation',async()=>{
-  sql.exec("INSERT INTO feed_items(type,source,source_ref,title,body,url,tickers_json) VALUES ('news','Test','rss:ai','Vestel sözleşme','2 milyon avro','https://example.com/news','[\"VESTL\"]')");
-  const item=sql.prepare('SELECT * FROM feed_items').get();
-  let incomplete=false;
-  const mock=vi.fn(async(url,init)=>{
-    if(url===item.url) return new Response('<article>Vestel, 2 milyon avroluk sözleşme imzaladı.</article>',{headers:{'content-type':'text/html'}});
-    const body=JSON.parse(init.body);expect(body.model).toBe('gpt-6-luna');expect(body.instructions).toContain('brüt/net');
-    expect(JSON.parse(body.input[0].content[0].text).target.url).toBe(item.url);
-    const fact={id:'f1',meaning:'Sözleşme tutarı',value:'2 milyon avro',metric:'cash_amount',scope:'unknown',unit:'avro',transactionDate:null,evidence:[{sourceId:'p1',quote:'2 milyon avroluk sözleşme',location:null}]};
-    const output=body.text.format.name==='source_analysis'?analysisOutput('Vestel, 2 milyon avroluk sözleşme imzaladı.',[fact]):draftOutput('Vestel, 2 milyon avroluk sözleşme imzaladığını açıkladı.',['f1'],[{text:'2 milyon avroluk sözleşme',factId:'f1'}]);
-    return modelResponse(output,incomplete?'incomplete':'completed');
-  });
-  vi.stubGlobal('fetch',mock);
-  const result=await generateTweetDraft({...env,OPENAI_API_KEY:'test-fake'},item);
-  expect(result.tweet).toBe('#VESTL\n\nVestel, 2 milyon avroluk sözleşme imzaladığını açıkladı.');
-  expect((await generateTweetDraft({...env,OPENAI_API_KEY:'test-fake'},item)).cached).toBe(true);
-  expect(mock).toHaveBeenCalledTimes(4);
-  sql.exec('DELETE FROM ai_tweet_drafts');incomplete=true;
-  await expect(generateTweetDraft({...env,OPENAI_API_KEY:'test-fake'},item)).rejects.toThrow('tamamlanmadı');
-  expect(sql.prepare('SELECT count(*) AS n FROM ai_tweet_drafts').get().n).toBe(0);
-});
-it('regenerates ordinary drafts and sends extra instructions without overwriting the ordinary cache',async()=>{
-  sql.exec("INSERT INTO feed_items(type,source,source_ref,title,body,url,tickers_json) VALUES ('news','Test','rss:custom','Sözleşme','Özet','https://example.com/custom','[]')");
-  const item=sql.prepare("SELECT * FROM feed_items WHERE source_ref='rss:custom'").get();
-  const instructions=[];
-  const variants=['Şirket sözleşme imzaladı.','Şirket, sözleşmeye imza attı.','Şirket bir sözleşme imzaladığını açıkladı.'];
-  let calls=0;
-  vi.stubGlobal('fetch',vi.fn(async(url,init)=>{
-    if(url===item.url) return new Response('<article>Şirket sözleşme imzaladı.</article>',{headers:{'content-type':'text/html'}});
-    const body=JSON.parse(init.body);
-    if(body.text.format.name==='source_analysis')return modelResponse(analysisOutput('Şirket sözleşme imzaladı.'));
-    instructions.push(body.instructions);calls++;
-    return modelResponse(draftOutput(variants[calls-1]));
-  }));
-  const configured={...env,OPENAI_API_KEY:'test-fake'};
-  expect((await generateTweetDraft(configured,item)).tweet).toContain(variants[0]);
-  expect((await generateTweetDraft(configured,item)).cached).toBe(true);
-  expect((await generateTweetDraft(configured,item,{regenerate:true})).tweet).toContain(variants[1]);
-  expect((await generateTweetDraft(configured,item,{instruction:'Rakamı ilk cümlede vurgula.'})).tweet).toContain(variants[2]);
-  expect(instructions[2]).toContain('KULLANICININ EK TALİMATI\nRakamı ilk cümlede vurgula.');
-  expect(instructions[2]).toContain('Heran Borsa');
-  expect((await generateTweetDraft(configured,item)).tweet).toContain(variants[1]);
-  expect(calls).toBe(3);
-});
-
-it('uses the instruction and selected draft during source analysis and writing, repairing an unchanged revision once',async()=>{
-  sql.exec("INSERT INTO feed_items(type,source,source_ref,title,url,tickers_json) VALUES ('news','Test','rss:revision','Fonun halka arzında aracı kurum bağlantısı','https://example.com/revision','[]')");
-  const item=sql.prepare("SELECT * FROM feed_items WHERE source_ref='rss:revision'").get();
-  const sourceText='Fon, aracı kurumun yönettiği halka arza katıldı. Aracı kurum konsorsiyum lideriydi. Fonun hisseleri halen elinde tutup tutmadığı bilinmiyor.';
-  const previousDraft='Fon halka arza katıldı.';
-  const instruction='Başlığı yeniden yaz; aracı kurum bağlantısını ve belirsizliği daha ayrıntılı anlat.';
-  const revised='Fonun halka arz katılımında aracı kurum bağlantısı\n\nFon, aracı kurumun konsorsiyum liderliğini üstlendiği halka arza katıldı. Fonun hisseleri halen elinde tutup tutmadığı ise bilinmiyor.';
-  const calls=[];let writerCalls=0;
+function modelResponse(body,status='completed') {return new Response(JSON.stringify({status,output_text:JSON.stringify({status:'ready',body})}));}
+function newsItem() {
+  sql.exec("INSERT INTO feed_items(type,source,source_ref,title,url,tickers_json) VALUES ('news','Test','rss:direct','Şirketin yeni sözleşmesi','https://example.com/news','[\"VESTL\"]')");
+  return sql.prepare('SELECT * FROM feed_items').get();
+}
+it('sends full source and title directly in one call without fact or numeric gates',async()=>{
+  const item=newsItem();let calls=0;
+  const sourceText='Şirket 2 milyon avroluk sözleşme imzaladı. İşin tamamlanması resmi onaya bağlı.';
+  const body='Şirketten 2 milyon avroluk sözleşme\n\nŞirket yeni sözleşmeye imza attı. İşin tamamlanması resmi onaya bağlı.';
   vi.stubGlobal('fetch',vi.fn(async(url,init)=>{
     if(url===item.url)return new Response(`<article>${sourceText}</article>`,{headers:{'content-type':'text/html'}});
-    const request=JSON.parse(init.body);calls.push(request);
-    const input=JSON.parse(request.input[0].content[0].text);
-    expect(input.target.title).toBe(item.title);
-    expect(input.revision).toEqual({requested:true,instruction,previousDraft});
-    expect(request.instructions).toContain(`KULLANICININ EK TALİMATI\n${instruction}`);
-    if(request.text.format.name==='source_analysis')return modelResponse(analysisOutput(sourceText));
-    expect(input.sourceDocument.passages[0].text).toBe(sourceText);
-    expect(request.text.verbosity).toBe('medium');
-    return modelResponse(draftOutput(++writerCalls===1?previousDraft:revised));
+    calls++;const request=JSON.parse(init.body),input=JSON.parse(request.input[0].content[0].text);
+    expect(request.model).toBe('gpt-6-luna');expect(request.reasoning.effort).toBe('medium');
+    expect(request.text.format.schema.required).toEqual(['status','body']);
+    expect(input.target.title).toBe(item.title);expect(input.target.url).toBe(item.url);
+    expect(input.sourceText).toContain(sourceText);expect(input.sourceDocument.passages[0].text).toBe(sourceText);
+    expect(request.instructions).toContain('280 karaktere sığdırmak veya kısa yazmak zorunda değilsin');
+    return modelResponse(body);
   }));
-  expect((await generateTweetDraft({...env,OPENAI_API_KEY:'fake-test-key'},item,{instruction,previousDraft,regenerate:true})).tweet).toBe(revised);
-  expect(calls).toHaveLength(3);
-  expect(calls[2].instructions).toContain('DOĞRULAMA DÜZELTMESİ');
-  expect(sql.prepare('SELECT count(*) n FROM ai_tweet_drafts').get().n).toBe(0);
+  expect(await generateTweetDraft({...env,OPENAI_API_KEY:'test-key'},item)).toEqual({tweet:`#VESTL\n\n${body}`,cached:false});
+  expect(calls).toBe(1);
+  expect(JSON.parse(sql.prepare('SELECT evidence_json FROM ai_tweet_drafts').get().evidence_json)).toMatchObject({mode:'direct'});
 });
-
-it('does not deliver an unchanged instructed revision after its bounded repair',async()=>{
-  sql.exec("INSERT INTO feed_items(type,source,source_ref,title,url,tickers_json) VALUES ('news','Test','rss:unchanged','Yeni sözleşme','https://example.com/unchanged','[\"OTKAR\"]')");
-  const item=sql.prepare("SELECT * FROM feed_items WHERE source_ref='rss:unchanged'").get();
-  const body='Şirket sözleşme imzaladı.';let calls=0;
+it('includes the official KAP issuer and disclosure text directly in the draft request',async()=>{
+  sql.exec("INSERT INTO feed_items(type,source,source_ref,title,url,tickers_json) VALUES ('kap','KAP','kap:1670620','Özel Durum Açıklaması (Genel)','https://www.kap.org.tr/tr/Bildirim/1670620','[\"OTKAR\"]')");
+  const item=sql.prepare('SELECT * FROM feed_items').get();
+  const issuer=otkarSource.document.passages.find(p=>p.id==='kap-issuer').text;
+  const sourceText=otkarSource.document.passages.find(p=>p.text.startsWith('Şirketimiz, çeşitli tiplerde')).text;
+  const stream=JSON.stringify([1,JSON.stringify({disclosureBasic:{disclosureIndex:1670620,attachmentCount:0,companyTitle:issuer},attachments:[]})]);let calls=0;
   vi.stubGlobal('fetch',vi.fn(async(url,init)=>{
-    if(url===item.url)return new Response(`<article>${body}</article>`,{headers:{'content-type':'text/html'}});
-    const request=JSON.parse(init.body);calls++;
-    return modelResponse(request.text.format.name==='source_analysis'?analysisOutput(body):draftOutput(body));
+    if(url===item.url)return new Response(`<div class="disclosureScrollableArea"><p>${sourceText}</p></div><script>self.__next_f.push(${stream})</script>`,{headers:{'content-type':'text/html'}});
+    calls++;const input=JSON.parse(JSON.parse(init.body).input[0].content[0].text);
+    expect(input.sourceDocument.passages).toContainEqual(expect.objectContaining({id:'kap-issuer',text:issuer}));
+    expect(input.sourceText).toContain(sourceText);
+    return modelResponse('Otokar yeni ihracat sözleşmesi imzaladı.');
   }));
-  await expect(generateTweetDraft({...env,OPENAI_API_KEY:'fake-test-key'},item,{instruction:'Başlığı da yaz.',previousDraft:`#OTKAR\n\n${body}`})).rejects.toThrow('önceki taslakla aynı');
-  expect(calls).toBe(3);
-  expect(sql.prepare('SELECT count(*) n FROM ai_tweet_drafts').get().n).toBe(0);
+  expect((await generateTweetDraft({...env,OPENAI_API_KEY:'test-key'},item)).tweet).toContain('#OTKAR');expect(calls).toBe(1);
 });
-
-it('accepts a requested paragraph-only revision without calling it unchanged',async()=>{
-  sql.exec("INSERT INTO feed_items(type,source,source_ref,title,url,tickers_json) VALUES ('news','Test','rss:paragraph','Yeni sözleşme','https://example.com/paragraph','[]')");
-  const item=sql.prepare("SELECT * FROM feed_items WHERE source_ref='rss:paragraph'").get();
-  const previousDraft='Şirketten yeni sözleşme. Şirket sözleşme imzaladı.';
-  const body='Şirketten yeni sözleşme.\n\nŞirket sözleşme imzaladı.';let calls=0;
-  vi.stubGlobal('fetch',vi.fn(async(url,init)=>{
-    if(url===item.url)return new Response(`<article>${previousDraft}</article>`,{headers:{'content-type':'text/html'}});
-    const request=JSON.parse(init.body);calls++;
-    return modelResponse(request.text.format.name==='source_analysis'?analysisOutput(previousDraft):draftOutput(body));
-  }));
-  expect((await generateTweetDraft({...env,OPENAI_API_KEY:'fake-test-key'},item,{instruction:'Başlığı ayrı satıra al.',previousDraft})).tweet).toBe(body);
-  expect(calls).toBe(2);
-});
-it('invalidates cached drafts when source facts change and refuses unreadable evidence',async()=>{
-  sql.exec("INSERT INTO feed_items(type,source,source_ref,title,body,url,tickers_json) VALUES ('news','Test','rss:updated','Kredi','Eski özet','https://example.com/updated','[]')");
-  const item=sql.prepare("SELECT * FROM feed_items WHERE source_ref='rss:updated'").get();
-  let html='<article>Şirket kredi limiti için başvurdu.</article>', calls=0;
-  vi.stubGlobal('fetch',vi.fn(async(url,init)=>{
-    if(url===item.url)return new Response(html,{headers:{'content-type':'text/html'}});
-    const body=JSON.parse(init.body), evidence=JSON.parse(body.input[0].content[0].text);
-    expect(evidence.source.kind).toBe('article');expect(evidence.target.sourceRef).toBe(item.source_ref);
-    expect(body.reasoning.effort).toBe(body.text.format.name==='source_analysis'?'high':'medium');
-    if(body.text.format.name==='source_analysis')return modelResponse(analysisOutput(html.replace(/<[^>]+>/g,'')));
+it.each(['api','incomplete','empty','insufficient','invalid_json'])('does not cache or automatically retry a %s response',async failure=>{
+  const item=newsItem();let calls=0;
+  vi.stubGlobal('fetch',vi.fn(async(url)=>{
+    if(url===item.url)return new Response('<article>Şirket yeni sözleşme imzaladı.</article>',{headers:{'content-type':'text/html'}});
     calls++;
-    return modelResponse(draftOutput(calls===1?'Şirket kredi limiti için başvurdu.':'Şirketin kredi limiti onaylandı.'));
+    if(failure==='api')return new Response('',{status:503});
+    if(failure==='incomplete')return modelResponse('Şirket','incomplete');
+    if(failure==='empty')return modelResponse('');
+    return new Response(JSON.stringify({status:'completed',output_text:failure==='invalid_json'?'invalid':JSON.stringify({status:'insufficient',body:''})}));
   }));
-  const configured={...env,OPENAI_API_KEY:'test-fake'};
+  await expect(generateTweetDraft({...env,OPENAI_API_KEY:'test-key'},item)).rejects.toThrow();
+  expect(calls).toBe(1);expect(sql.prepare('SELECT count(*) n FROM ai_tweet_drafts').get().n).toBe(0);
+});
+it('passes revision instructions and previous draft directly while preserving the normal cache',async()=>{
+  const item=newsItem(),configured={...env,OPENAI_API_KEY:'test-key'};let calls=0;
+  const bodies=['Sözleşme imzalandı.','Şirket yeni bir sözleşmeye imza attı.','Yeni sözleşme\n\nŞirket sözleşmeye imza attı.'];
+  vi.stubGlobal('fetch',vi.fn(async(url,init)=>{
+    if(url===item.url)return new Response('<article>Şirket yeni sözleşme imzaladı.</article>',{headers:{'content-type':'text/html'}});
+    const request=JSON.parse(init.body),input=JSON.parse(request.input[0].content[0].text);
+    if(calls===2) {
+      expect(request.instructions).toContain('KULLANICININ EK TALİMATI\nBaşlığı ayrı satıra al.');
+      expect(input.revision).toEqual({requested:true,instruction:'Başlığı ayrı satıra al.',previousDraft:bodies[1]});
+    }
+    return modelResponse(bodies[calls++]);
+  }));
   await generateTweetDraft(configured,item);
-  html='<article>Şirketin kredi limiti onaylandı.</article>';
+  expect((await generateTweetDraft(configured,item)).cached).toBe(true);
+  expect((await generateTweetDraft(configured,item,{regenerate:true})).tweet).toContain(bodies[1]);
+  expect((await generateTweetDraft(configured,item,{instruction:'Başlığı ayrı satıra al.',previousDraft:bodies[1]})).tweet).toContain(bodies[2]);
+  expect((await generateTweetDraft(configured,item)).tweet).toContain(bodies[1]);expect(calls).toBe(3);
+});
+it('rereads changed source and never falls back to a headline-only draft',async()=>{
+  const item=newsItem(),configured={...env,OPENAI_API_KEY:'test-key'};let html='<article>Şirket kredi limiti için başvurdu.</article>',calls=0;
+  vi.stubGlobal('fetch',vi.fn(async(url)=>{
+    if(url===item.url)return new Response(html,{headers:{'content-type':'text/html'}});
+    calls++;return modelResponse(calls===1?'Şirket kredi limiti için başvurdu.':'Şirketin kredi limiti onaylandı.');
+  }));
+  await generateTweetDraft(configured,item);html='<article>Şirketin kredi limiti onaylandı.</article>';
   expect((await generateTweetDraft(configured,item)).cached).toBe(false);expect(calls).toBe(2);
   html='<h1>Şirketin kredi limiti onaylandı.</h1>';
   await expect(generateTweetDraft(configured,item)).rejects.toThrow('ana metni');expect(calls).toBe(2);
 });
-it('maps PDF attachments to source references and does not reuse URL-only evidence caches',async()=>{
-  sql.exec("INSERT INTO feed_items(type,source,source_ref,title,url,tickers_json) VALUES ('spk','SPK','spk:pdf','Bülten','https://example.com/bulten.pdf','[]')");
-  const item=sql.prepare("SELECT * FROM feed_items WHERE source_ref='spk:pdf'").get();let calls=0;
+it('sends PDF attachments to the same model call without reusing URL-only caches',async()=>{
+  sql.exec("INSERT INTO feed_items(type,source,source_ref,title,url) VALUES ('spk','SPK','spk:pdf','Bülten','https://example.com/bulten.pdf')");
+  const item=sql.prepare('SELECT * FROM feed_items').get();let calls=0;
   vi.stubGlobal('fetch',vi.fn(async(url,init)=>{
     if(url===item.url)return new Response('PDF',{headers:{'content-type':'application/pdf'}});
-    calls++;const requestBody=JSON.parse(init.body),content=requestBody.input[0].content;
-    const evidence=JSON.parse(content[0].text);
-    expect(evidence.source.kind).toBe('pdf');expect(evidence.attachmentReferences[0].id).toBe('attachment-1');
-    expect(JSON.parse(content[1].text).attachedSource).toBe('attachment-1');
+    calls++;const content=JSON.parse(init.body).input[0].content;
     expect(content[2]).toEqual({type:'input_file',file_url:item.url,detail:'high'});
-    return modelResponse(requestBody.text.format.name==='source_analysis'?analysisOutput('SPK başvuruyu onayladı.',[],'attachment-1'):draftOutput('SPK başvuruyu onayladı.'));
+    return modelResponse('SPK başvuruyu onayladı.');
   }));
-  const configured={...env,OPENAI_API_KEY:'test-fake'};
-  await generateTweetDraft(configured,item);expect((await generateTweetDraft(configured,item)).cached).toBe(false);expect(calls).toBe(4);
+  const configured={...env,OPENAI_API_KEY:'test-key'};
+  await generateTweetDraft(configured,item);expect((await generateTweetDraft(configured,item)).cached).toBe(false);expect(calls).toBe(2);
+});
+it('passes an X post as attributed source data in a single call',async()=>{
+  sql.exec("INSERT INTO feed_items(type,source,source_ref,title,body,url) VALUES ('news','X @test','x:1','İşlem iddiası','Şirketin işlem yapacağı iddia edildi.','https://example.com/x')");
+  const item=sql.prepare('SELECT * FROM feed_items').get();
+  vi.stubGlobal('fetch',vi.fn(async(_url,init)=>{
+    const input=JSON.parse(JSON.parse(init.body).input[0].content[0].text);
+    expect(input.source.kind).toBe('x-post');expect(input.sourceText).toContain(item.body);
+    return modelResponse('X hesabının paylaşımında şirketin işlem yapacağı iddia edildi.');
+  }));
+  await generateTweetDraft({...env,OPENAI_API_KEY:'test-key'},item);expect(fetch).toHaveBeenCalledTimes(1);
 });

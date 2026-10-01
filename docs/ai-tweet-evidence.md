@@ -1,40 +1,21 @@
-# Tweet kaynak çözümleme
+# Tweet üretim akışı
 
-Telegram ve Mini App aynı `generateTweetDraft` akışını kullanır. Çıktı yalnız hashtagler ve tweet gövdesidir; kaynak etiketi veya bağlantı eklenmez. Kaynaklar doğrulama için içeride tutulur. Taslak oluşturmak X'te yayınlama yapmaz.
+Telegram ve Mini App aynı `generateTweetDraft` akışını kullanır. `editor-v18-direct-draft`, kullanıcının inceleyip düzenleyeceği taslağı tek model çağrısıyla üretir. X üzerinde otomatik paylaşım yapılmaz.
 
-## Kaynak hazırlama
+## Kaynak
 
-KAP'ın yalnız `disclosureScrollableArea` alanı okunur. Gizli İngilizce kopyalar, menüler ve sayfa komutları elenir. Birleşik hücreler özgün koordinatlarıyla korunur; her değer için üst kolon başlıkları ve soldaki satır başlıkları çözülür. KAP'ın TD ile yazdığı açık finansal başlıklar ve iki kolonlu alan/değer formları tanınır. Bölüm başlığı, açık birim/ölçek ve işlem tarihi değere bağlı kalır. Başlıkları belirsiz veya birden fazla kolona yayılmış veri hücresinden sayı alınmaz.
+Haberin başlığı ve ana metni, KAP bildiriminin tam içeriği, tabloların satır/sütun bağlamı ve ilgili dosya ekleri modele birlikte gönderilir. Menü, reklam ve ilgisiz haberler ayıklanır. Resmî KAP yayıncı kimliği de metne eklenir; yayıncı her zaman işlemi yapan taraf değildir. PDF ekleri aynı istekte modele verilir. X paylaşımı kaynak hesaba atfedilir.
 
-KAP yayıncı adı, sayfanın resmi JSON verisindeki bildirim kimliği URL ile eşleştirilerek alınır. Yayıncı kimliği tek başına bir işlemin gerçekleştiğini veya işlemi o kurumun yaptığını kanıtlamaz. Pay alım/satımı aktörü ayrıca ana metin/tabloyla desteklenmelidir. Hashtagler akışın gerçek bildirim konusu kodlarından seçilir.
+## Tek aşamalı taslak
 
-Ana olayın özgün alıntısı açıkça “Şirketimiz” veya “Ortaklığımız” diyorsa ve analizdeki ad aynı bildirimin resmî yayıncı adıyla eşleşiyorsa, uygulama eksik `kap-issuer` kimlik referansını tamamlar. Bu referans yazım aşamasına da taşınır. `A.Ş.` / `AŞ` gibi noktalama farkları tam sözcüklerle karşılaştırılır; başka bir unvan veya sözcüğün kesilmiş parçası kabul edilmez. Bu tamamlama pay alım/satımının tarafını belirlemek için kullanılmaz; yalnız yayıncı kimliğiyle olay üretilmez.
+`gpt-6-luna`, medium değerlendirme ve 8000 çıktı tokenı üst sınırıyla yalnız `status` ve `body` döndürür. İstek 100 saniyeyle sınırlıdır. Ayrı kaynak çözümlemesi, olgu listesi, alıntı eşleştirmesi, rakam/işlem doğrulama kapısı veya ücretli otomatik onarım çağrısı çalışmaz. Eski `evidence.ts` yardımcıları tweet üretim yolunda kullanılmaz.
 
-`subject`, payları işlem gören ortaklık için ayrılmıştır; genel sözleşme/yeni iş olayında araç veya hizmet adıyla doldurulmaz, `null` bırakılır. Taraf doğrulaması başarısızsa hata bağlamı `actor` / `subject` alanını, modelin verdiği adı ve resmî yayıncı adını içerir. Sınırlı düzeltme çağrısı bu bağlamla yanlış alanı kaynak üzerinden düzeltebilir. Kaynak alıntıları ve kullanıcı ek talimatı hata günlüğüne yazılmaz.
+Kaynağa sadakat, doğru özne, alış/satış yönü, nominal/adet ayrımı, tarih, program toplamı ve gerçekleşme aşaması promptta anlatılır. Belirsiz ikincil ayrıntı çıkarılarak ana haber anlatılabilir. Başlık hafifçe yeniden yazılır; X Premium için 280 karakter hedefi yoktur. Kaynak dışı bilgi, abartı ve tekrar istenmez. Teknik gövde sınırı 3200 karakterdir.
 
-`nominal_amount`, `share_count`, `cash_amount`, `unit_price`, `percentage` farklı ölçülerdir. Tarihler `date`, ay/gün/yıl olarak süreler `duration` olur. `transaction`, `cumulative`, `prior_cumulative`, `planned`, `holding` ayrı kapsamlardır. Bilinmeyen ölçü veya birim tahmin edilmez. Aynı tarihte birden çok işlem satırı varsa tek satırın miktarı günlük toplam olarak sunulmaz. Ek Açıklamalar'da açık günlük toplam yoksa yeni bir toplam hesaplanmaz.
+Ek talimat sistem promptuna eklenir; önceki taslak ve tercih modele iletilir. Kullanıcının uzunluk, başlık ve vurgu tercihleri varsayılan yazım düzeninden önceliklidir. Uygulama dönen metni sayısal anlam kurallarıyla reddetmez.
 
-`cash_amount` parasal değeri belirtir; sözleşme bedeli veya teminat tutarı da olabilir, ödenmiş nakit anlamına gelmez. Model bir metin olgusunu `unknown` seçmişse, para birimi kaynaktaki değerle açıkça yan yana bulunduğunda uygulama parasal ölçüyü tamamlar. Nominal tutar, birim fiyat, belirsiz tablo veya farklı bir rakamın para birimi bu yolla dönüştürülmez. Yeni iş, sipariş, ihale ve sözleşme haberlerinde doğrulanmış ana tutar ilk cümlede şirket ve gerçek işlem aşamasıyla öne çıkarılır. Yürürlüğe giriş koşulları korunur; teminat/avans ana sözleşme bedelinin yerini almaz, kaynakta olmayan büyüklük nitelemesi veya fiyat etkisi eklenmez.
+## Hata ve önbellek
 
-Programın süresine veya başlangıç/bitiş tarihine parasal bütçe/toplam kontrolü uygulanmaz. Planlanan miktar ve bütçede kapsam, rakamın yer aldığı cümleden değerlendirilir; kısa sayı eşleştirmesinde “azami” sözcüğünün tekrarı aranmaz. Aynı cümlede fiili harcama/alım varsa planlanan tutar gerçekleşmiş gibi sunulamaz. Gelecek zaman “gerçekleştirilecek”, geçmiş zaman “gerçekleştirildi” ile eşleşmez.
+Okunamayan kaynak, bağlantı/API hatası, tamamlanmamış yanıt ve boş çıktı hata olarak kalır. Başlıktan veya eski özetten kaynak uydurulmaz; yarım yanıt gösterilmez. Çıktı biçimi ve teknik uzunluk kontrolü korunur.
 
-Metinde hem adet hem nominal TL açıkça yazılıysa adet kendi yanındaki birimle kabul edilir. Nominal TL'den adet türetilmez. Aynı alıntıda nominal tutar ve açıkça ödenen nakit tutar bulunması da tek başına çelişki değildir; nakit değer kendi ödeme ifadesine bağlı kalır. Pay adedi “adet” veya “pay” diye yazılabilir; lot dönüşümü yapılmaz.
-
-Metin kapsamı değerin geçtiği kaynak cümlesinden çözülür. “30 Eylül 2026 tarihinde toplam ... pay geri alınmıştır” günlük işlemdir; tek başına “toplam” program birikimi kanıtı değildir. Aynı paragraftaki sonraki sermaye oranı cümlesi günlük miktarın kapsamını değiştirmez. Tarih metadatasında “30 Eylül 2026” ve “30.09.2026” aynı gün olarak karşılaştırılır; başka bir gün kabul edilmez. `date` olgusu aynı tam takvim gününü gösteriyorsa değeri kendi alıntısındaki özgün yazıma döndürülür. Tutar, adet, yüzde ve kaynak alıntıları bu dönüşüme girmez, birebir korunur.
-
-## İki aşama ve uygulama kontrolleri
-
-1. Luna, yüksek değerlendirme düzeyinde ana olayı, aktörü, işlem yönünü, aşamayı ve en fazla 12 ilgili olguyu strict JSON schema ile çıkarır. Her olgu bir özgün pasaj/hücre kimliğine ve birebir alıntıya bağlıdır. Başlık ve kayıt özeti kanıt sayılmaz.
-2. Uygulama alıntının gerçekten o kaynakta olmasını, değerin değişmemesini, nominal/adet/tutar ayrımını, birimi, kapsamı ve hedef işlem tarihini denetler. Eski karar tarihi yeni program kararı için yeterli kanıt değildir.
-3. İkinci Luna çağrısı yalnız kabul edilen olgular, bunların özgün kanıtları ve kullanılan eklerle kısa tweet yazar. Önceki çıkarımın anlamını yeniden kontrol eder. Ek kullanıcı talimatı bu aşamada yalnız üslup için uygulanır.
-4. Gövdedeki her rakam/tarih bir olguya bağlanır. Uygulama sayıyı, nominal/adet/harcama ifadesini, kapsamı, işlem yönünü ve temel işlem aşaması kurallarını kontrol eder. Bir kontrol geçmezse taslak teslim edilmez ve önbelleğe yazılmaz.
-
-İki aşama toplam 130 saniye bütçe paylaşır; kaynak okuma 25 saniyeyle sınırlıdır. Telegram'ın 180 saniyelik işlem sahiplenmesi içinde kalır. Tamamlanmış `ready` cevabı kaynak kontrolünden geçmezse, en az 15 saniye kaldığında o aşama için en fazla bir düzeltme çağrısı yapılır. Özgün kaynak, önceki doğrulanmamış JSON ve uygulamanın hata nedeni iletilir; dönen cevap aynı kontrollerden yeniden geçer. Böylece en fazla dört model çağrısı olabilir; düzeltme çağrıları ek API kullanımına yol açar. API hataları, eksik cevap, kaynak yetersizliği, conflict/reject ve süre aşımı tekrar edilmez. Normal taslak kaynak digest'i ve prompt sürümüyle önbelleğe alınır; yeniden oluşturma önbelleği atlar. Dosya URL'lerinin içeriği değişebileceği için ekli kaynaklar yeniden okunur.
-
-## İnceleme ve sınırlar
-
-`ai_tweet_drafts.evidence_json`, son normal taslağın olayını, alıntılarını, seçilmiş olgularını, gövde sayı eşleştirmelerini ve hangi aşamada düzeltme yapıldığını saklar. Başarısız Telegram işlemlerinde `result_text` güvenli hata nedeni içeren JSON'dur; doğrulama hatalarında aşama, sayı anlamı hatalarında ayrıca olgu kimliği/ölçüsü/kapsamı tutulur. Aynı bağlam düzeltme isteğine de eklenir. Yalnız `status=done` kayıtları taslak/okuma sonucu olarak kullanılır. API anahtarı veya kullanıcı ek talimatı bu alanlara yazılmaz. Özelleştirilmiş taslak normal önbelleği değiştirmez.
-
-HTML alıntıları uygulama tarafından birebir karşılaştırılır. PDF/dosya alıntıları için bağımsız yerel metin çıkarımı yapılmaz; ikinci çağrı özgün eki yeniden okur. Şema yalnız çıktı yapısını sınırlar, doğru yorumu garanti etmez. Metinsel iddialar, kısaltılmış şirket isimleri ve karmaşık tablolardaki anlamsal ilişkiler hâlâ model yorumuna bağlıdır. Yayın öncesi editör incelemesi gereklidir.
-
-İlk kaynak çözümleme dağıtımında `0024_ai_tweet_evidence.sql` D1 migration'ı Worker'dan önce uygulanmalıdır. Zaten uygulanmışsa bu düzeltme için yeni migration gerekmez. `editor-v14-party-context`, önceki sürümlerin taslaklarını yeniden kullanmaz. EGEGY ve SELEC'in gerçek kaynakları ile yakalanmış başarısız model yanıtları regresyon testlerinde tutulur; yalnız başarılı örnekler değil, nominal/adet karışması ve bütçenin harcanmış gibi yazılması da sınanır. OTKAR `1670620` resmî kaynağıyla, kimlik referansı eksik bir analiz testte yeniden kurulmuştur; bu test analizinin gerçek model yanıtı olduğu iddia edilmez. Ayrı `otkar-model-analysis.json`, canlı denemede saklanan gerçek model analizini içerir; sözleşme bedelinin `unknown` seçilmesi bu kayıtla sınanır. Yanlış şirket, eksik olay kanıtı ve değiştirilmiş sözleşme tutarı da sınanır.
+Normal taslak kaynak digest'i ve prompt sürümüyle önbelleğe alınır. Yeniden oluşturma ve ek talimat önbelleği atlar. Ekli kaynakların içeriği URL sabitken değişebileceğinden bunlar yeniden okunur. Özelleştirilmiş taslak normal önbelleği değiştirmez. `evidence_json` artık yalnız sürüm, doğrudan üretim modu ve kaynak türünü saklar. Önceki kayıtlar ve migration dosyaları korunur; bu değişiklik için yeni migration gerekmez.
