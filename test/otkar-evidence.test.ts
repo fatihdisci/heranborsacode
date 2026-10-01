@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import fixture from './fixtures/otkar-contract.json';
 import modelAnalysis from './fixtures/otkar-model-analysis.json';
-import { validateAnalysis, validateWrittenDraft, supportingEvidence, type SourceAnalysis } from '../src/ai/evidence';
+import { validateAnalysis, validateWrittenDraft, supportingEvidence, SourceValidationError, type SourceAnalysis } from '../src/ai/evidence';
 import type { SourceDocument } from '../src/ai/source-document';
 import { SYSTEM_PROMPT } from '../src/ai/prompt';
 
@@ -48,6 +48,13 @@ describe('OTKAR first-person KAP identity regression',()=>{
   it('rejects issuer identity as the only event evidence',()=>{
     const candidate=analysis();candidate.event.evidence=[ref(issuer)];
     expect(()=>validateAnalysis(candidate,document,[],fixture.title)).toThrow('yalnız yayıncı kimliğinden');
+  });
+  it('identifies the failed party field and the official source identity for a bounded correction',()=>{
+    const candidate=analysis();candidate.event.subject='Tekerlekli zırhlı araçlar';
+    let caught:unknown;
+    try {validateAnalysis(candidate,document,[],fixture.title);}catch(error){caught=error;}
+    expect(caught).toBeInstanceOf(SourceValidationError);
+    expect((caught as SourceValidationError).context).toEqual({partyRole:'subject',partyName:'Tekerlekli zırhlı araçlar',issuerName:issuer.text});
   });
   it('does not attach an issuer to an unrelated third-party event',()=>{
     const candidate=analysis();candidate.event.evidence=[ref(delivery)];candidate.facts=[];

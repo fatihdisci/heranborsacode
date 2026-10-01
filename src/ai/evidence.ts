@@ -36,7 +36,8 @@ export const ANALYSIS_SCHEMA=object({
 });
 export const DRAFT_SCHEMA=object({status:{type:'string',enum:['ready','reject']},body:string,usedFactIds:array(string),numericClaims:array(object({text:string,factId:string}))});
 export class SourceValidationError extends Error {
-  context?: {phase?:'source_analysis'|'tweet_writer';factId?:string;metric?:Metric;scope?:Scope};
+  context?: {phase?:'source_analysis'|'tweet_writer';factId?:string;metric?:Metric;scope?:Scope;
+    partyRole?:'actor'|'subject';partyName?:string;issuerName?:string|null};
   constructor(reason:string) {super(`Kaynak doğrulaması başarısız: ${reason}`);this.name='SourceValidationError';}
 }
 const fail=(reason:string):never=>{throw new SourceValidationError(reason);};
@@ -230,7 +231,14 @@ export function validateAnalysis(value:unknown,document:SourceDocument|null,atta
     }
   });
   const evidenceText=contexts(allRefs,registry),eventText=normalizeLabel(contexts(event.evidence,registry));
-  for(const actor of [event.actor,event.subject])if(actor && !partyIn(actor,evidenceText))fail('işlemin tarafı kaynakta yok');
+  for(const role of ['actor','subject'] as const) {
+    const name=event[role];
+    if(name && !partyIn(name,evidenceText)) {
+      const error=new SourceValidationError('işlemin tarafı kaynakta yok');
+      error.context={partyRole:role,partyName:name,issuerName:registry.get('kap-issuer')?.text??null};
+      throw error;
+    }
+  }
   // Date spelling is metadata, not a different amount: 30 Eylül 2026 and
   // 30.09.2026 name the same day. All other numbers still match exactly.
   let summaryNumbers=event.summary;
