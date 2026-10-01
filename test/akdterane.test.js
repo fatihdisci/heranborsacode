@@ -11,7 +11,7 @@ it('keeps the original AKD stock list independent of subsequent Terane edits and
     expect(akd.name).toBe('akdterane');
     expect(akdSteps).toHaveLength(14);
     expect(akdSteps).toContainEqual({botUsername:'b0pt_bot',command:'/akd tera',delaySeconds:3});
-    expect(akdSteps.filter(step=>step.command!=='/akd tera')).toEqual(sourceSteps.map(step=>({...step,command:step.command.replace('/derinlik ','/akd ')})));
+    expect(akdSteps.filter(step=>step.command!=='/akd tera')).toEqual(sourceSteps.filter(step=>step.command!=='/derinlik manas').map(step=>({...step,command:step.command.replace('/derinlik ','/akd ')})));
     const queued=await enqueueTemplateJob(env,AKDTERANE_TEMPLATE_ID,'telegram:123:1:/akdterane');
     expect(queued).toMatchObject({name:'akdterane',created:true,steps:akdSteps});
     expect(sql.prepare('SELECT template_id FROM command_jobs WHERE id=?').get(queued.id).template_id).toBe(AKDTERANE_TEMPLATE_ID);
