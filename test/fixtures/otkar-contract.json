@@ -1,0 +1,517 @@
+{
+  "url": "https://www.kap.org.tr/tr/Bildirim/1670620",
+  "title": "Özel Durum Açıklaması (Genel)",
+  "document": {
+    "version": 1,
+    "passages": [
+      {
+        "id": "p1",
+        "text": "İlgili Şirketler",
+        "section": ""
+      },
+      {
+        "id": "p2",
+        "text": "[]",
+        "section": ""
+      },
+      {
+        "id": "p3",
+        "text": "İlgili Fonlar",
+        "section": ""
+      },
+      {
+        "id": "p4",
+        "text": "[]",
+        "section": ""
+      },
+      {
+        "id": "p5",
+        "text": "Türkçe",
+        "section": ""
+      },
+      {
+        "id": "p6",
+        "text": "oda_MaterialEventDisclosureGeneralAbstract|",
+        "section": ""
+      },
+      {
+        "id": "p7",
+        "text": "oda_UpdateAnnouncementFlag|",
+        "section": ""
+      },
+      {
+        "id": "p8",
+        "text": "Hayır (No)",
+        "section": ""
+      },
+      {
+        "id": "p9",
+        "text": "oda_CorrectionAnnouncementFlag|",
+        "section": ""
+      },
+      {
+        "id": "p10",
+        "text": "Hayır (No)",
+        "section": ""
+      },
+      {
+        "id": "p11",
+        "text": "oda_DateOfThePreviousNotificationAboutTheSameSubject|",
+        "section": ""
+      },
+      {
+        "id": "p12",
+        "text": "-",
+        "section": ""
+      },
+      {
+        "id": "p13",
+        "text": "oda_DelayedAnnouncementFlag|",
+        "section": ""
+      },
+      {
+        "id": "p14",
+        "text": "Hayır (No)",
+        "section": ""
+      },
+      {
+        "id": "p15",
+        "text": "oda_AnnouncementContentSection|",
+        "section": ""
+      },
+      {
+        "id": "p16",
+        "text": "oda_ExplanationSection|",
+        "section": ""
+      },
+      {
+        "id": "p17",
+        "text": "oda_ExplanationTextBlock|",
+        "section": ""
+      },
+      {
+        "id": "p18",
+        "text": "Şirketimiz, çeşitli tiplerde tekerlekli zırhlı araçların tedariki ile bu araçların entegre lojistik destek hizmetlerini kapsayan 1.472.080.360 USD bedelli bir ihracat sözleşmesi imzalamıştır. Sözleşme, gerekli resmi makam onaylarının alınması sonrası, teminat mektubu işlemlerinin tamamlanması ve avans ödemesinin yapılmasını takiben yürürlüğe girecektir. Şirketimizin sözleşme kapsamındaki yükümlülüklerinin ve tahsil edeceği avansın teminatı olarak toplam tutarı 441.624.108 USD olan teminat mektupları müşteriye temin edilecektir.",
+        "section": ""
+      },
+      {
+        "id": "p19",
+        "text": "İlgili araç teslimatlarının, 2027 yılından itibaren başlayarak partiler halinde 3 yıl içerisinde tamamlanması planlanmakta olup, sözleşme 7 yıl boyunca yürürlükte kalacaktır.",
+        "section": ""
+      },
+      {
+        "id": "p20",
+        "text": "İşbu açıklamamızın İngilizce çevirisi eş anlı kamuya açıklanmış olup, açıklama metinlerinde herhangi bir farklılık olması durumunda Türkçe açıklama esas kabul edilecektir.",
+        "section": ""
+      },
+      {
+        "id": "kap-issuer",
+        "text": "OTOKAR OTOMOTİV VE SAVUNMA SANAYİ A.Ş.",
+        "section": "Resmi KAP yayıncı kimliği; işlemi yapan taraf olduğu varsayılmaz"
+      }
+    ],
+    "tables": [
+      {
+        "id": "t1",
+        "section": "",
+        "caption": "",
+        "unitContext": "",
+        "rows": [],
+        "cells": []
+      },
+      {
+        "id": "t2",
+        "section": "",
+        "caption": "",
+        "unitContext": "",
+        "rows": [
+          [
+            {
+              "text": "Özel Durum Açıklaması (Genel)",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            }
+          ]
+        ],
+        "cells": [
+          {
+            "id": "t2:r1:c1",
+            "row": 1,
+            "column": 1,
+            "text": "Özel Durum Açıklaması (Genel)",
+            "columnHeaders": [],
+            "rowHeaders": [],
+            "section": "",
+            "metric": "unknown",
+            "scope": "unknown",
+            "unit": null,
+            "transactionDate": null,
+            "transactionRowsOnDate": null,
+            "ambiguous": true
+          }
+        ]
+      },
+      {
+        "id": "t3",
+        "section": "",
+        "caption": "",
+        "unitContext": "",
+        "rows": [
+          [
+            {
+              "text": "",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "Yapılan Açıklama Güncelleme mi?",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            }
+          ]
+        ],
+        "cells": [
+          {
+            "id": "t3:r1:c2",
+            "row": 1,
+            "column": 2,
+            "text": "Yapılan Açıklama Güncelleme mi?",
+            "columnHeaders": [],
+            "rowHeaders": [],
+            "section": "",
+            "metric": "unknown",
+            "scope": "unknown",
+            "unit": null,
+            "transactionDate": null,
+            "transactionRowsOnDate": null,
+            "ambiguous": true
+          }
+        ]
+      },
+      {
+        "id": "t4",
+        "section": "",
+        "caption": "",
+        "unitContext": "",
+        "rows": [
+          [
+            {
+              "text": "",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "Yapılan Açıklama Düzeltme mi?",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            }
+          ]
+        ],
+        "cells": [
+          {
+            "id": "t4:r1:c2",
+            "row": 1,
+            "column": 2,
+            "text": "Yapılan Açıklama Düzeltme mi?",
+            "columnHeaders": [],
+            "rowHeaders": [],
+            "section": "",
+            "metric": "unknown",
+            "scope": "unknown",
+            "unit": null,
+            "transactionDate": null,
+            "transactionRowsOnDate": null,
+            "ambiguous": true
+          }
+        ]
+      },
+      {
+        "id": "t5",
+        "section": "",
+        "caption": "",
+        "unitContext": "",
+        "rows": [
+          [
+            {
+              "text": "",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "Konuya İlişkin Daha Önce Yapılan Açıklamanın Tarihi",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            }
+          ]
+        ],
+        "cells": [
+          {
+            "id": "t5:r1:c2",
+            "row": 1,
+            "column": 2,
+            "text": "Konuya İlişkin Daha Önce Yapılan Açıklamanın Tarihi",
+            "columnHeaders": [],
+            "rowHeaders": [],
+            "section": "",
+            "metric": "unknown",
+            "scope": "unknown",
+            "unit": null,
+            "transactionDate": null,
+            "transactionRowsOnDate": null,
+            "ambiguous": true
+          }
+        ]
+      },
+      {
+        "id": "t6",
+        "section": "",
+        "caption": "",
+        "unitContext": "",
+        "rows": [
+          [
+            {
+              "text": "",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "Yapılan Açıklama Ertelenmiş Bir Açıklama mı?",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            }
+          ]
+        ],
+        "cells": [
+          {
+            "id": "t6:r1:c2",
+            "row": 1,
+            "column": 2,
+            "text": "Yapılan Açıklama Ertelenmiş Bir Açıklama mı?",
+            "columnHeaders": [],
+            "rowHeaders": [],
+            "section": "",
+            "metric": "unknown",
+            "scope": "unknown",
+            "unit": null,
+            "transactionDate": null,
+            "transactionRowsOnDate": null,
+            "ambiguous": true
+          }
+        ]
+      },
+      {
+        "id": "t7",
+        "section": "",
+        "caption": "",
+        "unitContext": "",
+        "rows": [
+          [
+            {
+              "text": "",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "Bildirim İçeriği",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            }
+          ]
+        ],
+        "cells": [
+          {
+            "id": "t7:r1:c2",
+            "row": 1,
+            "column": 2,
+            "text": "Bildirim İçeriği",
+            "columnHeaders": [],
+            "rowHeaders": [],
+            "section": "",
+            "metric": "unknown",
+            "scope": "unknown",
+            "unit": null,
+            "transactionDate": null,
+            "transactionRowsOnDate": null,
+            "ambiguous": true
+          }
+        ]
+      },
+      {
+        "id": "t8",
+        "section": "",
+        "caption": "",
+        "unitContext": "",
+        "rows": [
+          [
+            {
+              "text": "",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "Açıklamalar",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            },
+            {
+              "text": "",
+              "header": false,
+              "rowSpan": 1,
+              "colSpan": 1
+            }
+          ]
+        ],
+        "cells": [
+          {
+            "id": "t8:r1:c2",
+            "row": 1,
+            "column": 2,
+            "text": "Açıklamalar",
+            "columnHeaders": [],
+            "rowHeaders": [],
+            "section": "",
+            "metric": "unknown",
+            "scope": "unknown",
+            "unit": null,
+            "transactionDate": null,
+            "transactionRowsOnDate": null,
+            "ambiguous": true
+          }
+        ]
+      }
+    ]
+  }
+}

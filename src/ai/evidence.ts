@@ -45,6 +45,35 @@ const numbers=(value:string)=>[...value.matchAll(/[+−-]\s*\d+(?:[.,/]\d+)*|\d+
 const text=(value:unknown,max=2000):value is string=>typeof value==='string' && value.trim().length>0 && value.length<=max;
 const nullable=(value:unknown):value is string|null=>value===null || text(value);
 
+// Legal names may differ only in punctuation (A.Ş. / AŞ). Keep every
+// substantive word, and compare complete tokens rather than substrings.
+function partyName(value:string):string {
+  return normalizeLabel(value).replace(/[^\p{L}\p{N}]+/gu,' ').trim()
+    .replace(/\ba\s+s\b|\bas\b/g,'anonim sirketi');
+}
+function partyIn(name:string,source:string):boolean {
+  return (` ${partyName(source)} `).includes(` ${partyName(name)} `);
+}
+
+function includeIssuerIdentity(event:VerifiedEvent,registry:Map<string,Entry>):void {
+  const issuer=registry.get('kap-issuer');
+  // An issuer alone does not prove an event or the actor of a shareholder
+  // trade. Resolve first-person disclosure prose only, retaining its event
+  // evidence independently of the official identity reference.
+  if(!issuer || event.kind==='ownership_transaction' || !event.evidence.some(ref=>
+    ref.sourceId!=='kap-issuer' && registry.has(ref.sourceId) &&
+    /\b(?:sirketimiz|ortakligimiz)\b/.test(normalizeLabel(ref.quote))))return;
+  const identity=partyName(issuer.text);
+  const matches=[event.actor,event.subject].some(name=>{
+    if(!name)return false;
+    const key=partyName(name);
+    return key===identity || (key.length>=3 && identity.startsWith(`${key} `));
+  });
+  if(matches && !event.evidence.some(ref=>ref.sourceId==='kap-issuer')) {
+    event.evidence.push({sourceId:'kap-issuer',quote:issuer.text,location:null});
+  }
+}
+
 function entries(document:SourceDocument|null):Map<string,Entry> {
   const result=new Map<string,Entry>();
   for(const passage of document?.passages??[])result.set(passage.id,passage);
@@ -127,6 +156,7 @@ export function validateAnalysis(value:unknown,document:SourceDocument|null,atta
   if(!event || !KINDS.includes(event.kind) || !STAGES.includes(event.stage) || !DIRECTIONS.includes(event.direction) || !nullable(event.actor) || !nullable(event.subject) || !nullable(event.eventDate) || !text(event.summary))fail('ana olay eksik');
   event.evidence=refs(event.evidence,registry,attachments);
   if(!event.evidence.some(ref=>ref.sourceId!=='kap-issuer'))fail('yalnız yayıncı kimliğinden olay çıkarıldı');
+  includeIssuerIdentity(event,registry);
   if(!Array.isArray(analysis.facts) || analysis.facts.length>12 || !Array.isArray(analysis.ambiguities) || analysis.ambiguities.length>20 || !analysis.ambiguities.every(v=>typeof v==='string' && v.length<=2000))fail('olgu listesi hatalı');
   const allRefs=[...event.evidence];
   analysis.facts.forEach((fact,i)=>{
@@ -186,7 +216,7 @@ export function validateAnalysis(value:unknown,document:SourceDocument|null,atta
     }
   });
   const evidenceText=contexts(allRefs,registry),eventText=normalizeLabel(contexts(event.evidence,registry));
-  for(const actor of [event.actor,event.subject])if(actor && !normalizeLabel(evidenceText).includes(normalizeLabel(actor)))fail('işlemin tarafı kaynakta yok');
+  for(const actor of [event.actor,event.subject])if(actor && !partyIn(actor,evidenceText))fail('işlemin tarafı kaynakta yok');
   // Date spelling is metadata, not a different amount: 30 Eylül 2026 and
   // 30.09.2026 name the same day. All other numbers still match exactly.
   let summaryNumbers=event.summary;
@@ -200,7 +230,7 @@ export function validateAnalysis(value:unknown,document:SourceDocument|null,atta
   if(activity==='ownership' && event.kind!=='ownership_transaction')fail('pay alım/satımı geri alım gibi çözümlendi');
   if(activity==='buyback' && !event.kind.startsWith('buyback_'))fail('geri alım olay türü doğrulanamadı');
   if(event.kind==='ownership_transaction' && (!event.actor || event.direction==='none'))fail('pay alım/satımının tarafı veya yönü belirsiz');
-  if(event.kind==='ownership_transaction' && event.actor && !allRefs.some(ref=>ref.sourceId!=='kap-issuer' && normalizeLabel(ref.quote).includes(normalizeLabel(event.actor!))))fail('bildirim yayıncısı işlemi yapan taraf olarak varsayıldı');
+  if(event.kind==='ownership_transaction' && event.actor && !allRefs.some(ref=>ref.sourceId!=='kap-issuer' && partyIn(event.actor!,ref.quote)))fail('bildirim yayıncısı işlemi yapan taraf olarak varsayıldı');
   if(event.kind==='buyback_transaction' && event.stage!=='executed')fail('geri alım işlemi gerçekleşme olarak doğrulanmadı');
   if(event.kind==='buyback_transaction' && event.direction==='none')fail('geri alım/satım işlem yönü belirsiz');
   if(event.kind==='buyback_transaction') {

@@ -4,6 +4,7 @@ import { database } from './db-harness';
 import { pollRSSSource } from '../src/rss/poll';
 import { generateTweetDraft } from '../src/ai/tweet';
 import { enqueueStatement,flushCircuitBreakers,deliverOne } from '../src/telegram/outbox';
+import otkarSource from './fixtures/otkar-contract.json';
 let sql,env;
 beforeEach(()=>{({sql,env}=database());});
 afterEach(()=>{sql.close();vi.unstubAllGlobals();});
@@ -14,6 +15,31 @@ function analysisOutput(sourceText,facts=[],sourceId='p1') {
 }
 function draftOutput(body,usedFactIds=[],numericClaims=[]) {return {status:'ready',body,usedFactIds,numericClaims};}
 function modelResponse(output,status='completed') {return new Response(JSON.stringify({status,output_text:JSON.stringify(output)}));}
+it('carries a resolved first-person KAP issuer into the writer and cache without a repair call',async()=>{
+  sql.exec("INSERT INTO feed_items(type,source,source_ref,title,url,tickers_json) VALUES ('kap','KAP','kap:1670620','Özel Durum Açıklaması (Genel)','https://www.kap.org.tr/tr/Bildirim/1670620','[\"OTKAR\"]')");
+  const item=sql.prepare('SELECT * FROM feed_items').get();
+  const issuer=otkarSource.document.passages.find(p=>p.id==='kap-issuer').text;
+  const sourceText=otkarSource.document.passages.find(p=>p.text.startsWith('Şirketimiz, çeşitli tiplerde')).text;
+  const stream=JSON.stringify([1,JSON.stringify({disclosureBasic:{disclosureIndex:1670620,attachmentCount:0,companyTitle:issuer},attachments:[]})]);
+  const calls=[];
+  const body='Otokar, tekerlekli zırhlı araç tedariki ve entegre lojistik destek için ihracat sözleşmesi imzaladı. Yürürlüğe girmesi resmî onay, teminat işlemleri ve avans ödemesine bağlı.';
+  vi.stubGlobal('fetch',vi.fn(async(url,init)=>{
+    if(url===item.url)return new Response(`<div class="disclosureScrollableArea"><p>${sourceText}</p></div><script>self.__next_f.push(${stream})</script>`,{headers:{'content-type':'text/html'}});
+    const request=JSON.parse(init.body);calls.push(request);
+    if(request.text.format.name==='source_analysis')return modelResponse({
+      ...analysisOutput(sourceText),event:{...analysisOutput(sourceText).event,actor:issuer,subject:issuer},
+    });
+    const evidence=JSON.parse(request.input[0].content[0].text);
+    expect(evidence.supportingEvidence).toContainEqual(expect.objectContaining({id:'kap-issuer',text:issuer}));
+    expect(evidence.verifiedEvent.evidence).toContainEqual({sourceId:'kap-issuer',quote:issuer,location:null});
+    return modelResponse(draftOutput(body));
+  }));
+  expect(await generateTweetDraft({...env,OPENAI_API_KEY:'fake-test-key'},item)).toEqual({tweet:`#OTKAR\n\n${body}`,cached:false});
+  expect(calls).toHaveLength(2);
+  const audit=JSON.parse(sql.prepare('SELECT evidence_json FROM ai_tweet_drafts').get().evidence_json);
+  expect(audit.analysis.event.evidence).toContainEqual({sourceId:'kap-issuer',quote:issuer,location:null});
+  expect(audit.repairs).toEqual({analysis:false,writer:false});
+});
 it.each(['source_analysis','tweet_writer'])('repairs one invalid %s output with source evidence and records the repair',async phase=>{
   sql.exec("INSERT INTO feed_items(type,source,source_ref,title,url,tickers_json) VALUES ('news','Test','rss:repair','Sözleşme','https://example.com/repair','[]')");
   const item=sql.prepare('SELECT * FROM feed_items').get();
