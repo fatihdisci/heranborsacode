@@ -44,10 +44,11 @@ it('filters the newly muted KAP titles at delivery even when saved preferences p
   const p=prefs();p.excludedTitles=[];await savePreferences(env,p);
   await queue(item('Pay Dışında Sermaye Piyasası Aracı İşlemlerine İlişkin Bildirim (Faizsiz)'),'kap:1');
   await queue(item('Kurumsal Yönetim Bilgi Formu (Güncelleme) - Yönetim Kurulu-2'),'kap:2');
+  await queue(item('Fon Gider Bilgileri',[],'Örnek Portföy Fonu'),'kap:3');
   const sent=vi.fn();vi.stubGlobal('fetch',sent);
-  await deliverOne(env);await deliverOne(env);
+  await deliverOne(env);await deliverOne(env);await deliverOne(env);
   expect(sent).not.toHaveBeenCalled();
-  expect(sql.prepare("SELECT count(*) AS n FROM telegram_outbox WHERE status='filtered'").get().n).toBe(2);
+  expect(sql.prepare("SELECT count(*) AS n FROM telegram_outbox WHERE status='filtered'").get().n).toBe(3);
 });
 it('never sends an İç Tüzük KAP notice even when all company alerts are enabled',async()=>{
   const p=prefs();p.excludedTitles=[];p.watchlist=[{ticker:'THYAO',mode:'all',topics:[]}];

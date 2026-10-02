@@ -6,11 +6,11 @@ export const TOPICS={dividend:'Temettü',buyback:'Geri alım',financials:'Finans
 export type Topic=keyof typeof TOPICS;
 export interface WatchRule {ticker:string; mode:'important'|'all'|'topics'; topics:Topic[];}
 export interface Preferences {version:1;watchlist:WatchRule[];otherCompanies:'all'|'topics'|'off';otherTopics:Topic[];funds:'instant'|'digest'|'off';digestHour:number;priorityIndices:boolean;excludedTitles:string[];}
-export const DEFAULTS:Preferences={version:1,watchlist:[],otherCompanies:'all',otherTopics:['dividend','buyback'],funds:'instant',digestHour:19,priorityIndices:true,excludedTitles:['İhraç belgesi','Fon ihraç sözleşmesi','Kredi kullanımı','İç Tüzük','Pay Dışında Sermaye Piyasası Aracı İşlemlerine İlişkin Bildirim (Faizsiz)','Kurumsal Yönetim Bilgi Formu (Güncelleme) - Yönetim Kurulu-2']};
+export const DEFAULTS:Preferences={version:1,watchlist:[],otherCompanies:'all',otherTopics:['dividend','buyback'],funds:'instant',digestHour:19,priorityIndices:true,excludedTitles:['İhraç belgesi','Fon ihraç sözleşmesi','Kredi kullanımı','İç Tüzük','Fon Gider Bilgileri','Pay Dışında Sermaye Piyasası Aracı İşlemlerine İlişkin Bildirim (Faizsiz)','Kurumsal Yönetim Bilgi Formu (Güncelleme) - Yönetim Kurulu-2']};
 export const normalize=(text:string)=>text.toLocaleUpperCase('tr-TR').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/ı/g,'I');
 export const isMutedKapTitle=(title:string):boolean=>{
   const compact=normalize(title).replace(/[^A-Z0-9]/g,'');
-  return /ICTUZU[KG]|PAYDISINDASERMAYEPIYASASIARACIISLEMLERINEILISKINBILDIRIMFAIZSIZ|KURUMSALYONETIMBILGIFORMUGUNCELLEMEYONETIMKURULU2/.test(compact);
+  return /FONGIDERBILGILERI|ICTUZU[KG]|PAYDISINDASERMAYEPIYASASIARACIISLEMLERINEILISKINBILDIRIMFAIZSIZ|KURUMSALYONETIMBILGIFORMUGUNCELLEMEYONETIMKURULU2/.test(compact);
 };
 export const isCriticalFundDisclosure=(item:Pick<FeedItem,'title'|'body'>):boolean=>{
   const title=normalize(item.title),context=normalize(`${item.title} ${item.body??''}`);
